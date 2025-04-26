@@ -6,11 +6,11 @@ export default async function DashboardPage() {
   const supabase = createSupabaseServerClient();
 
   // Fetch counts in parallel
-  const {'count': plantCount, error: plantError } = await supabase
+  const { count: cropVarietyCount, error: cropVarietyError } = await supabase
     .from('plants')
     .select('*', { count: 'exact', head: true });
 
-  const { 'count': plotCount, error: plotError } = await supabase
+  const { count: plotCount, error: plotError } = await supabase
     .from('plots')
     .select('*', { count: 'exact', head: true });
 
@@ -18,8 +18,8 @@ export default async function DashboardPage() {
     .from('crops')
     .select('*', { count: 'exact', head: true });
 
-  if (plantError || plotError || cropError) {
-      console.error('Error fetching counts:', { plantError, plotError, cropError });
+  if (cropVarietyError || plotError || cropError) {
+      console.error('Error fetching counts:', { cropVarietyError, plotError, cropError });
       // Handle error display appropriately, maybe show partial data or an error message
   }
 
@@ -29,12 +29,12 @@ export default async function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Plants</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Crop Varieties</CardTitle>
             <Leaf className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{plantCount ?? 'N/A'}</div>
-            {plantError && <p className="text-xs text-red-500">Error loading</p>}
+            <div className="text-2xl font-bold">{cropVarietyCount ?? 'N/A'}</div>
+            {cropVarietyError && <p className="text-xs text-red-500">Error loading</p>}
           </CardContent>
         </Card>
         <Card>

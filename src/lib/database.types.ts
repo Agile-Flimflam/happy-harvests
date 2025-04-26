@@ -6,32 +6,18 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export type DaysToMaturity = {
+  DirectSeed: {
+    min: number
+    max: number
+  } | null
+  Transplant: {
+    min: number
+    max: number
+  } | null
+} | null
+
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          operationName?: string
-          query?: string
-          variables?: Json
-          extensions?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       beds: {
@@ -40,6 +26,7 @@ export type Database = {
           id: string
           length_in: number | null
           name: string
+          notes: string | null
           plot_id: string
           width_in: number | null
         }
@@ -48,6 +35,7 @@ export type Database = {
           id?: string
           length_in?: number | null
           name: string
+          notes?: string | null
           plot_id: string
           width_in?: number | null
         }
@@ -56,6 +44,7 @@ export type Database = {
           id?: string
           length_in?: number | null
           name?: string
+          notes?: string | null
           plot_id?: string
           width_in?: number | null
         }
@@ -69,13 +58,58 @@ export type Database = {
           },
         ]
       }
+      crop_varieties: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          days_to_maturity: DaysToMaturity
+          disease_resistance: string | null
+          hybrid_status: string | null
+          id: string
+          is_organic: boolean | null
+          latin_name: string | null
+          name: string
+          notes: string | null
+          size: string | null
+          variety: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          days_to_maturity?: DaysToMaturity
+          disease_resistance?: string | null
+          hybrid_status?: string | null
+          id?: string
+          is_organic?: boolean | null
+          latin_name?: string | null
+          name: string
+          notes?: string | null
+          size?: string | null
+          variety?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          days_to_maturity?: DaysToMaturity
+          disease_resistance?: string | null
+          hybrid_status?: string | null
+          id?: string
+          is_organic?: boolean | null
+          latin_name?: string | null
+          name?: string
+          notes?: string | null
+          size?: string | null
+          variety?: string | null
+        }
+        Relationships: []
+      }
       crops: {
         Row: {
           bed_id: string
           created_at: string | null
+          crop_variety_id: string
           harvested_date: string | null
           id: string
-          plant_id: string
           planted_date: string | null
           row_spacing_cm: number | null
           seed_spacing_cm: number | null
@@ -84,9 +118,9 @@ export type Database = {
         Insert: {
           bed_id: string
           created_at?: string | null
+          crop_variety_id: string
           harvested_date?: string | null
           id?: string
-          plant_id: string
           planted_date?: string | null
           row_spacing_cm?: number | null
           seed_spacing_cm?: number | null
@@ -95,9 +129,9 @@ export type Database = {
         Update: {
           bed_id?: string
           created_at?: string | null
+          crop_variety_id?: string
           harvested_date?: string | null
           id?: string
-          plant_id?: string
           planted_date?: string | null
           row_spacing_cm?: number | null
           seed_spacing_cm?: number | null
@@ -112,43 +146,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "crops_plant_id_fkey"
-            columns: ["plant_id"]
+            foreignKeyName: "crops_crop_variety_id_fkey"
+            columns: ["crop_variety_id"]
             isOneToOne: false
-            referencedRelation: "plants"
+            referencedRelation: "crop_varieties"
             referencedColumns: ["id"]
           },
         ]
-      }
-      plants: {
-        Row: {
-          avg_days_to_maturity: number | null
-          created_at: string | null
-          id: string
-          is_organic: boolean | null
-          latin_name: string | null
-          name: string
-          variety: string | null
-        }
-        Insert: {
-          avg_days_to_maturity?: number | null
-          created_at?: string | null
-          id?: string
-          is_organic?: boolean | null
-          latin_name?: string | null
-          name: string
-          variety?: string | null
-        }
-        Update: {
-          avg_days_to_maturity?: number | null
-          created_at?: string | null
-          id?: string
-          is_organic?: boolean | null
-          latin_name?: string | null
-          name?: string
-          variety?: string | null
-        }
-        Relationships: []
       }
       plots: {
         Row: {
@@ -293,9 +297,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       crop_status: ["planned", "planted", "growing", "harvested"],

@@ -2,7 +2,10 @@
 
 // Import types and browser client
 import { createBrowserClient } from '@supabase/ssr';
-import type { Database } from './database.types'; // Use generated types
+import type { Database } from './database.types'; // Adjust import path
+
+// Export the Database type itself
+export type { Database };
 
 // Type aliases for convenience
 export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row'];

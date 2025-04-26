@@ -7,7 +7,7 @@ import { Home, Leaf, Fence, Sprout } from 'lucide-react'; // Icons (removed Trac
 
 const links = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
-  { name: 'Plants', href: '/dashboard/plants', icon: Leaf },
+  { name: 'Crop Varieties', href: '/dashboard/crop-varieties', icon: Leaf },
   { name: 'Plots & Beds', href: '/dashboard/plots', icon: Fence },
   { name: 'Crops', href: '/dashboard/crops', icon: Sprout },
 ];

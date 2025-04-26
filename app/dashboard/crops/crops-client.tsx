@@ -1,7 +1,7 @@
 'use client'; // Client component for dialog state and actions
 
 import { useState } from 'react';
-import type { Tables } from '@/lib/supabase';
+import type { Tables, Database } from '@/lib/supabase';
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,31 +20,30 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge"; // For status display
 import { CropForm } from '@/components/forms/CropForm';
-import { deleteCrop } from '@/app/actions/crops';
+import { deleteCrop, type CropStatus } from '@/app/actions/crops';
 import { Pencil, Trash2, PlusCircle } from 'lucide-react';
 import { toast } from "sonner";
 import { format } from 'date-fns'; // For formatting dates
 
-// Define types based on the detailed fetch query
-type Crop = Tables<'crops'>;
-type Plant = Tables<'plants'>;
-// Make plots optional as the relation might not always be loaded/present
+// Define types based on the updated actions file
+type Crop = Tables<'crops'>; // Base type now includes crop_variety_id
+type CropVariety = Database['public']['Tables']['crop_varieties']['Row']; 
 type Bed = Tables<'beds'> & { plots?: { name: string } | null };
+
+// Align with CropWithDetails from app/actions/crops.ts
 type CropWithDetails = Crop & {
-  plants: { name: string; variety: string | null } | null;
-  // Adjust beds type here too to reflect optional plots
-  beds: (Tables<'beds'> & { plots?: { name: string } | null }) | null;
+  crop_varieties: { name: string; variety: string | null } | null; 
+  beds: { name: string, plots: { name: string } | null } | null;
 };
 
 interface CropsClientProps {
   crops: CropWithDetails[];
-  plants: Plant[]; // Pass full plant list for form
-  // Use the updated Bed type
-  beds: Bed[]; // Pass full bed list (with plot names) for form
+  cropVarieties: CropVariety[]; // For the form
+  beds: Bed[]; // For the form
 }
 
 // Client Component for Crops Page
-export function CropsClient({ crops, plants, beds }: CropsClientProps) {
+export function CropsClient({ crops, cropVarieties, beds }: CropsClientProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCrop, setEditingCrop] = useState<Crop | null>(null);
 
@@ -86,13 +85,14 @@ export function CropsClient({ crops, plants, beds }: CropsClientProps) {
   };
 
   // Helper to get badge variant based on status
-  const getStatusVariant = (status: string | null): "default" | "secondary" | "destructive" | "outline" | null | undefined => {
+  // Use imported CropStatus type
+  const getStatusVariant = (status: CropStatus | null): "default" | "secondary" | "destructive" | "outline" | null | undefined => {
     switch (status) {
         case 'planted': return 'default';
         case 'growing': return 'secondary';
         case 'harvested': return 'outline';
         case 'planned':
-        default: return 'secondary'; // Use secondary for planned or unknown
+        default: return 'secondary';
     }
   }
 
@@ -114,7 +114,7 @@ export function CropsClient({ crops, plants, beds }: CropsClientProps) {
               {editingCrop ? 'Update the details of the crop.' : 'Enter the details for the new crop.'}
             </DialogDescription>
           </DialogHeader>
-          <CropForm crop={editingCrop} plants={plants} beds={beds} closeDialog={closeDialog} />
+          <CropForm crop={editingCrop} cropVarieties={cropVarieties} beds={beds} closeDialog={closeDialog} />
         </DialogContent>
       </Dialog>
 
@@ -122,8 +122,8 @@ export function CropsClient({ crops, plants, beds }: CropsClientProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Plant</TableHead>
-              <TableHead>Variety</TableHead>
+              <TableHead>Variety Name</TableHead>
+              <TableHead>Variety Specifier</TableHead>
               <TableHead>Bed (Plot)</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Planted</TableHead>
@@ -139,11 +139,11 @@ export function CropsClient({ crops, plants, beds }: CropsClientProps) {
             )}
             {crops.map((crop) => (
               <TableRow key={crop.id}>
-                <TableCell className="font-medium">{crop.plants?.name ?? 'N/A'}</TableCell>
-                <TableCell>{crop.plants?.variety ?? 'N/A'}</TableCell>
+                <TableCell className="font-medium">{crop.crop_varieties?.name ?? 'N/A'}</TableCell>
+                <TableCell>{crop.crop_varieties?.variety ?? 'N/A'}</TableCell>
                 <TableCell>{crop.beds?.name ?? 'N/A'} ({crop.beds?.plots?.name ?? 'N/A'})</TableCell>
                 <TableCell>
-                    <Badge variant={getStatusVariant(crop.status)}>{crop.status ?? 'N/A'}</Badge>
+                    <Badge variant={getStatusVariant(crop.status as CropStatus | null)}>{crop.status ?? 'N/A'}</Badge>
                 </TableCell>
                 <TableCell>{formatDate(crop.planted_date)}</TableCell>
                 <TableCell>{formatDate(crop.harvested_date)}</TableCell>

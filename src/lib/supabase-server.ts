@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { type NextRequest } from 'next/server';
-import type { Database } from './database.types'; // Use generated types
+import type { Database } from './database.types'; // Adjust import path
 
 // Re-export types used in both server and client
 export type { Database };

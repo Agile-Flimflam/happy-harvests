@@ -11,6 +11,7 @@ const BedSchema = z.object({
   name: z.string().min(1, { message: 'Bed name is required' }),
   length_in: z.coerce.number().int().positive().optional().nullable(),
   width_in: z.coerce.number().int().positive().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 type Bed = Tables<'beds'>;
@@ -35,6 +36,7 @@ export async function createBed(
     name: formData.get('name'),
     length_in: formData.get('length_in') || null,
     width_in: formData.get('width_in') || null,
+    notes: formData.get('notes') || null,
   });
 
   if (!validatedFields.success) {
@@ -86,6 +88,7 @@ export async function updateBed(
     name: formData.get('name'),
     length_in: formData.get('length_in') || null,
     width_in: formData.get('width_in') || null,
+    notes: formData.get('notes') || null,
   });
 
   if (!validatedFields.success) {

@@ -5,32 +5,43 @@
 // Add import for the client component
 import { CropsClient } from './crops-client';
 import { getCropsWithDetails } from '@/app/actions/crops';
-import { getPlants } from '@/app/actions/plants';
+import { getCropVarieties } from '@/app/actions/crop-varieties';
 import { getBeds } from '@/app/actions/beds';
 
 export default async function CropsPage() {
   // Fetch all necessary data in parallel
   const [
-      { crops, error: cropsError },
-      { plants, error: plantsError },
-      { beds, error: bedsError }
+      cropsResult,
+      varietiesResult,
+      bedsResult
     ] = await Promise.all([
       getCropsWithDetails(),
-      getPlants(),
-      getBeds() // Fetch beds with plot names for the form dropdown
+      getCropVarieties(),
+      getBeds()
   ]);
 
-  if (cropsError || plantsError || bedsError) {
-    console.error("Error loading data for crops page:", { cropsError, plantsError, bedsError });
-    // Render specific error messages or a general error
-    const errorMessage = [cropsError, plantsError, bedsError].filter(Boolean).join('; ');
+  // Extract data and errors safely
+  const crops = cropsResult.crops;
+  const cropsError = cropsResult.error;
+  const cropVarieties = varietiesResult.cropVarieties; // Will be undefined if varietiesResult has error
+  const varietiesError = varietiesResult.error;
+  const beds = bedsResult.beds;
+  const bedsError = bedsResult.error;
+
+  // Centralized error check
+  if (cropsError || varietiesError || bedsError) {
+    console.error("Error loading data for crops page:", { cropsError, varietiesError, bedsError });
+    const errorMessage = [cropsError, varietiesError, bedsError].filter(Boolean).join('; ');
+    // Consider showing a more user-friendly error component
     return <div className="text-red-500">Error loading page data: {errorMessage || 'Unknown error'}</div>;
   }
 
+  // If no error, data should be present, but provide defaults just in case
+  // Pass correct prop name: cropVarieties
   return (
       <CropsClient
           crops={crops || []}
-          plants={plants || []}
+          cropVarieties={cropVarieties || []} // Pass cropVarieties prop
           beds={beds || []}
        />
   );

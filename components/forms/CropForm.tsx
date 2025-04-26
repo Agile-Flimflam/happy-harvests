@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useEffect, useState, useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { createCrop, updateCrop, type CropFormState, type CropStatus } from '@/app/actions/crops';
-import type { Tables } from '@/lib/supabase';
+import type { Tables, Database } from '@/lib/supabase';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,13 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
 
+// Use base Crop type from generated types (via CropFormState import)
 type Crop = Tables<'crops'>;
-type Plant = Tables<'plants'>;
-type Bed = Tables<'beds'> & { plots?: { name: string } | null }; // Include plot name from getBeds query
+
+type CropVariety = Database['public']['Tables']['crop_varieties']['Row'];
+type Bed = Tables<'beds'> & { plots?: { name: string } | null };
 
 interface CropFormProps {
-  crop?: Crop | null;
-  plants: Plant[];
+  crop?: Crop | null; // Use base Crop type
+  cropVarieties: CropVariety[];
   beds: Bed[];
   closeDialog: () => void;
 }
@@ -47,22 +49,21 @@ function SubmitButton({ isEditing }: { isEditing: boolean }) {
   );
 }
 
-export function CropForm({ crop, plants, beds, closeDialog }: CropFormProps) {
+export function CropForm({ crop, cropVarieties, beds, closeDialog }: CropFormProps) {
   const isEditing = Boolean(crop?.id);
-  const action = isEditing ? updateCrop : createCrop;
-  const initialState: CropFormState = { message: '', errors: {}, crop: crop };
-  const [state, dispatch] = useFormState(action, initialState);
+  const serverAction = isEditing ? updateCrop : createCrop;
+  const initialState: CropFormState = { message: '', errors: [], crop: crop };
+  const [state, formAction] = useActionState(serverAction, initialState);
   const [currentStatus, setCurrentStatus] = useState<CropStatus>(crop?.status ?? 'planned');
 
-   useEffect(() => {
+  useEffect(() => {
     if (state.message) {
-        if (state.errors && Object.keys(state.errors).length > 0) {
+        // Check if errors is an array and has length
+        if (state.errors && Array.isArray(state.errors) && state.errors.length > 0) {
             toast.error(state.message, {
-                description: Object.entries(state.errors)
-                    .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : 'Invalid error format'}`)
-                    .join('\n'),
+                description: state.errors.map(path => path.join('.') + ': Error').join('\n'), // Simple error path display
             });
-        } else {
+        } else if (!state.errors) { // Only show success if no errors
             toast.success(state.message);
             closeDialog();
         }
@@ -74,26 +75,30 @@ export function CropForm({ crop, plants, beds, closeDialog }: CropFormProps) {
   const defaultHarvestedDate = formatDateForInput(state.crop?.harvested_date);
 
   return (
-    <form action={dispatch} className="space-y-4">
+    <form action={formAction} className="space-y-4">
       {isEditing && <input type="hidden" name="id" value={crop?.id} />}
 
-      {/* Plant Select */}
+      {/* Crop Variety Select - Use crop_variety_id */}
       <div>
-        <Label htmlFor="plant_id">Plant</Label>
-        <Select name="plant_id" defaultValue={state.crop?.plant_id ?? ''} required>
-            <SelectTrigger id="plant_id" aria-describedby="plant_id-error" className="mt-1">
-                <SelectValue placeholder="Select a plant" />
+        <Label htmlFor="crop_variety_id">Plant Variety</Label>
+        {/* Use crop_variety_id for name and defaultValue */}
+        <Select name="crop_variety_id" defaultValue={state.crop?.crop_variety_id ?? ''} required>
+            <SelectTrigger id="crop_variety_id" aria-describedby="crop_variety_id-error" className="mt-1">
+                <SelectValue placeholder="Select a variety" />
             </SelectTrigger>
             <SelectContent>
-                {plants.map((plant) => (
-                    <SelectItem key={plant.id} value={plant.id}>
-                        {plant.name} {plant.variety ? `(${plant.variety})` : ''}
+                {cropVarieties.map((variety) => (
+                    <SelectItem key={variety.id} value={variety.id}>
+                        {variety.name} {variety.variety ? `(${variety.variety})` : ''}
                     </SelectItem>
                 ))}
             </SelectContent>
         </Select>
-        <div id="plant_id-error" aria-live="polite" aria-atomic="true">
-          {state.errors?.plant_id && state.errors.plant_id.map((error: string) => <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>)}
+        {/* Check for errors using crop_variety_id path */}
+        <div id="crop_variety_id-error" aria-live="polite" aria-atomic="true">
+          {state.errors?.find(path => path.includes('crop_variety_id')) && 
+            <p className="mt-1 text-xs text-red-500">Plant Variety selection is required.</p> // Simplified error message
+          }
         </div>
       </div>
 
@@ -107,14 +112,16 @@ export function CropForm({ crop, plants, beds, closeDialog }: CropFormProps) {
             <SelectContent>
                 {beds.map((bed) => (
                     <SelectItem key={bed.id} value={bed.id}>
-                         {/* Display Bed Name (Plot Name) */}
                         {bed.name} ({bed.plots?.name ?? 'Unknown Plot'})
                     </SelectItem>
                 ))}
             </SelectContent>
         </Select>
+        {/* Check for errors using bed_id path */}
         <div id="bed_id-error" aria-live="polite" aria-atomic="true">
-          {state.errors?.bed_id && state.errors.bed_id.map((error: string) => <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>)}
+           {state.errors?.find(path => path.includes('bed_id')) && 
+            <p className="mt-1 text-xs text-red-500">Bed selection is required.</p> // Simplified error message
+          }
         </div>
       </div>
 
@@ -138,7 +145,9 @@ export function CropForm({ crop, plants, beds, closeDialog }: CropFormProps) {
             </SelectContent>
         </Select>
          <div id="status-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.status && state.errors.status.map((error: string) => <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>)}
+            {state.errors?.find(path => path.includes('status')) && 
+                <p className="mt-1 text-xs text-red-500">Status selection is required.</p>
+            }
          </div>
       </div>
 
@@ -154,7 +163,9 @@ export function CropForm({ crop, plants, beds, closeDialog }: CropFormProps) {
           className="mt-1"
         />
         <div id="row_spacing_cm-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.row_spacing_cm && state.errors.row_spacing_cm.map((error: string) => <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>)}
+            {state.errors?.find(path => path.includes('row_spacing_cm')) && 
+                <p className="mt-1 text-xs text-red-500">Row spacing is required.</p>
+            }
         </div>
       </div>
 
@@ -170,7 +181,9 @@ export function CropForm({ crop, plants, beds, closeDialog }: CropFormProps) {
           className="mt-1"
         />
          <div id="seed_spacing_cm-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.seed_spacing_cm && state.errors.seed_spacing_cm.map((error: string) => <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>)}
+            {state.errors?.find(path => path.includes('seed_spacing_cm')) && 
+                <p className="mt-1 text-xs text-red-500">Seed spacing is required.</p>
+            }
         </div>
       </div>
 
@@ -186,7 +199,9 @@ export function CropForm({ crop, plants, beds, closeDialog }: CropFormProps) {
           className="mt-1"
         />
          <div id="planted_date-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.planted_date && state.errors.planted_date.map((error: string) => <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>)}
+            {state.errors?.find(path => path.includes('planted_date')) && 
+                <p className="mt-1 text-xs text-red-500">Planted date is required.</p>
+            }
         </div>
       </div>
 
@@ -203,7 +218,9 @@ export function CropForm({ crop, plants, beds, closeDialog }: CropFormProps) {
           className="mt-1"
         />
          <div id="harvested_date-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.harvested_date && state.errors.harvested_date.map((error: string) => <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>)}
+            {state.errors?.find(path => path.includes('harvested_date')) && 
+                <p className="mt-1 text-xs text-red-500">Harvested date is required.</p>
+            }
         </div>
       </div>
 

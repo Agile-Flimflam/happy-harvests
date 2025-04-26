@@ -1,6 +1,7 @@
 'use client'; // Client component to manage multiple dialog states
 
 import { useState } from 'react';
+import Fraction from 'fraction.js'; // Import fraction.js
 import type { Tables } from '@/lib/supabase';
 import { Button } from "@/components/ui/button";
 import {
@@ -146,14 +147,33 @@ export function PlotsBedsClient({ plotsWithBeds }: PlotsBedsClientProps) {
         {plotsWithBeds.length === 0 && (
           <p className="text-center text-gray-500">No plots found. Add a plot to get started.</p>
         )}
-        {plotsWithBeds.map((plot) => (
-          <Card key={plot.id}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-              <div>
-                <CardTitle>{plot.name}</CardTitle>
-                {plot.address && <p className="text-sm text-muted-foreground">{plot.address}</p>}
-              </div>
-              <div className="flex items-center gap-1">
+        {plotsWithBeds.map((plot) => {
+          // Calculate total acreage for the plot
+          const totalSqFt = plot.beds.reduce((sum, bed) => {
+            const length = bed.length_in;
+            const width = bed.width_in;
+            if (length && width && length > 0 && width > 0) {
+              return sum + (length * width) / 144; // Add sq ft of this bed
+            }
+            return sum;
+          }, 0);
+          const totalAcreage = totalSqFt / 43560;
+
+          return (
+            <Card key={plot.id}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                <div>
+                  <CardTitle>{plot.name}</CardTitle>
+                  {plot.address && <p className="text-sm text-muted-foreground">{plot.address}</p>}
+                  {/* Display total acreage */}
+                  {totalAcreage > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {/* Use fraction.js for total */}
+                      Total Acreage: {new Fraction(totalAcreage).toFraction(true)}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
                   <Button variant="outline" size="sm" onClick={() => handleAddBed(plot)} className="mr-2">
                       <PlusCircle className="h-4 w-4 mr-1" /> Add Bed
                   </Button>
@@ -163,45 +183,55 @@ export function PlotsBedsClient({ plotsWithBeds }: PlotsBedsClientProps) {
                   <Button variant="ghost" size="icon" onClick={() => handleDeletePlot(plot.id)} className="text-red-500 hover:text-red-700">
                       <Trash2 className="h-4 w-4" />
                   </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {plot.beds.length > 0 ? (
-                <div className="border rounded-md">
-                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Bed Name</TableHead>
-                      <TableHead>Length (in)</TableHead>
-                      <TableHead>Width (in)</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {plot.beds.map((bed) => (
-                      <TableRow key={bed.id}>
-                        <TableCell className="font-medium">{bed.name}</TableCell>
-                        <TableCell>{bed.length_in ?? '-'}</TableCell>
-                        <TableCell>{bed.width_in ?? '-'}</TableCell>
-                        <TableCell className="text-right">
-                           <Button variant="ghost" size="icon" onClick={() => handleEditBed(bed, plot)}>
-                                <Pencil className="h-4 w-4" />
-                           </Button>
-                           <Button variant="ghost" size="icon" onClick={() => handleDeleteBed(bed.id)} className="text-red-500 hover:text-red-700">
-                               <Trash2 className="h-4 w-4" />
-                           </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
                 </div>
-              ) : (
-                <p className="text-sm text-center text-gray-500 py-4">No beds added to this plot yet.</p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+              </CardHeader>
+              <CardContent>
+                {plot.beds.length > 0 ? (
+                  <div className="border rounded-md">
+                   <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Bed Name</TableHead>
+                        <TableHead>Dimensions (in)</TableHead>
+                        <TableHead>Sq Ft</TableHead>
+                        <TableHead>Acres</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {plot.beds.map((bed) => {
+                        const areaSqIn = (bed.length_in && bed.width_in) ? bed.length_in * bed.width_in : null;
+                        const areaSqFt = areaSqIn ? areaSqIn / 144 : null;
+                        const acreage = areaSqFt ? areaSqFt / 43560 : null;
+                        return (
+                          <TableRow key={bed.id}>
+                            <TableCell className="font-medium">{bed.name}</TableCell>
+                            <TableCell>{`${bed.length_in ?? '?'} x ${bed.width_in ?? '?'}`}</TableCell>
+                            {/* Display area in sq ft without decimals */}
+                            <TableCell>{areaSqFt !== null ? areaSqFt.toFixed(0) : '-'}</TableCell>
+                            {/* Use fraction.js for table cell */}
+                            <TableCell>{acreage !== null && acreage > 0 ? new Fraction(acreage).toFraction(true) : (acreage === 0 ? '0' : '-')}</TableCell>
+                            <TableCell className="text-right">
+                               <Button variant="ghost" size="icon" onClick={() => handleEditBed(bed, plot)}>
+                                  <Pencil className="h-4 w-4" />
+                             </Button>
+                             <Button variant="ghost" size="icon" onClick={() => handleDeleteBed(bed.id)} className="text-red-500 hover:text-red-700">
+                                 <Trash2 className="h-4 w-4" />
+                             </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-center text-gray-500 py-4">No beds added to this plot yet.</p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

@@ -4,12 +4,12 @@ import { createSupabaseServerClient, type Database, type Tables, type Enums } fr
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-// Define Zod schema for crop validation
+// Define Zod schema for crop validation - Use crop_variety_id
 const CropStatusEnum = z.enum(['planned', 'planted', 'growing', 'harvested']);
 
 const CropSchema = z.object({
   id: z.string().uuid().optional(),
-  plant_id: z.string().uuid({ message: 'Plant selection is required' }),
+  crop_variety_id: z.string().uuid({ message: 'Plant Variety selection is required' }),
   bed_id: z.string().uuid({ message: 'Bed selection is required' }),
   row_spacing_cm: z.coerce.number().int().positive().optional().nullable(),
   seed_spacing_cm: z.coerce.number().int().positive().optional().nullable(),
@@ -18,18 +18,21 @@ const CropSchema = z.object({
   status: CropStatusEnum.default('planned'),
 });
 
+// Use base types (assuming they now correctly use crop_variety_id)
 type Crop = Tables<'crops'>;
 type CropInsert = Database['public']['Tables']['crops']['Insert'];
 type CropUpdate = Database['public']['Tables']['crops']['Update'];
-export type CropStatus = Enums<'crop_status'>; // Export enum type
 
+export type CropStatus = Enums<'crop_status'>;
+
+// Use the base Crop type and Zod error paths
 export type CropFormState = {
   message: string;
-  errors?: Record<string, string[] | undefined>;
+  errors?: z.ZodIssue['path'][]; 
   crop?: Crop | null;
 }
 
-// Helper to format date for input[type=date]
+// Helper function expects Date | null | undefined
 function formatDateForInput(date: Date | null | undefined): string {
     return date ? date.toISOString().split('T')[0] : '';
 }
@@ -41,8 +44,9 @@ export async function createCrop(
 ): Promise<CropFormState> {
   const supabase = createSupabaseServerClient();
 
+  // Validate using crop_variety_id
   const validatedFields = CropSchema.safeParse({
-    plant_id: formData.get('plant_id'),
+    crop_variety_id: formData.get('crop_variety_id'),
     bed_id: formData.get('bed_id'),
     row_spacing_cm: formData.get('row_spacing_cm') || null,
     seed_spacing_cm: formData.get('seed_spacing_cm') || null,
@@ -55,11 +59,11 @@ export async function createCrop(
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
     return {
       message: 'Validation failed. Could not create crop.',
-      errors: validatedFields.error.flatten().fieldErrors,
+      errors: validatedFields.error.issues.map(issue => issue.path),
     };
   }
 
-  // Ensure date fields are correctly formatted (null if empty)
+  // Prepare data for Supabase insert using spread
   const cropData: CropInsert = {
     ...validatedFields.data,
     planted_date: validatedFields.data.planted_date ? formatDateForInput(validatedFields.data.planted_date) : null,
@@ -67,18 +71,19 @@ export async function createCrop(
   };
 
   try {
+    // Types should align now
     const { error } = await supabase.from('crops').insert(cropData);
 
     if (error) {
-      console.error('Supabase Error:', error);
-      if (error.code === '23503') { // foreign_key_violation
-          return { message: 'Database Error: The selected Plant or Bed does not exist.' };
-      }
-      return { message: `Database Error: ${error.message}` };
+        console.error('Supabase Error:', error);
+        if (error.code === '23503') {
+            return { message: 'Database Error: The selected Plant Variety or Bed does not exist.' };
+        }
+        return { message: `Database Error: ${error.message}` };
     }
 
     revalidatePath('/dashboard/crops');
-    return { message: 'Crop created successfully.', crop: null, errors: {} };
+    return { message: 'Crop created successfully.', crop: null, errors: [] };
 
   } catch (e) {
     console.error('Unexpected Error:', e);
@@ -98,9 +103,10 @@ export async function updateCrop(
     return { message: 'Error: Missing Crop ID for update.' };
   }
 
+  // Validate using crop_variety_id
   const validatedFields = CropSchema.safeParse({
     id: id,
-    plant_id: formData.get('plant_id'),
+    crop_variety_id: formData.get('crop_variety_id'),
     bed_id: formData.get('bed_id'),
     row_spacing_cm: formData.get('row_spacing_cm') || null,
     seed_spacing_cm: formData.get('seed_spacing_cm') || null,
@@ -113,35 +119,36 @@ export async function updateCrop(
       console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
       return {
           message: 'Validation failed. Could not update crop.',
-          errors: validatedFields.error.flatten().fieldErrors,
+          errors: validatedFields.error.issues.map(issue => issue.path),
           crop: prevState.crop
       };
   }
 
-  const { id: _, ...validatedData } = validatedFields.data;
-  // Ensure date fields are correctly formatted (null if empty)
-  const cropDataToUpdate: CropUpdate = {
-      ...validatedData,
-      planted_date: validatedData.planted_date ? formatDateForInput(validatedData.planted_date) : null,
-      harvested_date: validatedData.harvested_date ? formatDateForInput(validatedData.harvested_date) : null,
+  const { id: cropId, ...dataToUpdate } = validatedFields.data;
+  // Prepare data for Supabase update using spread
+  const cropDataToUpdate: Omit<CropUpdate, 'id'> = {
+      ...dataToUpdate,
+      planted_date: dataToUpdate.planted_date ? formatDateForInput(dataToUpdate.planted_date) : null,
+      harvested_date: dataToUpdate.harvested_date ? formatDateForInput(dataToUpdate.harvested_date) : null,
   };
 
   try {
+    // Types should align now
     const { error } = await supabase
       .from('crops')
       .update(cropDataToUpdate)
-      .eq('id', id);
+      .eq('id', cropId!);
 
     if (error) {
-      console.error('Supabase Error:', error);
-       if (error.code === '23503') { // foreign_key_violation
-          return { message: 'Database Error: The selected Plant or Bed does not exist.', crop: prevState.crop };
-      }
-      return { message: `Database Error: ${error.message}`, crop: prevState.crop };
+        console.error('Supabase Error:', error);
+        if (error.code === '23503') {
+            return { message: 'Database Error: The selected Plant Variety or Bed does not exist.', crop: prevState.crop };
+        }
+        return { message: `Database Error: ${error.message}`, crop: prevState.crop };
     }
 
     revalidatePath('/dashboard/crops');
-    return { message: 'Crop updated successfully.', crop: null, errors: {} };
+    return { message: 'Crop updated successfully.', crop: null, errors: [] };
 
   } catch (e) {
     console.error('Unexpected Error:', e);
@@ -176,30 +183,37 @@ export async function deleteCrop(id: string): Promise<{ message: string }> {
 }
 
 // --- Helper function to get crops with related info ---
+// Define CropWithDetails using crop_variety_id and the 'crop_varieties' relationship
 type CropWithDetails = Crop & {
-  plants: { name: string; variety: string | null } | null;
-  beds: { name: string, plots: { name: string } | null } | null;
+    // Base Crop type now has crop_variety_id from generated types
+    crop_varieties: { name: string; variety: string | null } | null; 
+    beds: { name: string, plots: { name: string } | null } | null;
 };
 
 export async function getCropsWithDetails(): Promise<{ crops?: CropWithDetails[]; error?: string }> {
   const supabase = createSupabaseServerClient();
   try {
+    // Select all crop fields (*), and related data via relationships
+    // Use 'crop_varieties' as the relationship name
     const { data, error } = await supabase
       .from('crops')
-      // Select crop fields, plant name/variety, bed name, plot name
       .select(`
         *,
-        plants ( name, variety ),
+        crop_varieties ( name, variety ), 
         beds ( name, plots ( name ) )
       `)
-      .order('created_at', { ascending: false }); // Order by creation date, newest first
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Supabase Error fetching crops:', error);
+       // Add check for crop_varieties relationship error
+       if (error.message.includes('relation "crop_varieties" does not exist')) {
+           return { error: 'Database Error: Relationship setup between crops and crop_varieties (as \'crop_varieties\') might be missing or incorrect.' };
+       }
       return { error: `Database Error: ${error.message}` };
     }
 
-    // Cast the result to the expected type
+    // Casting should work if base types are correct and relationships exist
     const crops = data as CropWithDetails[] | null;
 
     return { crops: crops || [] };
