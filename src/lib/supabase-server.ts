@@ -1,4 +1,4 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { type NextRequest } from 'next/server';
 import type { Database } from './database.types'; // Adjust import path
@@ -9,8 +9,8 @@ export type Tables<T extends keyof Database['public']['Tables']> = Database['pub
 export type Enums<T extends keyof Database['public']['Enums']> = Database['public']['Enums'][T];
 
 // Server-side client (for use ONLY in Server Components and Server Actions)
-export function createSupabaseServerClient() {
-  const cookieStore = cookies(); // Should be synchronous in this context
+export async function createSupabaseServerClient() {
+  const cookieStore = await cookies(); // Await cookies() in Next.js 15+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -20,20 +20,15 @@ export function createSupabaseServerClient() {
 
   return createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
+      getAll() {
+        return cookieStore.getAll();
       },
-      set(name: string, value: string, options: CookieOptions) {
+      setAll(cookiesToSet) {
         try {
-          cookieStore.set({ name, value, ...options });
-        } catch (e) {
-          // We can ignore this when not in a browser context
-        }
-      },
-      remove(name: string, options: CookieOptions) {
-        try {
-          cookieStore.set({ name, value: '', ...options });
-        } catch (e) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {
           // We can ignore this when not in a browser context
         }
       },
@@ -64,7 +59,7 @@ export function createSupabaseRouteHandlerClient(req: NextRequest) {
 
 // Utility to get user session server-side
 export async function getUserSession() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
     if (error) {
@@ -80,7 +75,7 @@ export async function getUserSession() {
 
 // Utility to get user server-side
 export async function getUser() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   try {
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error) {

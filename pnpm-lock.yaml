@@ -44,6 +44,9 @@ importers:
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
+      fraction.js:
+        specifier: ^5.2.2
+        version: 5.3.1
       lucide-react:
         specifier: ^0.501.0
         version: 0.501.0(react@19.1.0)
@@ -1409,6 +1412,9 @@ packages:
   for-each@0.3.5:
     resolution: {integrity: sha512-dKx12eRCVIzqCxFGplyFKJMPvLEWgmNtUrpTiJIR5u97zEhRG8ySrtboPHZXx7daLxQVrl643cTzbab2tkQjxg==}
     engines: {node: '>= 0.4'}
+
+  fraction.js@5.3.1:
+    resolution: {integrity: sha512-PhqCuhSKIGbbkJ+cojHv47eEWClU71FIOhiUsYdZYTwhIzCeIN8rXeEjserTvPat5JLJChumn8chHz64WkZgTw==}
 
   function-bind@1.1.2:
     resolution: {integrity: sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA==}
@@ -3655,6 +3661,8 @@ snapshots:
   for-each@0.3.5:
     dependencies:
       is-callable: 1.2.7
+
+  fraction.js@5.3.1: {}
 
   function-bind@1.1.2: {}
 
