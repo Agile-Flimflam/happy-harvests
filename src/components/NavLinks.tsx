@@ -6,10 +6,10 @@ import { cn } from '@/lib/utils'; // Assuming shadcn/ui setup
 import { Home, Leaf, Fence, Sprout } from 'lucide-react'; // Icons (removed Tractor)
 
 const links = [
-  { name: 'Dashboard', href: '/dashboard', icon: Home },
-  { name: 'Crop Varieties', href: '/dashboard/crop-varieties', icon: Leaf },
-  { name: 'Plots & Beds', href: '/dashboard/plots', icon: Fence },
-  { name: 'Crops', href: '/dashboard/crops', icon: Sprout },
+  { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'Crop Varieties', href: '/crop-varieties', icon: Leaf },
+  { name: 'Plots & Beds', href: '/plots', icon: Fence },
+  { name: 'Crops', href: '/crops', icon: Sprout },
 ];
 
 export default function NavLinks() {

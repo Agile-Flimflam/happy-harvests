@@ -5,18 +5,6 @@ import type { DaysToMaturity } from '@/lib/database.types';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-// Define Zod schema for the nested days to maturity object
-const DaysToMaturitySchema = z.object({
-  DirectSeed: z.object({
-    min: z.coerce.number().int().nonnegative({ message: 'Must be a non-negative number.' }),
-    max: z.coerce.number().int().nonnegative({ message: 'Must be a non-negative number.' }),
-  }).nullable(),
-  Transplant: z.object({
-    min: z.coerce.number().int().nonnegative({ message: 'Must be a non-negative number.' }),
-    max: z.coerce.number().int().nonnegative({ message: 'Must be a non-negative number.' }),
-  }).nullable(),
-}).nullable(); // Allow the whole object to be null
-
 // Define a non-nullable DaysToMaturity object type for constructing data
 type NonNullDaysToMaturity = Exclude<DaysToMaturity, null>;
 
@@ -160,16 +148,17 @@ export async function createCropVariety(
   // Construct the days_to_maturity object
   const days_to_maturity = constructDaysToMaturity(validatedFields.data);
 
-  // Separate base data from the days_to_maturity fields
-  const {
-      directSeedMin, directSeedMax, transplantMin, transplantMax,
-      ...baseData
-  } = validatedFields.data;
+  // Separate base data from the days_to_maturity fields without introducing unused variables
+  const baseData = { ...validatedFields.data } as Record<string, unknown>;
+  delete baseData.directSeedMin;
+  delete baseData.directSeedMax;
+  delete baseData.transplantMin;
+  delete baseData.transplantMax;
 
 
   const cropVarietyData: CropVarietyInsert = {
-      ...baseData,
-      days_to_maturity: days_to_maturity, // Add the constructed JSON object
+      ...(baseData as CropVarietyInsert),
+      days_to_maturity: days_to_maturity,
   };
 
 
@@ -234,15 +223,17 @@ export async function updateCropVariety(
     // Construct the days_to_maturity object
     const days_to_maturity = constructDaysToMaturity(validatedFields.data);
 
-    // Separate base data from the days_to_maturity fields and id
-    const {
-        id: _, directSeedMin, directSeedMax, transplantMin, transplantMax,
-        ...baseData
-    } = validatedFields.data;
+    // Separate base data from the days_to_maturity fields and id without unused vars
+    const baseData = { ...validatedFields.data } as Record<string, unknown>;
+    delete baseData.id;
+    delete baseData.directSeedMin;
+    delete baseData.directSeedMax;
+    delete baseData.transplantMin;
+    delete baseData.transplantMax;
 
 
     const cropVarietyDataToUpdate: CropVarietyUpdate = {
-        ...baseData,
+        ...(baseData as CropVarietyUpdate),
         days_to_maturity: days_to_maturity,
     };
 

@@ -100,6 +100,7 @@ export async function updateBed(
       };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id: _, ...bedDataToUpdate }: BedUpdate = validatedFields.data;
 
   try {

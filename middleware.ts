@@ -1,4 +1,4 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 // Import Database type directly from the generated file
 import type { Database } from '@/lib/database.types';
@@ -21,18 +21,15 @@ export async function middleware(request: NextRequest) {
   // Pass Database type generic to createServerClient
   const supabase = createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      get(name: string) {
-        return request.cookies.get(name)?.value;
+      getAll() {
+        return request.cookies.getAll();
       },
-      set(name: string, value: string, options: CookieOptions) {
-        request.cookies.set({ name, value, ...options });
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          request.cookies.set({ name, value, ...options });
+          response.cookies.set({ name, value, ...options });
+        });
         response = NextResponse.next({ request: { headers: request.headers } });
-        response.cookies.set({ name, value, ...options });
-      },
-      remove(name: string, options: CookieOptions) {
-        request.cookies.set({ name, value: '', ...options });
-        response = NextResponse.next({ request: { headers: request.headers } });
-        response.cookies.set({ name, value: '', ...options });
       },
     },
   });
@@ -46,28 +43,19 @@ export async function middleware(request: NextRequest) {
 
   // --- Auth Rules ---
 
-  // Redirect root path based on auth status
-  if (pathname === '/') {
-    const targetPath = loggedIn ? '/dashboard' : '/login';
-    const url = request.nextUrl.clone();
-    url.pathname = targetPath;
-    console.log(`Redirecting from / to ${targetPath}`); // Added log
-    return NextResponse.redirect(url);
-  }
-
-  // Protect dashboard routes
-  if (pathname.startsWith('/dashboard') && !loggedIn) {
+  // Protect main app routes (everything except login and auth callback)
+  if (pathname !== '/login' && !pathname.startsWith('/auth') && !loggedIn) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    console.log('Redirecting unauthenticated user from dashboard to login'); // Added log
+    console.log('Redirecting unauthenticated user to login'); 
     return NextResponse.redirect(url);
   }
 
   // Redirect logged-in users from the login page to the dashboard
   if (pathname === '/login' && loggedIn) {
     const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
-    console.log('Redirecting authenticated user from login to dashboard'); // Added log
+    url.pathname = '/';
+    console.log('Redirecting authenticated user from login to dashboard');
     return NextResponse.redirect(url);
   }
 

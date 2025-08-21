@@ -89,6 +89,7 @@ export async function updatePlot(
       };
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id: _, ...plotDataToUpdate }: PlotUpdate = validatedFields.data;
 
   try {
