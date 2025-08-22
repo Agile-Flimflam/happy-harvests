@@ -78,11 +78,9 @@ function LoginFormContent() {
 
 export default function LoginPage() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <Suspense fallback={<div className="w-full max-w-md p-8">Loading...</div>}>
-        <LoginFormContent />
-      </Suspense>
-    </div>
+    <Suspense fallback={<div className="w-full max-w-md p-8">Loading...</div>}>
+      <LoginFormContent />
+    </Suspense>
   );
 }
 
