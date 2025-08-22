@@ -6,174 +6,239 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type DaysToMaturity = {
-  DirectSeed: {
-    min: number
-    max: number
-  } | null
-  Transplant: {
-    min: number
-    max: number
-  } | null
-} | null
-
 export type Database = {
   public: {
     Tables: {
-      beds: {
+      profiles: {
         Row: {
-          created_at: string | null
           id: string
-          length_in: number | null
-          name: string
-          notes: string | null
-          plot_id: string
-          width_in: number | null
+          display_name: string | null
+          full_name: string | null
+          avatar_url: string | null
+          locale: string | null
+          timezone: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
-          created_at?: string | null
-          id?: string
-          length_in?: number | null
-          name: string
-          notes?: string | null
-          plot_id: string
-          width_in?: number | null
+          id: string
+          display_name?: string | null
+          full_name?: string | null
+          avatar_url?: string | null
+          locale?: string | null
+          timezone?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
-          created_at?: string | null
           id?: string
-          length_in?: number | null
-          name?: string
-          notes?: string | null
-          plot_id?: string
-          width_in?: number | null
+          display_name?: string | null
+          full_name?: string | null
+          avatar_url?: string | null
+          locale?: string | null
+          timezone?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "beds_plot_id_fkey"
-            columns: ["plot_id"]
-            isOneToOne: false
-            referencedRelation: "plots"
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "users"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
-      crop_varieties: {
+      plots: {
         Row: {
-          color: string | null
-          created_at: string | null
-          days_to_maturity: DaysToMaturity
-          disease_resistance: string | null
-          hybrid_status: string | null
-          id: string
-          is_organic: boolean | null
-          latin_name: string | null
-          name: string
-          notes: string | null
-          size: string | null
-          variety: string | null
+          created_at: string
+          location: string
+          plot_id: number
         }
         Insert: {
-          color?: string | null
-          created_at?: string | null
-          days_to_maturity?: DaysToMaturity
-          disease_resistance?: string | null
-          hybrid_status?: string | null
-          id?: string
-          is_organic?: boolean | null
-          latin_name?: string | null
-          name: string
-          notes?: string | null
-          size?: string | null
-          variety?: string | null
+          created_at?: string
+          location: string
+          plot_id?: number
         }
         Update: {
-          color?: string | null
-          created_at?: string | null
-          days_to_maturity?: DaysToMaturity
-          disease_resistance?: string | null
-          hybrid_status?: string | null
-          id?: string
-          is_organic?: boolean | null
-          latin_name?: string | null
-          name?: string
-          notes?: string | null
-          size?: string | null
-          variety?: string | null
+          created_at?: string
+          location?: string
+          plot_id?: number
         }
         Relationships: []
       }
-      crops: {
+      beds: {
         Row: {
-          bed_id: string
-          created_at: string | null
-          crop_variety_id: string
-          harvested_date: string | null
-          id: string
-          planted_date: string | null
-          row_spacing_cm: number | null
-          seed_spacing_cm: number | null
-          status: Database["public"]["Enums"]["crop_status"] | null
+          created_at: string
+          id: number
+          length_inches: number | null
+          plot_id: number
+          width_inches: number | null
         }
         Insert: {
-          bed_id: string
-          created_at?: string | null
-          crop_variety_id: string
-          harvested_date?: string | null
-          id?: string
-          planted_date?: string | null
-          row_spacing_cm?: number | null
-          seed_spacing_cm?: number | null
-          status?: Database["public"]["Enums"]["crop_status"] | null
+          created_at?: string
+          id?: number
+          length_inches?: number | null
+          plot_id: number
+          width_inches?: number | null
         }
         Update: {
-          bed_id?: string
-          created_at?: string | null
-          crop_variety_id?: string
-          harvested_date?: string | null
-          id?: string
-          planted_date?: string | null
-          row_spacing_cm?: number | null
-          seed_spacing_cm?: number | null
-          status?: Database["public"]["Enums"]["crop_status"] | null
+          created_at?: string
+          id?: number
+          length_inches?: number | null
+          plot_id?: number
+          width_inches?: number | null
         }
         Relationships: [
           {
-            foreignKeyName: "crops_bed_id_fkey"
-            columns: ["bed_id"]
+            foreignKeyName: "Bed_plot_id_fkey"
+            columns: ["plot_id"]
             isOneToOne: false
-            referencedRelation: "beds"
-            referencedColumns: ["id"]
-          },
+            referencedRelation: "plots"
+            referencedColumns: ["plot_id"]
+          }
+        ]
+      }
+      crops: {
+        Row: {
+          created_at: string
+          crop_type: Database["public"]["Enums"]["crop_type"]
+          id: number
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          crop_type: Database["public"]["Enums"]["crop_type"]
+          id?: number
+          name: string
+        }
+        Update: {
+          created_at?: string
+          crop_type?: Database["public"]["Enums"]["crop_type"]
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
+      crop_varieties: {
+        Row: {
+          created_at: string
+          crop_id: number
+          dtm_direct_seed_max: number
+          dtm_direct_seed_min: number
+          dtm_transplant_max: number
+          dtm_transplant_min: number
+          id: number
+          is_organic: boolean
+          latin_name: string
+          name: string
+          notes: string | null
+          image_path: string | null
+          plant_spacing_max: number | null
+          plant_spacing_min: number | null
+          row_spacing_max: number | null
+          row_spacing_min: number | null
+        }
+        Insert: {
+          created_at?: string
+          crop_id: number
+          dtm_direct_seed_max: number
+          dtm_direct_seed_min: number
+          dtm_transplant_max: number
+          dtm_transplant_min: number
+          id?: number
+          is_organic: boolean
+          latin_name: string
+          name: string
+          notes?: string | null
+          image_path?: string | null
+          plant_spacing_max?: number | null
+          plant_spacing_min?: number | null
+          row_spacing_max?: number | null
+          row_spacing_min?: number | null
+        }
+        Update: {
+          created_at?: string
+          crop_id?: number
+          dtm_direct_seed_max?: number
+          dtm_direct_seed_min?: number
+          dtm_transplant_max?: number
+          dtm_transplant_min?: number
+          id?: number
+          is_organic?: boolean
+          latin_name?: string
+          name?: string
+          notes?: string | null
+          image_path?: string | null
+          plant_spacing_max?: number | null
+          plant_spacing_min?: number | null
+          row_spacing_max?: number | null
+          row_spacing_min?: number | null
+        }
+        Relationships: [
           {
-            foreignKeyName: "crops_crop_variety_id_fkey"
+            foreignKeyName: "crop_varieties_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "crops"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      bed_plantings: {
+        Row: {
+          bed_id: number
+          created_at: string
+          crop_variety_id: number
+          date_planted: string
+          harvested_date: string | null
+          id: number
+          notes: string | null
+          planting_type: Database["public"]["Enums"]["planting_type"]
+          qty_planting: number
+          status: Database["public"]["Enums"]["bed_planting_status"]
+        }
+        Insert: {
+          bed_id: number
+          created_at?: string
+          crop_variety_id: number
+          date_planted: string
+          harvested_date?: string | null
+          id?: number
+          notes?: string | null
+          planting_type: Database["public"]["Enums"]["planting_type"]
+          qty_planting: number
+          status: Database["public"]["Enums"]["bed_planting_status"]
+        }
+        Update: {
+          bed_id?: number
+          created_at?: string
+          crop_variety_id?: number
+          date_planted?: string
+          harvested_date?: string | null
+          id?: number
+          notes?: string | null
+          planting_type?: Database["public"]["Enums"]["planting_type"]
+          qty_planting?: number
+          status?: Database["public"]["Enums"]["bed_planting_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "Bed Plantings_crop_variety_id_fkey"
             columns: ["crop_variety_id"]
             isOneToOne: false
             referencedRelation: "crop_varieties"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "Bed Plantings_bed_id_fkey"
+            columns: ["bed_id"]
+            isOneToOne: false
+            referencedRelation: "beds"
+            referencedColumns: ["id"]
+          }
         ]
-      }
-      plots: {
-        Row: {
-          address: string | null
-          created_at: string | null
-          id: string
-          name: string
-        }
-        Insert: {
-          address?: string | null
-          created_at?: string | null
-          id?: string
-          name: string
-        }
-        Update: {
-          address?: string | null
-          created_at?: string | null
-          id?: string
-          name?: string
-        }
-        Relationships: []
       }
     }
     Views: {
@@ -183,7 +248,9 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      crop_status: "planned" | "planted" | "growing" | "harvested"
+      crop_type: "Vegetable" | "Fruit" | "Windbreak" | "Covercrop"
+      planting_type: "Direct Seed" | "Transplant"
+      bed_planting_status: "Planted" | "Harvested" | "Nursery"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -299,7 +366,9 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      crop_status: ["planned", "planted", "growing", "harvested"],
+      crop_type: ["Vegetable", "Fruit", "Windbreak", "Covercrop"],
+      planting_type: ["Direct Seed", "Transplant"],
+      bed_planting_status: ["Planted", "Harvested", "Nursery"],
     },
   },
 } as const

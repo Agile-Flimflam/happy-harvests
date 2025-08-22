@@ -9,7 +9,7 @@ const links = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Crop Varieties', href: '/crop-varieties', icon: Leaf },
   { name: 'Plots & Beds', href: '/plots', icon: Fence },
-  { name: 'Crops', href: '/crops', icon: Sprout },
+  { name: 'Plantings', href: '/plantings', icon: Sprout },
 ];
 
 export default function NavLinks() {

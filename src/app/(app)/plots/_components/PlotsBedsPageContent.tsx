@@ -51,7 +51,7 @@ export function PlotsBedsPageContent({ plotsWithBeds }: PlotsBedsPageContentProp
     setIsPlotDialogOpen(true);
   };
 
-  const handleDeletePlot = async (id: string) => {
+  const handleDeletePlot = async (id: string | number) => {
     if (!confirm('Are you sure you want to delete this plot and ALL its beds?')) {
       return;
     }
@@ -80,7 +80,7 @@ export function PlotsBedsPageContent({ plotsWithBeds }: PlotsBedsPageContentProp
     setIsBedDialogOpen(true);
   };
 
-  const handleDeleteBed = async (id: string) => {
+  const handleDeleteBed = async (id: string | number) => {
     if (!confirm('Are you sure you want to delete this bed?')) {
       return;
     }
@@ -125,7 +125,7 @@ export function PlotsBedsPageContent({ plotsWithBeds }: PlotsBedsPageContentProp
       <Dialog open={isBedDialogOpen} onOpenChange={setIsBedDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{editingBed ? 'Edit Bed' : `Add New Bed to ${currentPlotForBed?.name ?? 'Plot'}`}</DialogTitle>
+            <DialogTitle>{editingBed ? 'Edit Bed' : `Add New Bed to ${currentPlotForBed?.location ?? 'Plot'}`}</DialogTitle>
             <DialogDescription>
               {editingBed ? 'Update the details of the bed.' : 'Enter the details for the new bed.'}
             </DialogDescription>
@@ -140,8 +140,8 @@ export function PlotsBedsPageContent({ plotsWithBeds }: PlotsBedsPageContentProp
         )}
         {plotsWithBeds.map((plot) => {
           const totalSqFt = plot.beds.reduce((sum, bed) => {
-            const length = bed.length_in;
-            const width = bed.width_in;
+            const length = bed.length_inches;
+            const width = bed.width_inches;
             if (length && width && length > 0 && width > 0) {
               return sum + (length * width) / 144;
             }
@@ -150,11 +150,10 @@ export function PlotsBedsPageContent({ plotsWithBeds }: PlotsBedsPageContentProp
           const totalAcreage = totalSqFt / 43560;
 
           return (
-            <Card key={plot.id}>
+            <Card key={plot.plot_id}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                 <div>
-                  <CardTitle>{plot.name}</CardTitle>
-                  {plot.address && <p className="text-sm text-muted-foreground">{plot.address}</p>}
+                  <CardTitle>{plot.location}</CardTitle>
                   {totalAcreage > 0 && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Total Acreage: {new Fraction(totalAcreage).toFraction(true)}
@@ -168,7 +167,7 @@ export function PlotsBedsPageContent({ plotsWithBeds }: PlotsBedsPageContentProp
                   <Button variant="ghost" size="icon" onClick={() => handleEditPlot(plot)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDeletePlot(plot.id)} className="text-red-500 hover:text-red-700">
+                  <Button variant="ghost" size="icon" onClick={() => handleDeletePlot(plot.plot_id)} className="text-red-500 hover:text-red-700">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -179,7 +178,7 @@ export function PlotsBedsPageContent({ plotsWithBeds }: PlotsBedsPageContentProp
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Bed Name</TableHead>
+                          <TableHead>Bed</TableHead>
                           <TableHead>Dimensions (in)</TableHead>
                           <TableHead>Sq Ft</TableHead>
                           <TableHead>Acres</TableHead>
@@ -188,13 +187,13 @@ export function PlotsBedsPageContent({ plotsWithBeds }: PlotsBedsPageContentProp
                       </TableHeader>
                       <TableBody>
                         {plot.beds.map((bed) => {
-                          const areaSqIn = (bed.length_in && bed.width_in) ? bed.length_in * bed.width_in : null;
+                          const areaSqIn = (bed.length_inches && bed.width_inches) ? bed.length_inches * bed.width_inches : null;
                           const areaSqFt = areaSqIn ? areaSqIn / 144 : null;
                           const acreage = areaSqFt ? areaSqFt / 43560 : null;
                           return (
                             <TableRow key={bed.id}>
-                              <TableCell className="font-medium">{bed.name}</TableCell>
-                              <TableCell>{`${bed.length_in ?? '?'} x ${bed.width_in ?? '?'}`}</TableCell>
+                              <TableCell className="font-medium">Bed #{bed.id}</TableCell>
+                              <TableCell>{`${bed.length_inches ?? '?'} x ${bed.width_inches ?? '?'}`}</TableCell>
                               <TableCell>{areaSqFt !== null ? areaSqFt.toFixed(0) : '-'}</TableCell>
                               <TableCell>{acreage !== null && acreage > 0 ? new Fraction(acreage).toFraction(true) : (acreage === 0 ? '0' : '-')}</TableCell>
                               <TableCell className="text-right">

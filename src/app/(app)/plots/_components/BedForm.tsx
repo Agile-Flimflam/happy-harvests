@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Select for plot_id
-import { Textarea } from "@/components/ui/textarea"; // Import Textarea
+// Notes removed in new schema; Textarea not needed
 import { toast } from "sonner";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
 
@@ -39,13 +39,13 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
   const [state, dispatch] = useActionState(action, initialState);
 
   // State to track input values for dynamic area calculation
-  const [currentLength, setCurrentLength] = useState<string>(bed?.length_in?.toString() ?? '');
-  const [currentWidth, setCurrentWidth] = useState<string>(bed?.width_in?.toString() ?? '');
+  const [currentLength, setCurrentLength] = useState<string>(bed?.length_inches?.toString() ?? '');
+  const [currentWidth, setCurrentWidth] = useState<string>(bed?.width_inches?.toString() ?? '');
 
   // Update local state if the bed prop changes (e.g., opening edit dialog)
   useEffect(() => {
-    setCurrentLength(bed?.length_in?.toString() ?? '');
-    setCurrentWidth(bed?.width_in?.toString() ?? '');
+    setCurrentLength(bed?.length_inches?.toString() ?? '');
+    setCurrentWidth(bed?.width_inches?.toString() ?? '');
   }, [bed]);
 
   useEffect(() => {
@@ -70,14 +70,14 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
       {/* Plot Select Field */}
       <div>
         <Label htmlFor="plot_id">Plot</Label>
-        <Select name="plot_id" defaultValue={state.bed?.plot_id ?? ''} required>
+        <Select name="plot_id" defaultValue={state.bed?.plot_id?.toString() ?? ''} required>
             <SelectTrigger id="plot_id" aria-describedby="plot_id-error" className="mt-1">
                 <SelectValue placeholder="Select a plot" />
             </SelectTrigger>
             <SelectContent>
                 {plots.map((plot) => (
-                    <SelectItem key={plot.id} value={plot.id}>
-                        {plot.name}
+                    <SelectItem key={plot.plot_id} value={plot.plot_id.toString()}>
+                        {plot.location}
                     </SelectItem>
                 ))}
             </SelectContent>
@@ -90,24 +90,7 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
         </div>
       </div>
 
-      {/* Bed Name Field */}
-      <div>
-        <Label htmlFor="name">Bed Name</Label>
-        <Input
-          id="name"
-          name="name"
-          defaultValue={state.bed?.name ?? ''}
-          required
-          aria-describedby="name-error"
-          className="mt-1"
-        />
-         <div id="name-error" aria-live="polite" aria-atomic="true">
-          {state.errors?.name &&
-            state.errors.name.map((error: string) => (
-              <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
-            ))}
-        </div>
-      </div>
+      {/* No bed name field in new schema */}
 
       {/* Dimensions Section using Fieldset */}
       <fieldset className="border p-4 rounded-md space-y-4">
@@ -117,19 +100,19 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
         <div className="flex items-start gap-4">
           {/* Length Field (Half Width) */}
           <div className="flex-1">
-            <Label htmlFor="length_in">Length (in)</Label>
+            <Label htmlFor="length_inches">Length (in)</Label>
             <Input
-              id="length_in"
-              name="length_in"
+              id="length_inches"
+              name="length_inches"
               type="number"
               value={currentLength}
               onChange={(e) => setCurrentLength(e.target.value)}
-              aria-describedby="length_in-error"
+              aria-describedby="length_inches-error"
               className="mt-1"
             />
-            <div id="length_in-error" aria-live="polite" aria-atomic="true">
-              {state.errors?.length_in &&
-                state.errors.length_in.map((error: string) => (
+            <div id="length_inches-error" aria-live="polite" aria-atomic="true">
+              {state.errors?.length_inches &&
+                state.errors.length_inches.map((error: string) => (
                   <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
                 ))}
             </div>
@@ -137,19 +120,19 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
 
           {/* Width Field (Half Width) */}
           <div className="flex-1">
-            <Label htmlFor="width_in">Width (in)</Label>
+            <Label htmlFor="width_inches">Width (in)</Label>
             <Input
-              id="width_in"
-              name="width_in"
+              id="width_inches"
+              name="width_inches"
               type="number"
               value={currentWidth}
               onChange={(e) => setCurrentWidth(e.target.value)}
-              aria-describedby="width_in-error"
+              aria-describedby="width_inches-error"
               className="mt-1"
             />
-            <div id="width_in-error" aria-live="polite" aria-atomic="true">
-              {state.errors?.width_in &&
-                state.errors.width_in.map((error: string) => (
+            <div id="width_inches-error" aria-live="polite" aria-atomic="true">
+              {state.errors?.width_inches &&
+                state.errors.width_inches.map((error: string) => (
                   <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
                 ))}
             </div>
@@ -198,24 +181,7 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
         </div>
       </fieldset>
 
-      {/* Notes Field */}
-      <div>
-        <Label htmlFor="notes">Notes</Label>
-        <Textarea
-          id="notes"
-          name="notes"
-          placeholder="Add any notes about this bed..."
-          defaultValue={state.bed?.notes ?? ''}
-          aria-describedby="notes-error"
-          className="mt-1"
-        />
-         <div id="notes-error" aria-live="polite" aria-atomic="true">
-          {state.errors?.notes &&
-            state.errors.notes.map((error: string) => (
-              <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
-            ))}
-        </div>
-      </div>
+      {/* No notes field in new schema */}
 
       <DialogFooter>
          <DialogClose asChild>

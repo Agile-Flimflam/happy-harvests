@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { cookies } from "next/headers";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
-import NavLinks from "@/app/(app)/_components/NavLinks";
-import AuthButton from "@/app/(app)/_components/AuthButton";
-import { getUser } from "@/lib/supabase-server";
+import { getUserAndProfile } from "@/lib/supabase-server";
 import { Leaf } from "lucide-react";
 import Link from "next/link";
+import { AppSidebar } from "@/components/app-sidebar";
+import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
+import { ModeToggle } from "@/components/mode-toggle";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,43 +31,31 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const user = await getUser();
+  const { user, profile } = await getUserAndProfile();
+  const cookieStore = await cookies();
+  const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <div className="grid min-h-screen w-full lg:grid-cols-[280px_1fr]">
-            <div className="hidden border-r bg-gray-100/40 lg:block dark:bg-gray-800/40">
-              <div className="flex h-full max-h-screen flex-col gap-2">
-                <div className="flex h-[60px] items-center border-b px-6">
-                  <Link className="flex items-center gap-2 font-semibold" href="/">
-                    <Leaf className="h-6 w-6 text-green-600" />
-                    <span>Happy Harvests</span>
-                  </Link>
-                </div>
-                <div className="flex-1 overflow-auto py-2">
-                  <NavLinks />
-                </div>
-                <div className="mt-auto p-4 border-t">
-                  <AuthButton initialUser={user} />
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col">
-              <header className="flex h-14 lg:h-[60px] items-center gap-4 border-b bg-gray-100/40 px-6 dark:bg-gray-800/40 lg:hidden">
+          <SidebarProvider defaultOpen={defaultOpen}>
+            <AppSidebar initialUser={user} initialProfile={profile} />
+            <SidebarInset>
+              <header className="flex h-14 items-center gap-4 border-b px-4 md:px-6">
+                <SidebarTrigger />
                 <Link className="flex items-center gap-2 font-semibold" href="/">
                   <Leaf className="h-6 w-6 text-green-600" />
                   <span className="sr-only">Happy Harvests</span>
                 </Link>
-                <div className="ml-auto">
-                  <AuthButton initialUser={user} />
+                <div className="ml-auto flex items-center gap-2">
+                  <ModeToggle />
                 </div>
               </header>
               <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
                 {children}
               </main>
-            </div>
-          </div>
+            </SidebarInset>
+          </SidebarProvider>
           <Toaster richColors />
         </ThemeProvider>
       </body>

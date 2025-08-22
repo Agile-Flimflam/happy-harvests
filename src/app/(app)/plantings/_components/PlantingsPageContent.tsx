@@ -1,0 +1,137 @@
+'use client';
+
+import { useState } from 'react';
+import type { Tables, Enums } from '@/lib/supabase-server';
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { PlantingForm } from './PlantingForm';
+import { deletePlanting } from '../_actions';
+import { Pencil, Trash2, PlusCircle } from 'lucide-react';
+import { toast } from "sonner";
+
+type Planting = Tables<'bed_plantings'>;
+type CropVariety = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name'> & { crops?: { name: string } | null };
+type Bed = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { location: string } | null };
+
+type PlantingWithDetails = Planting & {
+  crop_varieties: { name: string; latin_name: string; crops: { name: string } | null } | null;
+  beds: { id: number; length_inches: number | null; width_inches: number | null; plots: { location: string } | null } | null;
+};
+
+interface PlantingsPageContentProps {
+  plantings: PlantingWithDetails[];
+  cropVarieties: CropVariety[];
+  beds: Bed[];
+}
+
+export function PlantingsPageContent({ plantings, cropVarieties, beds }: PlantingsPageContentProps) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Planting | null>(null);
+
+  const handleEdit = (p: Planting) => {
+    setEditing(p);
+    setIsDialogOpen(true);
+  };
+  const handleAdd = () => {
+    setEditing(null);
+    setIsDialogOpen(true);
+  };
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditing(null);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Delete this planting?')) return;
+    const result = await deletePlanting(id);
+    if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
+      toast.error(result.message);
+    } else {
+      toast.success(result.message);
+    }
+  };
+
+  const statusVariant = (status: Enums<'bed_planting_status'> | null): "default" | "secondary" | "destructive" | "outline" | null | undefined => {
+    switch (status) {
+      case 'Planted': return 'default';
+      case 'Nursery': return 'secondary';
+      case 'Harvested': return 'outline';
+      default: return 'secondary';
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-semibold">Manage Plantings</h1>
+        <Button onClick={handleAdd} size="sm">
+          <PlusCircle className="h-4 w-4 mr-2" />
+          Add Planting
+        </Button>
+      </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Edit Planting' : 'Add New Planting'}</DialogTitle>
+            <DialogDescription>
+              {editing ? 'Update the details of the planting.' : 'Enter the details for the new planting.'}
+            </DialogDescription>
+          </DialogHeader>
+          <PlantingForm planting={editing} cropVarieties={cropVarieties} beds={beds} closeDialog={closeDialog} />
+        </DialogContent>
+      </Dialog>
+
+      <div className="border rounded-lg overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Variety</TableHead>
+              <TableHead>Crop</TableHead>
+              <TableHead>Bed</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Qty</TableHead>
+              <TableHead>Planted</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {plantings.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center">No plantings found.</TableCell>
+              </TableRow>
+            )}
+            {plantings.map((p) => (
+              <TableRow key={p.id}>
+                <TableCell className="font-medium">{p.crop_varieties?.name ?? 'N/A'}</TableCell>
+                <TableCell>{p.crop_varieties?.crops?.name ?? 'N/A'}</TableCell>
+                <TableCell>
+                  Bed #{p.beds?.id} ({p.beds?.length_inches ?? '?'}x{p.beds?.width_inches ?? '?'}) @{p.beds?.plots?.location ?? 'N/A'}
+                </TableCell>
+                <TableCell>{p.planting_type}</TableCell>
+                <TableCell>{p.qty_planting}</TableCell>
+                <TableCell>{p.date_planted}</TableCell>
+                <TableCell>
+                  <Badge variant={statusVariant(p.status)}>{p.status}</Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button variant="ghost" size="icon" onClick={() => handleEdit(p)} className="mr-2">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)} className="text-red-500 hover:text-red-700">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+

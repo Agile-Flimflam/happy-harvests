@@ -8,7 +8,6 @@ import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea"; // Use Textarea for address
 import { toast } from "sonner";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
 
@@ -29,7 +28,7 @@ function SubmitButton({ isEditing }: { isEditing: boolean }) {
 }
 
 export function PlotForm({ plot, closeDialog }: PlotFormProps) {
-  const isEditing = Boolean(plot?.id);
+  const isEditing = Boolean(plot?.plot_id);
   const action = isEditing ? updatePlot : createPlot;
   const initialState: PlotFormState = { message: '', errors: {}, plot: plot };
   const [state, dispatch] = useActionState(action, initialState);
@@ -51,37 +50,20 @@ export function PlotForm({ plot, closeDialog }: PlotFormProps) {
 
   return (
     <form action={dispatch} className="space-y-4">
-      {isEditing && <input type="hidden" name="id" value={plot?.id} />}
+      {isEditing && <input type="hidden" name="plot_id" value={plot?.plot_id} />}
       <div>
-        <Label htmlFor="name">Plot Name</Label>
+        <Label htmlFor="location">Location</Label>
         <Input
-          id="name"
-          name="name"
-          defaultValue={state.plot?.name ?? ''}
+          id="location"
+          name="location"
+          defaultValue={state.plot?.location ?? ''}
           required
-          aria-describedby="name-error"
+          aria-describedby="location-error"
           className="mt-1"
         />
-        <div id="name-error" aria-live="polite" aria-atomic="true">
-          {state.errors?.name &&
-            state.errors.name.map((error: string) => (
-              <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
-            ))}
-        </div>
-      </div>
-      <div>
-        <Label htmlFor="address">Address / Location</Label>
-        <Textarea
-          id="address"
-          name="address"
-          defaultValue={state.plot?.address ?? ''}
-          aria-describedby="address-error"
-          className="mt-1"
-          rows={3}
-        />
-        <div id="address-error" aria-live="polite" aria-atomic="true">
-          {state.errors?.address &&
-            state.errors.address.map((error: string) => (
+        <div id="location-error" aria-live="polite" aria-atomic="true">
+          {state.errors?.location &&
+            state.errors.location.map((error: string) => (
               <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
             ))}
         </div>

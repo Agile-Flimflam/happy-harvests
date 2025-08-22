@@ -88,3 +88,47 @@ export async function getUser() {
     return null;
   }
 } 
+
+// Fetch the current user's profile (SSR)
+export async function getUserProfile() {
+  const supabase = await createSupabaseServerClient();
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return null;
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+    if (error) {
+      console.error('Error getting profile:', error.message);
+      return null;
+    }
+    return data;
+  } catch (error) {
+    console.error('Error in getUserProfile:', error);
+    return null;
+  }
+}
+
+// Fetch both user and profile together
+export async function getUserAndProfile() {
+  const supabase = await createSupabaseServerClient();
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { user: null, profile: null };
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+    if (error) {
+      console.error('Error getting profile:', error.message);
+      return { user, profile: null };
+    }
+    return { user, profile };
+  } catch (error) {
+    console.error('Error in getUserAndProfile:', error);
+    return { user: null, profile: null };
+  }
+}

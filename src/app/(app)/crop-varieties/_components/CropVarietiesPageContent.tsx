@@ -9,6 +9,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -21,16 +23,18 @@ import {
 import { CropVarietyForm } from '../_components/CropVarietyForm';
 import { deleteCropVariety } from '../_actions';
 import { Pencil, Trash2, PlusCircle } from 'lucide-react';
-import { Badge } from "@/components/ui/badge";
+import Image from 'next/image';
 import { toast } from "sonner";
 
-type CropVariety = Tables<'crop_varieties'>;
+type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null } & { image_url?: string | null };
+type Crop = { id: number; name: string };
 
 interface CropVarietiesPageContentProps {
   cropVarieties: CropVariety[];
+  crops?: Crop[];
 }
 
-export function CropVarietiesPageContent({ cropVarieties }: CropVarietiesPageContentProps) {
+export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVarietiesPageContentProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCropVariety, setEditingCropVariety] = useState<CropVariety | null>(null);
 
@@ -44,7 +48,7 @@ export function CropVarietiesPageContent({ cropVarieties }: CropVarietiesPageCon
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number | string) => {
     if (confirm('Are you sure you want to delete this crop variety? This might fail if it is linked to existing crops.')) {
       try {
         const result = await deleteCropVariety(id);
@@ -65,6 +69,8 @@ export function CropVarietiesPageContent({ cropVarieties }: CropVarietiesPageCon
     setEditingCropVariety(null);
   };
 
+  const formId = "crop-variety-form";
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -76,14 +82,24 @@ export function CropVarietiesPageContent({ cropVarieties }: CropVarietiesPageCon
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>{editingCropVariety ? 'Edit Crop Variety' : 'Add New Crop Variety'}</DialogTitle>
             <DialogDescription>
               {editingCropVariety ? 'Make changes to the crop variety details.' : 'Enter the details for the new crop variety.'}
             </DialogDescription>
           </DialogHeader>
-          <CropVarietyForm cropVariety={editingCropVariety} closeDialog={closeDialog} />
+          <div className="-mx-6 px-6 overflow-y-auto flex-1">
+            <CropVarietyForm formId={formId} cropVariety={editingCropVariety} crops={crops} closeDialog={closeDialog} />
+          </div>
+          <DialogFooter className="pt-2">
+            <DialogClose asChild>
+              <Button variant="outline" type="button">Cancel</Button>
+            </DialogClose>
+            <Button type="submit" form={formId}>
+              {editingCropVariety ? 'Update Crop Variety' : 'Create Crop Variety'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -91,59 +107,44 @@ export function CropVarietiesPageContent({ cropVarieties }: CropVarietiesPageCon
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
+              <TableHead>Image</TableHead>
+              <TableHead>Crop</TableHead>
               <TableHead>Variety</TableHead>
               <TableHead>Latin Name</TableHead>
               <TableHead>Organic</TableHead>
-              <TableHead>Color</TableHead>
-              <TableHead>Size</TableHead>
-              <TableHead>Hybrid Status</TableHead>
+              <TableHead>DTM (DS)</TableHead>
+              <TableHead>DTM (TP)</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {cropVarieties.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">No crop varieties found.</TableCell>
+                <TableCell colSpan={8} className="text-center">No crop varieties found.</TableCell>
               </TableRow>
             )}
             {cropVarieties.map((cropVariety) => (
               <TableRow key={cropVariety.id}>
-                <TableCell className="font-medium">{cropVariety.name}</TableCell>
-                <TableCell>{cropVariety.variety ?? 'N/A'}</TableCell>
+                <TableCell>
+                  {cropVariety.image_url ? (
+                    <Image
+                      src={cropVariety.image_url}
+                      alt=""
+                      width={40}
+                      height={40}
+                      unoptimized
+                      className="h-10 w-10 rounded object-cover border"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded border bg-muted" />
+                  )}
+                </TableCell>
+                <TableCell className="font-medium">{cropVariety.crops?.name ?? 'N/A'}</TableCell>
+                <TableCell>{cropVariety.name}</TableCell>
                 <TableCell>{cropVariety.latin_name ?? 'N/A'}</TableCell>
                 <TableCell>{cropVariety.is_organic ? 'Yes' : 'No'}</TableCell>
-                <TableCell>{cropVariety.color ?? 'N/A'}</TableCell>
-                <TableCell>
-                  {cropVariety.size ? (
-                    <Badge 
-                      variant="outline"
-                      className="border-slate-300 text-slate-700 hover:bg-slate-100"
-                    >
-                      {cropVariety.size}
-                    </Badge>
-                  ) : (
-                    'N/A'
-                  )}
-                </TableCell>
-                <TableCell>
-                  {cropVariety.hybrid_status ? (
-                    <Badge
-                      variant={'outline'}
-                      className={
-                        cropVariety.hybrid_status === 'Hybrid'
-                          ? 'border-slate-300 text-slate-700 hover:bg-slate-100'
-                          : cropVariety.hybrid_status === 'Open Pollinated'
-                            ? 'border-slate-300 text-slate-700 hover:bg-slate-100'
-                            : 'border-amber-500 text-amber-600 hover:bg-amber-100'
-                      }
-                    >
-                      {cropVariety.hybrid_status}
-                    </Badge>
-                  ) : (
-                    'N/A'
-                  )}
-                </TableCell>
+                <TableCell>{cropVariety.dtm_direct_seed_min}-{cropVariety.dtm_direct_seed_max}</TableCell>
+                <TableCell>{cropVariety.dtm_transplant_min}-{cropVariety.dtm_transplant_max}</TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="icon" onClick={() => handleEdit(cropVariety)} className="mr-2">
                     <Pencil className="h-4 w-4" />

@@ -6,9 +6,8 @@ import { z } from 'zod';
 
 // ----------------- PLOTS -----------------
 const PlotSchema = z.object({
-  id: z.string().uuid().optional(),
-  name: z.string().min(1, { message: 'Name is required' }),
-  address: z.string().optional().nullable(),
+  plot_id: z.number().int().optional(),
+  location: z.string().min(1, { message: 'Location is required' }),
 });
 
 type Plot = Tables<'plots'>;
@@ -29,8 +28,7 @@ export async function createPlot(
   const supabase = await createSupabaseServerClient();
 
   const validatedFields = PlotSchema.safeParse({
-    name: formData.get('name'),
-    address: formData.get('address') || null,
+    location: formData.get('location'),
   });
 
   if (!validatedFields.success) {
@@ -41,7 +39,9 @@ export async function createPlot(
     };
   }
 
-  const plotData: PlotInsert = validatedFields.data;
+  const plotData: PlotInsert = {
+    location: validatedFields.data.location as string,
+  };
 
   try {
     const { error } = await supabase.from('plots').insert(plotData);
@@ -62,14 +62,14 @@ export async function updatePlot(
   formData: FormData
 ): Promise<PlotFormState> {
   const supabase = await createSupabaseServerClient();
-  const id = formData.get('id') as string;
-  if (!id) {
+  const idRaw = formData.get('plot_id') as string;
+  const id = idRaw ? parseInt(idRaw, 10) : NaN;
+  if (!id || Number.isNaN(id)) {
     return { message: 'Error: Missing Plot ID for update.' };
   }
   const validatedFields = PlotSchema.safeParse({
-    id: id,
-    name: formData.get('name'),
-    address: formData.get('address') || null,
+    plot_id: id,
+    location: formData.get('location'),
   });
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -80,14 +80,13 @@ export async function updatePlot(
     };
   }
   const plotDataToUpdate: PlotUpdate = {
-    name: validatedFields.data.name,
-    address: validatedFields.data.address ?? null,
+    location: validatedFields.data.location,
   };
   try {
     const { error } = await supabase
       .from('plots')
       .update(plotDataToUpdate)
-      .eq('id', id);
+      .eq('plot_id', id);
     if (error) {
       console.error('Supabase Error:', error);
       return { message: `Database Error: ${error.message}`, plot: prevState.plot };
@@ -100,13 +99,14 @@ export async function updatePlot(
   }
 }
 
-export async function deletePlot(id: string): Promise<{ message: string }> {
+export async function deletePlot(id: string | number): Promise<{ message: string }> {
   const supabase = await createSupabaseServerClient();
-  if (!id) {
+  const numericId = typeof id === 'number' ? id : parseInt(id, 10);
+  if (!numericId || Number.isNaN(numericId)) {
     return { message: 'Error: Missing Plot ID for delete.' };
   }
   try {
-    const { error } = await supabase.from('plots').delete().eq('id', id);
+    const { error } = await supabase.from('plots').delete().eq('plot_id', numericId);
     if (error) {
       console.error('Supabase Error:', error);
       return { message: `Database Error: ${error.message}` };
@@ -128,8 +128,8 @@ export async function getPlotsWithBeds(): Promise<{ plots?: PlotWithBeds[]; erro
     const { data, error } = await supabase
       .from('plots')
       .select('*, beds(*)')
-      .order('name', { ascending: true })
-      .order('name', { referencedTable: 'beds', ascending: true });
+      .order('location', { ascending: true })
+      .order('id', { referencedTable: 'beds', ascending: true });
     if (error) {
       console.error('Supabase Error fetching plots/beds:', error);
       return { error: `Database Error: ${error.message}` };
@@ -148,12 +148,10 @@ export async function getPlotsWithBeds(): Promise<{ plots?: PlotWithBeds[]; erro
 
 // ----------------- BEDS -----------------
 const BedSchema = z.object({
-  id: z.string().uuid().optional(),
-  plot_id: z.string().uuid({ message: 'Plot selection is required' }),
-  name: z.string().min(1, { message: 'Bed name is required' }),
-  length_in: z.coerce.number().int().positive().optional().nullable(),
-  width_in: z.coerce.number().int().positive().optional().nullable(),
-  notes: z.string().optional().nullable(),
+  id: z.number().int().optional(),
+  plot_id: z.coerce.number().int({ message: 'Plot selection is required' }),
+  length_inches: z.coerce.number().int().positive().optional().nullable(),
+  width_inches: z.coerce.number().int().positive().optional().nullable(),
 });
 
 type BedInsert = Database['public']['Tables']['beds']['Insert'];
@@ -172,10 +170,8 @@ export async function createBed(
   const supabase = await createSupabaseServerClient();
   const validatedFields = BedSchema.safeParse({
     plot_id: formData.get('plot_id'),
-    name: formData.get('name'),
-    length_in: formData.get('length_in') || null,
-    width_in: formData.get('width_in') || null,
-    notes: formData.get('notes') || null,
+    length_inches: formData.get('length_inches') || null,
+    width_inches: formData.get('width_inches') || null,
   });
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -184,7 +180,11 @@ export async function createBed(
       errors: validatedFields.error.flatten().fieldErrors,
     };
   }
-  const bedData: BedInsert = validatedFields.data;
+  const bedData: BedInsert = {
+    plot_id: validatedFields.data.plot_id,
+    length_inches: validatedFields.data.length_inches ?? null,
+    width_inches: validatedFields.data.width_inches ?? null,
+  };
   try {
     const { error } = await supabase.from('beds').insert(bedData);
     if (error) {
@@ -207,17 +207,16 @@ export async function updateBed(
   formData: FormData
 ): Promise<BedFormState> {
   const supabase = await createSupabaseServerClient();
-  const id = formData.get('id') as string;
-  if (!id) {
+  const idRaw = formData.get('id') as string;
+  const id = idRaw ? parseInt(idRaw, 10) : NaN;
+  if (!id || Number.isNaN(id)) {
     return { message: 'Error: Missing Bed ID for update.' };
   }
   const validatedFields = BedSchema.safeParse({
     id: id,
     plot_id: formData.get('plot_id'),
-    name: formData.get('name'),
-    length_in: formData.get('length_in') || null,
-    width_in: formData.get('width_in') || null,
-    notes: formData.get('notes') || null,
+    length_inches: formData.get('length_inches') || null,
+    width_inches: formData.get('width_inches') || null,
   });
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -229,10 +228,8 @@ export async function updateBed(
   }
   const bedDataToUpdate: BedUpdate = {
     plot_id: validatedFields.data.plot_id,
-    name: validatedFields.data.name,
-    length_in: validatedFields.data.length_in ?? null,
-    width_in: validatedFields.data.width_in ?? null,
-    notes: validatedFields.data.notes ?? null,
+    length_inches: validatedFields.data.length_inches ?? null,
+    width_inches: validatedFields.data.width_inches ?? null,
   };
   try {
     const { error } = await supabase
@@ -254,13 +251,14 @@ export async function updateBed(
   }
 }
 
-export async function deleteBed(id: string): Promise<{ message: string }> {
+export async function deleteBed(id: string | number): Promise<{ message: string }> {
   const supabase = await createSupabaseServerClient();
-  if (!id) {
-    return { message: 'Error: Missing Bed ID for delete.' };
+  const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+  if (!numericId || Number.isNaN(numericId)) {
+    return { message: 'Error: Missing or invalid Bed ID for delete.' };
   }
   try {
-    const { error } = await supabase.from('beds').delete().eq('id', id);
+    const { error } = await supabase.from('beds').delete().eq('id', numericId);
     if (error) {
       console.error('Supabase Error:', error);
       if (error.code === '23503') {
@@ -281,8 +279,8 @@ export async function getBeds(): Promise<{ beds?: Bed[]; error?: string }> {
   try {
     const { data, error } = await supabase
       .from('beds')
-      .select('*, plots(name)')
-      .order('name', { ascending: true });
+      .select('*, plots(location)')
+      .order('id', { ascending: true });
     if (error) {
       console.error('Supabase Error fetching beds:', error);
       return { error: `Database Error: ${error.message}` };
