@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   // Supabase returns either `code` (PKCE) or `token` (magiclink) depending on the flow
   const code = requestUrl.searchParams.get('code');
   const token = requestUrl.searchParams.get('token');
-  const nextPath = requestUrl.searchParams.get('next') ?? '/dashboard';
+  const nextPath = requestUrl.searchParams.get('next') ?? '/';
 
   // Prepare a redirect response early so we can attach cookies to it
   const response = NextResponse.redirect(new URL(nextPath, requestUrl));
@@ -48,4 +48,6 @@ export async function GET(request: NextRequest) {
   }
 
   return response;
-} 
+}
+
+

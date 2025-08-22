@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import Fraction from 'fraction.js'; // Import fraction.js
-import { createBed, updateBed, type BedFormState } from '@/app/actions/beds';
+import { createBed, updateBed, type BedFormState } from '../_actions';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -225,4 +225,6 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
       </DialogFooter>
     </form>
   );
-} 
+}
+
+

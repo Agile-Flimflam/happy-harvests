@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { createPlot, updatePlot, type PlotFormState } from '@/app/actions/plots';
+import { createPlot, updatePlot, type PlotFormState } from '../_actions';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,4 +94,6 @@ export function PlotForm({ plot, closeDialog }: PlotFormProps) {
       </DialogFooter>
     </form>
   );
-} 
+}
+
+
