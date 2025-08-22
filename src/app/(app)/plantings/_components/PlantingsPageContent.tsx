@@ -13,11 +13,11 @@ import { toast } from "sonner";
 
 type Planting = Tables<'bed_plantings'>;
 type CropVariety = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name'> & { crops?: { name: string } | null };
-type Bed = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { location: string } | null };
+type Bed = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { locations: { name: string } | null } | null };
 
 type PlantingWithDetails = Planting & {
   crop_varieties: { name: string; latin_name: string; crops: { name: string } | null } | null;
-  beds: { id: number; length_inches: number | null; width_inches: number | null; plots: { location: string } | null } | null;
+  beds: { id: number; length_inches: number | null; width_inches: number | null; plots: { locations: { name: string } | null } | null } | null;
 };
 
 interface PlantingsPageContentProps {
@@ -109,7 +109,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds }: Plantin
                 <TableCell className="font-medium">{p.crop_varieties?.name ?? 'N/A'}</TableCell>
                 <TableCell>{p.crop_varieties?.crops?.name ?? 'N/A'}</TableCell>
                 <TableCell>
-                  Bed #{p.beds?.id} ({p.beds?.length_inches ?? '?'}x{p.beds?.width_inches ?? '?'}) @{p.beds?.plots?.location ?? 'N/A'}
+                  Bed #{p.beds?.id} ({p.beds?.length_inches ?? '?'}x{p.beds?.width_inches ?? '?'}) @{p.beds?.plots?.locations?.name ?? 'N/A'}
                 </TableCell>
                 <TableCell>{p.planting_type}</TableCell>
                 <TableCell>{p.qty_planting}</TableCell>

@@ -124,7 +124,12 @@ export async function deletePlanting(id: number | string): Promise<{ message: st
 
 type PlantingWithDetails = Planting & {
   crop_varieties: { name: string; latin_name: string; crops: { name: string } | null } | null;
-  beds: { id: number; length_inches: number | null; width_inches: number | null; plots: { location: string } | null } | null;
+  beds: {
+    id: number;
+    length_inches: number | null;
+    width_inches: number | null;
+    plots: { locations: { name: string } | null } | null;
+  } | null;
 };
 
 export async function getPlantingsWithDetails(): Promise<{ plantings?: PlantingWithDetails[]; error?: string }> {
@@ -134,7 +139,7 @@ export async function getPlantingsWithDetails(): Promise<{ plantings?: PlantingW
     .select(`
       *,
       crop_varieties ( name, latin_name, crops ( name ) ),
-      beds ( id, length_inches, width_inches, plots ( location ) )
+      beds ( id, length_inches, width_inches, plots ( locations ( name ) ) )
     `)
     .order('created_at', { ascending: false });
   if (error) {
@@ -156,13 +161,13 @@ export async function getCropVarietiesForSelect(): Promise<{ varieties?: CropVar
   return { varieties: (data as unknown as CropVarietyForSelect[]) || [] };
 }
 
-type BedForSelect = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { location: string } | null };
+type BedForSelect = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { locations: { name: string } | null } | null };
 
 export async function getBedsForSelect(): Promise<{ beds?: BedForSelect[]; error?: string }> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('beds')
-    .select('id, length_inches, width_inches, plots(location)')
+    .select('id, length_inches, width_inches, plots(locations(name))')
     .order('id', { ascending: true });
   if (error) return { error: error.message };
   return { beds: (data as unknown as BedForSelect[]) || [] };

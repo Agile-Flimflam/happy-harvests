@@ -12,9 +12,11 @@ import { toast } from "sonner";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
 
 type Plot = Tables<'plots'>;
+type Location = Tables<'locations'>;
 
 interface PlotFormProps {
   plot?: Plot | null;
+  locations: Location[];
   closeDialog: () => void;
 }
 
@@ -27,7 +29,7 @@ function SubmitButton({ isEditing }: { isEditing: boolean }) {
   );
 }
 
-export function PlotForm({ plot, closeDialog }: PlotFormProps) {
+export function PlotForm({ plot, locations, closeDialog }: PlotFormProps) {
   const isEditing = Boolean(plot?.plot_id);
   const action = isEditing ? updatePlot : createPlot;
   const initialState: PlotFormState = { message: '', errors: {}, plot: plot };
@@ -52,18 +54,42 @@ export function PlotForm({ plot, closeDialog }: PlotFormProps) {
     <form action={dispatch} className="space-y-4">
       {isEditing && <input type="hidden" name="plot_id" value={plot?.plot_id} />}
       <div>
-        <Label htmlFor="location">Location</Label>
+        <Label htmlFor="name">Name</Label>
         <Input
-          id="location"
-          name="location"
-          defaultValue={state.plot?.location ?? ''}
+          id="name"
+          name="name"
+          defaultValue={state.plot?.name ?? ''}
           required
-          aria-describedby="location-error"
+          aria-describedby="name-error"
           className="mt-1"
         />
-        <div id="location-error" aria-live="polite" aria-atomic="true">
-          {state.errors?.location &&
-            state.errors.location.map((error: string) => (
+        <div id="name-error" aria-live="polite" aria-atomic="true">
+          {state.errors?.name &&
+            state.errors.name.map((error: string) => (
+              <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
+            ))}
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="location_id">Location</Label>
+        <select
+          id="location_id"
+          name="location_id"
+          defaultValue={state.plot?.location_id ?? ''}
+          required
+          className="mt-1 block w-full border rounded-md px-3 py-2 text-sm bg-background"
+          aria-describedby="location_id-error"
+        >
+          <option value="">— Unassigned —</option>
+          {locations.map((loc) => (
+            <option key={loc.id} value={loc.id}>
+              {loc.name}
+            </option>
+          ))}
+        </select>
+        <div id="location_id-error" aria-live="polite" aria-atomic="true">
+          {state.errors?.location_id &&
+            state.errors.location_id.map((error: string) => (
               <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
             ))}
         </div>
@@ -77,5 +103,3 @@ export function PlotForm({ plot, closeDialog }: PlotFormProps) {
     </form>
   );
 }
-
-

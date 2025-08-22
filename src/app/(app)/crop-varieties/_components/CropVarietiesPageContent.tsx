@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -141,8 +142,14 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
                 </TableCell>
                 <TableCell className="font-medium">{cropVariety.crops?.name ?? 'N/A'}</TableCell>
                 <TableCell>{cropVariety.name}</TableCell>
-                <TableCell>{cropVariety.latin_name ?? 'N/A'}</TableCell>
-                <TableCell>{cropVariety.is_organic ? 'Yes' : 'No'}</TableCell>
+                <TableCell className="font-serif italic text-muted-foreground text-sm whitespace-nowrap">
+                  {cropVariety.latin_name ?? 'N/A'}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={cropVariety.is_organic ? 'secondary' : 'outline'}>
+                    {cropVariety.is_organic ? 'Yes' : 'No'}
+                  </Badge>
+                </TableCell>
                 <TableCell>{cropVariety.dtm_direct_seed_min}-{cropVariety.dtm_direct_seed_max}</TableCell>
                 <TableCell>{cropVariety.dtm_transplant_min}-{cropVariety.dtm_transplant_max}</TableCell>
                 <TableCell className="text-right">
@@ -161,5 +168,3 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
     </div>
   );
 }
-
-

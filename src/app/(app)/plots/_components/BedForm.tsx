@@ -15,11 +15,12 @@ import { toast } from "sonner";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
 
 type Bed = Tables<'beds'>;
-type Plot = Tables<'plots'>;
+type Location = Tables<'locations'>;
+type PlotForSelect = Tables<'plots'> & { locations?: Location | null };
 
 interface BedFormProps {
   bed?: Bed | null;
-  plots: Plot[]; // Need list of plots for the dropdown
+  plots: PlotForSelect[]; // Need list of plots for the dropdown
   closeDialog: () => void;
 }
 
@@ -77,7 +78,7 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
             <SelectContent>
                 {plots.map((plot) => (
                     <SelectItem key={plot.plot_id} value={plot.plot_id.toString()}>
-                        {plot.location}
+                        {plot.name} @ {plot.locations?.name ?? 'No Location Assigned'}
                     </SelectItem>
                 ))}
             </SelectContent>

@@ -385,6 +385,13 @@ export async function getCropVarieties(): Promise<{ cropVarieties?: (CropVariety
       }
       return { ...row, image_url: null } as CropVariety & { crops: { name: string } | null } & { image_url?: string | null };
     });
+    withUrls.sort((a, b) => {
+      const cropA = (a.crops?.name || '').toString();
+      const cropB = (b.crops?.name || '').toString();
+      const byCrop = cropA.localeCompare(cropB, undefined, { sensitivity: 'base' });
+      if (byCrop !== 0) return byCrop;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
     return { cropVarieties: withUrls };
   } catch (e) {
     console.error('Unexpected Error fetching crop varieties:', e);

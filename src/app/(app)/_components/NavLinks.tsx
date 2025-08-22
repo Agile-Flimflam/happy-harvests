@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils'; // Assuming shadcn/ui setup
-import { Home, Leaf, Fence, Sprout } from 'lucide-react'; // Icons (removed Tractor)
+import { Home, Leaf, Fence, Sprout, MapPin } from 'lucide-react'; // Icons (removed Tractor)
 
 const links = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Crop Varieties', href: '/crop-varieties', icon: Leaf },
+  { name: 'Locations', href: '/locations', icon: MapPin },
   { name: 'Plots & Beds', href: '/plots', icon: Fence },
   { name: 'Plantings', href: '/plantings', icon: Sprout },
 ];

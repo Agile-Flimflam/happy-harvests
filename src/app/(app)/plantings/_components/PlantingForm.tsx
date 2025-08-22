@@ -7,14 +7,14 @@ import { createPlanting, updatePlanting, type PlantingFormState } from '../_acti
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 type Planting = Tables<'bed_plantings'>;
 type CropVariety = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name'> & { crops?: { name: string } | null };
-type Bed = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { location: string } | null };
+type Bed = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { locations: { name: string } | null } | null };
 
 interface PlantingFormProps {
   planting?: Planting | null;
@@ -38,6 +38,22 @@ export function PlantingForm({ planting, cropVarieties, beds, closeDialog }: Pla
   const initialState: PlantingFormState = { message: '', errors: {}, planting };
   const [state, formAction] = useActionState(action, initialState);
 
+  // Group varieties by crop
+  const groupedVarieties = cropVarieties.reduce((acc, v) => {
+    const cropName = v.crops?.name ?? 'Unknown';
+    if (!acc[cropName]) acc[cropName] = [];
+    acc[cropName].push(v);
+    return acc;
+  }, {} as Record<string, CropVariety[]>);
+
+  // Sort crops and varieties within each crop
+  const sortedGroups = Object.entries(groupedVarieties)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([crop, varieties]) => [
+      crop,
+      varieties.sort((a, b) => a.name.localeCompare(b.name))
+    ] as const);
+
   useEffect(() => {
     if (state.message) {
       if (state.errors && Object.keys(state.errors).length > 0) {
@@ -60,10 +76,15 @@ export function PlantingForm({ planting, cropVarieties, beds, closeDialog }: Pla
             <SelectValue placeholder="Select a variety" />
           </SelectTrigger>
           <SelectContent>
-            {cropVarieties.map((v) => (
-              <SelectItem key={v.id} value={v.id.toString()}>
-                {v.name} ({v.crops?.name ?? 'Unknown crop'})
-              </SelectItem>
+            {sortedGroups.map(([cropName, varieties]) => (
+              <SelectGroup key={cropName}>
+                <SelectLabel>{cropName}</SelectLabel>
+                {varieties.map((v) => (
+                  <SelectItem key={v.id} value={v.id.toString()} className="pl-6">
+                    {v.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             ))}
           </SelectContent>
         </Select>
@@ -79,7 +100,7 @@ export function PlantingForm({ planting, cropVarieties, beds, closeDialog }: Pla
           <SelectContent>
             {beds.map((b) => (
               <SelectItem key={b.id} value={b.id.toString()}>
-                Bed #{b.id} ({b.length_inches ?? '?'}x{b.width_inches ?? '?'}) @ {b.plots?.location ?? 'Unknown'}
+                Bed #{b.id} ({b.length_inches ?? '?'}x{b.width_inches ?? '?'}) @ {b.plots?.locations?.name ?? 'Unknown'}
               </SelectItem>
             ))}
           </SelectContent>

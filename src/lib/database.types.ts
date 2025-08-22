@@ -53,18 +53,72 @@ export type Database = {
       plots: {
         Row: {
           created_at: string
-          location: string
+          name: string
           plot_id: number
+          location_id: string | null
         }
         Insert: {
           created_at?: string
-          location: string
+          name: string
           plot_id?: number
+          location_id?: string | null
         }
         Update: {
           created_at?: string
-          location?: string
+          name?: string
           plot_id?: number
+          location_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plots_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      ,
+      locations: {
+        Row: {
+          id: string
+          created_at: string
+          name: string
+          street: string | null
+          city: string | null
+          state: string | null
+          zip: string | null
+          latitude: number | null
+          longitude: number | null
+          timezone: string | null
+          notes: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          name: string
+          street?: string | null
+          city?: string | null
+          state?: string | null
+          zip?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          timezone?: string | null
+          notes?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          name?: string
+          street?: string | null
+          city?: string | null
+          state?: string | null
+          zip?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          timezone?: string | null
+          notes?: string | null
         }
         Relationships: []
       }

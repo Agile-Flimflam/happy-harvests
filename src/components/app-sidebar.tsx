@@ -4,7 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
-import { Home, Leaf, Fence, Sprout } from "lucide-react"
+import { Home, Leaf, Fence, Sprout, MapPin } from "lucide-react"
 
 import {
   Sidebar,
@@ -73,6 +73,14 @@ export function AppSidebar({ initialUser, initialProfile }: AppSidebarProps) {
           <SidebarGroupLabel className="h-7">Setup</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/locations"} tooltip="Locations">
+                  <Link href="/locations">
+                    <MapPin />
+                    <span>Locations</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/plots"} tooltip="Plots & Beds">
                   <Link href="/plots">

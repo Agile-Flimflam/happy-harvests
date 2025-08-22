@@ -11,6 +11,15 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '6mb',
     },
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'openweathermap.org',
+        pathname: '/img/wn/**',
+      },
+    ],
+  },
 };
 
 export default nextConfig;

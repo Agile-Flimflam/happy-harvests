@@ -7,11 +7,15 @@ import { z } from 'zod';
 // ----------------- PLOTS -----------------
 const PlotSchema = z.object({
   plot_id: z.number().int().optional(),
-  location: z.string().min(1, { message: 'Location is required' }),
+  name: z.string().min(1, { message: 'Name is required' }),
+  location_id: z
+    .string({ required_error: 'Location is required' })
+    .uuid({ message: 'Location is required' }),
 });
 
 type Plot = Tables<'plots'>;
 type Bed = Tables<'beds'>;
+type Location = Tables<'locations'>;
 type PlotInsert = Database['public']['Tables']['plots']['Insert'];
 type PlotUpdate = Database['public']['Tables']['plots']['Update'];
 
@@ -28,7 +32,8 @@ export async function createPlot(
   const supabase = await createSupabaseServerClient();
 
   const validatedFields = PlotSchema.safeParse({
-    location: formData.get('location'),
+    name: formData.get('name'),
+    location_id: String(formData.get('location_id') ?? ''),
   });
 
   if (!validatedFields.success) {
@@ -40,7 +45,8 @@ export async function createPlot(
   }
 
   const plotData: PlotInsert = {
-    location: validatedFields.data.location as string,
+    name: validatedFields.data.name as string,
+    location_id: validatedFields.data.location_id,
   };
 
   try {
@@ -69,7 +75,8 @@ export async function updatePlot(
   }
   const validatedFields = PlotSchema.safeParse({
     plot_id: id,
-    location: formData.get('location'),
+    name: formData.get('name'),
+    location_id: String(formData.get('location_id') ?? ''),
   });
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -80,7 +87,8 @@ export async function updatePlot(
     };
   }
   const plotDataToUpdate: PlotUpdate = {
-    location: validatedFields.data.location,
+    name: validatedFields.data.name,
+    location_id: validatedFields.data.location_id,
   };
   try {
     const { error } = await supabase
@@ -96,6 +104,23 @@ export async function updatePlot(
   } catch (e) {
     console.error('Unexpected Error:', e);
     return { message: 'An unexpected error occurred.', plot: prevState.plot };
+  }
+}
+
+export async function getLocationsList(): Promise<{ locations?: Location[]; error?: string }> {
+  const supabase = await createSupabaseServerClient();
+  try {
+    const { data, error } = await supabase
+      .from('locations')
+      .select('*')
+      .order('name', { ascending: true });
+    if (error) {
+      return { error: `Database Error: ${error.message}` };
+    }
+    return { locations: (data as Location[]) || [] };
+  } catch (e) {
+    console.error('Unexpected Error fetching locations:', e);
+    return { error: 'An unexpected error occurred while fetching locations.' };
   }
 }
 
@@ -119,16 +144,29 @@ export async function deletePlot(id: string | number): Promise<{ message: string
   }
 }
 
-type PlotDataWithMaybeBeds = Plot & { beds: Bed[] | null };
-type PlotWithBeds = Plot & { beds: Bed[] };
+// Helper function to calculate plot acreage from beds
+const calculatePlotAcreage = (beds: Bed[]): number => {
+  const totalSqFt = beds.reduce((sum, bed) => {
+    const length = bed.length_inches;
+    const width = bed.width_inches;
+    if (length && width && length > 0 && width > 0) {
+      return sum + (length * width) / 144;
+    }
+    return sum;
+  }, 0);
+  return totalSqFt / 43560;
+};
+
+type PlotDataWithMaybeBeds = Plot & { beds: Bed[] | null; locations: Location | null };
+type PlotWithBeds = Plot & { beds: Bed[]; locations: Location | null; totalAcreage: number };
 
 export async function getPlotsWithBeds(): Promise<{ plots?: PlotWithBeds[]; error?: string }> {
   const supabase = await createSupabaseServerClient();
   try {
     const { data, error } = await supabase
       .from('plots')
-      .select('*, beds(*)')
-      .order('location', { ascending: true })
+      .select('*, beds(*), locations(*)')
+      .order('name', { ascending: true })
       .order('id', { referencedTable: 'beds', ascending: true });
     if (error) {
       console.error('Supabase Error fetching plots/beds:', error);
@@ -138,6 +176,8 @@ export async function getPlotsWithBeds(): Promise<{ plots?: PlotWithBeds[]; erro
     const plotsWithEnsuredBeds: PlotWithBeds[] = plotsData?.map((plot: PlotDataWithMaybeBeds) => ({
       ...plot,
       beds: plot.beds || [],
+      locations: plot.locations || null,
+      totalAcreage: calculatePlotAcreage(plot.beds || []),
     })) || [];
     return { plots: plotsWithEnsuredBeds };
   } catch (e) {
