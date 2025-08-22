@@ -13,6 +13,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { ExternalLink } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { UsaStates } from 'usa-states';
 
 type Location = Tables<'locations'>;
 
@@ -36,6 +38,10 @@ export function LocationForm({ location, closeDialog }: LocationFormProps) {
   const initialState: LocationFormState = { message: '', errors: {}, location };
   const [state, dispatch] = useActionState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
+  
+  // Initialize US states data
+  const usStates = new UsaStates();
+  const states = usStates.states;
 
   const handleOpenInGoogleMaps = () => {
     const formElement = formRef.current;
@@ -117,7 +123,20 @@ export function LocationForm({ location, closeDialog }: LocationFormProps) {
           </div>
           <div>
             <Label htmlFor="state">State</Label>
-            <Input id="state" name="state" defaultValue={state.location?.state ?? ''} className="mt-1" />
+            <Select name="state" defaultValue={state.location?.state ?? ''}>
+              <SelectTrigger className="mt-1 w-full">
+                <SelectValue placeholder="Select a state">
+                  {state.location?.state || "Select a state"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {states.map((stateData) => (
+                  <SelectItem key={stateData.abbreviation} value={stateData.abbreviation}>
+                    {stateData.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label htmlFor="zip">Zip</Label>
@@ -147,6 +166,21 @@ export function LocationForm({ location, closeDialog }: LocationFormProps) {
               ))}
             </div>
           </div>
+        </div>
+        <div>
+          <Label htmlFor="timezone">Timezone</Label>
+          <Input 
+            id="timezone" 
+            name="timezone" 
+            value={state.location?.timezone || ''} 
+            placeholder="Will be detected when coordinates are provided"
+            readOnly 
+            disabled
+            className="mt-1 bg-muted text-muted-foreground cursor-not-allowed" 
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Automatically set based on location coordinates
+          </p>
         </div>
         <div className="flex justify-end">
           <Button type="button" variant="ghost" onClick={handleOpenInGoogleMaps}>
