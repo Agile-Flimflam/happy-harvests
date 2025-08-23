@@ -1,20 +1,28 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRef } from 'react';
+import { useEffect, useRef, startTransition } from 'react';
 import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
 import { createLocation, updateLocation, type LocationFormState } from '../_actions';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { ExternalLink } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UsaStates } from 'usa-states';
+import { useForm, type SubmitHandler, type Resolver } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { LocationSchema, type LocationFormValues } from '@/lib/validation/locations';
+import { 
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 
 type Location = Tables<'locations'>;
 
@@ -23,14 +31,16 @@ interface LocationFormProps {
   closeDialog: () => void;
 }
 
-function SubmitButton({ isEditing }: { isEditing: boolean }) {
-  const { pending } = useFormStatus();
+function SubmitButton({ isEditing, submitting }: { isEditing: boolean; submitting: boolean }) {
   return (
-    <Button type="submit" disabled={pending} aria-disabled={pending}>
-      {pending ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Location' : 'Create Location')}
+    <Button type="submit" disabled={submitting} aria-disabled={submitting}>
+      {submitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Location' : 'Create Location')}
     </Button>
   );
 }
+
+const usStates = new UsaStates();
+const states = usStates.states;
 
 export function LocationForm({ location, closeDialog }: LocationFormProps) {
   const isEditing = Boolean(location?.id);
@@ -38,28 +48,32 @@ export function LocationForm({ location, closeDialog }: LocationFormProps) {
   const initialState: LocationFormState = { message: '', errors: {}, location };
   const [state, dispatch] = useActionState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
-  
-  // Initialize US states data
-  const usStates = new UsaStates();
-  const states = usStates.states;
+
+  const form = useForm<LocationFormValues>({
+    resolver: zodResolver(LocationSchema) as unknown as Resolver<LocationFormValues>,
+    mode: 'onSubmit',
+    defaultValues: {
+      id: location?.id,
+      name: location?.name ?? '',
+      street: location?.street ?? '',
+      city: location?.city ?? '',
+      state: location?.state ?? '',
+      zip: location?.zip ?? '',
+      latitude: (location?.latitude ?? null) as number | null,
+      longitude: (location?.longitude ?? null) as number | null,
+      notes: location?.notes ?? '',
+    },
+  });
 
   const handleOpenInGoogleMaps = () => {
-    const formElement = formRef.current;
-    if (!formElement) return;
-
-    const formData = new FormData(formElement);
-    const getValue = (key: string) => String(formData.get(key) ?? '').trim();
-
-    const name = getValue('name');
-    const street = getValue('street');
-    const city = getValue('city');
-    const stateVal = getValue('state');
-    const zip = getValue('zip');
-    const latStr = getValue('latitude');
-    const lngStr = getValue('longitude');
-
-    const latitude = parseFloat(latStr);
-    const longitude = parseFloat(lngStr);
+    const values = form.getValues();
+    const name = (values.name ?? '').trim();
+    const street = (values.street ?? '').trim();
+    const city = (values.city ?? '').trim();
+    const stateVal = (values.state ?? '').trim();
+    const zip = (values.zip ?? '').trim();
+    const latitude = typeof values.latitude === 'number' ? values.latitude : NaN;
+    const longitude = typeof values.longitude === 'number' ? values.longitude : NaN;
 
     let url = '';
 
@@ -84,124 +98,208 @@ export function LocationForm({ location, closeDialog }: LocationFormProps) {
   useEffect(() => {
     if (state.message) {
       if (state.errors && Object.keys(state.errors).length > 0) {
-        toast.error(state.message, {
-          description: Object.entries(state.errors)
-            .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : 'Invalid error format'}`)
-            .join('\n'),
+        // Map server-side errors to RHF fields
+        Object.entries(state.errors).forEach(([field, errors]) => {
+          const message = Array.isArray(errors) ? errors[0] : (errors as unknown as string) || 'Invalid value';
+          form.setError(field as keyof LocationFormValues, { message });
         });
+        toast.error(state.message);
       } else {
         toast.success(state.message);
         closeDialog();
       }
     }
-  }, [state, closeDialog]);
+  }, [state, closeDialog, form]);
+
+  const onSubmit: SubmitHandler<LocationFormValues> = async (values) => {
+    const fd = new FormData();
+    if (isEditing && location?.id) fd.append('id', location.id);
+    fd.append('name', values.name ?? '');
+    fd.append('street', (values.street ?? '').toString());
+    fd.append('city', (values.city ?? '').toString());
+    fd.append('state', (values.state ?? '').toString());
+    fd.append('zip', (values.zip ?? '').toString());
+    fd.append('latitude', values.latitude != null ? String(values.latitude) : '');
+    fd.append('longitude', values.longitude != null ? String(values.longitude) : '');
+    fd.append('notes', (values.notes ?? '').toString());
+    startTransition(() => {
+      dispatch(fd);
+    });
+  };
 
   return (
-    <form ref={formRef} action={dispatch} className="space-y-4">
-      {isEditing && <input type="hidden" name="id" value={location?.id} />}
+    <Form {...form}>
+      <form ref={formRef} onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+        {isEditing && <input type="hidden" name="id" value={location?.id} />}
 
-      <div>
-        <Label htmlFor="name">Name</Label>
-        <Input id="name" name="name" defaultValue={state.location?.name ?? ''} required aria-describedby="name-error" className="mt-1" />
-        <div id="name-error" aria-live="polite" aria-atomic="true">
-          {state.errors?.name && state.errors.name.map((error: string) => (
-            <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
-          ))}
-        </div>
-      </div>
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Name</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-      <fieldset className="border p-4 rounded-md space-y-3">
-        <legend className="text-sm font-medium px-1">Address</legend>
-        <div>
-          <Label htmlFor="street">Street</Label>
-          <Input id="street" name="street" defaultValue={state.location?.street ?? ''} className="mt-1" />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <Label htmlFor="city">City</Label>
-            <Input id="city" name="city" defaultValue={state.location?.city ?? ''} className="mt-1" />
-          </div>
-          <div>
-            <Label htmlFor="state">State</Label>
-            <Select name="state" defaultValue={state.location?.state ?? ''}>
-              <SelectTrigger className="mt-1 w-full">
-                <SelectValue placeholder="Select a state">
-                  {state.location?.state || "Select a state"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {states.map((stateData) => (
-                  <SelectItem key={stateData.abbreviation} value={stateData.abbreviation}>
-                    {stateData.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="zip">Zip</Label>
-            <Input id="zip" name="zip" defaultValue={state.location?.zip ?? ''} className="mt-1" />
-          </div>
-        </div>
-      </fieldset>
+        <fieldset className="border p-4 rounded-md space-y-3">
+          <legend className="text-sm font-medium px-1">Address</legend>
 
-      <fieldset className="border p-4 rounded-md space-y-3">
-        <legend className="text-sm font-medium px-1">Coordinates</legend>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="latitude">Latitude</Label>
-            <Input id="latitude" name="latitude" type="number" step="any" defaultValue={state.location?.latitude ?? ''} aria-describedby="latitude-error" className="mt-1" />
-            <div id="latitude-error" aria-live="polite" aria-atomic="true">
-              {state.errors?.latitude && state.errors.latitude.map((error: string) => (
-                <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
-              ))}
-            </div>
-          </div>
-          <div>
-            <Label htmlFor="longitude">Longitude</Label>
-            <Input id="longitude" name="longitude" type="number" step="any" defaultValue={state.location?.longitude ?? ''} aria-describedby="longitude-error" className="mt-1" />
-            <div id="longitude-error" aria-live="polite" aria-atomic="true">
-              {state.errors?.longitude && state.errors.longitude.map((error: string) => (
-                <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div>
-          <Label htmlFor="timezone">Timezone</Label>
-          <Input 
-            id="timezone" 
-            name="timezone" 
-            value={state.location?.timezone || ''} 
-            placeholder="Will be detected when coordinates are provided"
-            readOnly 
-            disabled
-            className="mt-1 bg-muted text-muted-foreground cursor-not-allowed" 
+          <FormField
+            control={form.control}
+            name="street"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Street</FormLabel>
+                <FormControl>
+                  <Input {...field} value={field.value ?? ''} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
           />
-          <p className="text-xs text-muted-foreground mt-1">
-            Automatically set based on location coordinates
-          </p>
-        </div>
-        <div className="flex justify-end">
-          <Button type="button" variant="ghost" onClick={handleOpenInGoogleMaps}>
-            <ExternalLink />
-            Open in Google Maps
-          </Button>
-        </div>
-      </fieldset>
 
-      <div>
-        <Label htmlFor="notes">Notes</Label>
-        <Textarea id="notes" name="notes" defaultValue={state.location?.notes ?? ''} className="mt-1" rows={3} />
-      </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <FormField
+              control={form.control}
+              name="city"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>City</FormLabel>
+                  <FormControl>
+                    <Input {...field} value={field.value ?? ''} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="state"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>State</FormLabel>
+                  <FormControl>
+                    <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                      <SelectTrigger className="mt-1 w-full">
+                        <SelectValue placeholder="Select a state" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {states.map((stateData) => (
+                          <SelectItem key={stateData.abbreviation} value={stateData.abbreviation}>
+                            {stateData.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="zip"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Zip</FormLabel>
+                  <FormControl>
+                    <Input {...field} value={field.value ?? ''} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        </fieldset>
 
-      <DialogFooter>
-        <DialogClose asChild>
-          <Button variant="outline">Cancel</Button>
-        </DialogClose>
-        <SubmitButton isEditing={isEditing} />
-      </DialogFooter>
-    </form>
+        <fieldset className="border p-4 rounded-md space-y-3">
+          <legend className="text-sm font-medium px-1">Coordinates</legend>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="latitude"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Latitude</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={field.value != null ? String(field.value) : ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="longitude"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Longitude</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="any"
+                      value={field.value != null ? String(field.value) : ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium" htmlFor="timezone">Timezone</label>
+            <Input
+              id="timezone"
+              name="timezone"
+              value={location?.timezone || state.location?.timezone || ''}
+              placeholder="Will be detected when coordinates are provided"
+              readOnly
+              disabled
+              className="mt-1 bg-muted text-muted-foreground cursor-not-allowed"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Automatically set based on location coordinates</p>
+          </div>
+          <div className="flex justify-end">
+            <Button type="button" variant="ghost" onClick={handleOpenInGoogleMaps}>
+              <ExternalLink />
+              Open in Google Maps
+            </Button>
+          </div>
+        </fieldset>
+
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Notes</FormLabel>
+              <FormControl>
+                <Textarea rows={3} {...field} value={field.value ?? ''} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </DialogClose>
+          <SubmitButton isEditing={isEditing} submitting={form.formState.isSubmitting} />
+        </DialogFooter>
+      </form>
+    </Form>
   );
 }
 

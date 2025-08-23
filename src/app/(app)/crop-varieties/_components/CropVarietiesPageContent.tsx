@@ -26,6 +26,7 @@ import { deleteCropVariety } from '../_actions';
 import { Pencil, Trash2, PlusCircle } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from "sonner";
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null } & { image_url?: string | null };
 type Crop = { id: number; name: string };
@@ -38,6 +39,8 @@ interface CropVarietiesPageContentProps {
 export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVarietiesPageContentProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCropVariety, setEditingCropVariety] = useState<CropVariety | null>(null);
+  const [deleteId, setDeleteId] = useState<number | string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const handleEdit = (cropVariety: CropVariety) => {
     setEditingCropVariety(cropVariety);
@@ -49,19 +52,23 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: number | string) => {
-    if (confirm('Are you sure you want to delete this crop variety? This might fail if it is linked to existing crops.')) {
-      try {
-        const result = await deleteCropVariety(id);
-        if (result.message.startsWith('Database Error:')) {
-          toast.error(result.message);
-        } else {
-          toast.success(result.message);
-        }
-      } catch (error) {
-        console.error("Delete Error:", error);
-        toast.error('An unexpected error occurred while deleting the crop variety.');
+  const openDelete = (id: number | string) => setDeleteId(id);
+  const confirmDelete = async () => {
+    if (deleteId == null) return;
+    try {
+      setDeleting(true);
+      const result = await deleteCropVariety(deleteId);
+      if (result.message.startsWith('Database Error:')) {
+        toast.error(result.message);
+      } else {
+        toast.success(result.message);
       }
+    } catch (error) {
+      console.error('Delete Error:', error);
+      toast.error('An unexpected error occurred while deleting the crop variety.');
+    } finally {
+      setDeleting(false);
+      setDeleteId(null);
     }
   };
 
@@ -156,9 +163,19 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
                   <Button variant="ghost" size="icon" onClick={() => handleEdit(cropVariety)} className="mr-2">
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(cropVariety.id)} className="text-red-500 hover:text-red-700">
+                  <Button variant="ghost" size="icon" onClick={() => openDelete(cropVariety.id)} className="text-red-500 hover:text-red-700">
                     <Trash2 className="h-4 w-4" />
                   </Button>
+      <ConfirmDialog
+        open={deleteId != null}
+        onOpenChange={(open) => { if (!open) setDeleteId(null); }}
+        title="Delete crop variety?"
+        description="Deletion will fail if the variety is linked to existing crops."
+        confirmText="Delete"
+        confirmVariant="destructive"
+        confirming={deleting}
+        onConfirm={confirmDelete}
+      />
                 </TableCell>
               </TableRow>
             ))}

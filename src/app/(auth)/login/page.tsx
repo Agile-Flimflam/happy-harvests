@@ -1,18 +1,22 @@
 'use client';
 
 import { Suspense, useState, ChangeEvent } from 'react';
-import { createClient } from '@/lib/supabase'; // Import from the correct client library path
+import { createClient } from '@/lib/supabase';
+import { AuthApiError } from '@supabase/supabase-js';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 function LoginFormContent() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const supabase = createClient(); // Get client-side Supabase instance
+  const supabase = createClient();
   const searchParams = useSearchParams();
   const authError = searchParams.get('error');
 
@@ -22,31 +26,35 @@ function LoginFormContent() {
     setMessage('');
     setError('');
 
-    const { error: signInError } = await supabase.auth.signInWithOtp({
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
-      options: {
-        // Set this to false if you want the user to be automatically signed in
-        // after clicking the link. Setting to true requires manual sign in after redirect.
-        shouldCreateUser: true,
-        emailRedirectTo: `${window.location.origin}/auth/callback`, // Your callback URL
-      },
+      password,
     });
 
     if (signInError) {
-      console.error('Sign-in error:', signInError.message);
-      setError(`Error: ${signInError.message}`);
-    } else {
-      setMessage('Check your email for the login link!');
+      let friendly = `Error: ${signInError.message}`;
+      if (signInError instanceof AuthApiError) {
+        if (signInError.status === 400) {
+          friendly = 'Invalid email or password.';
+        } else if (signInError.status === 403) {
+          friendly = 'Email not confirmed. Please check your inbox to confirm your email.';
+        }
+      }
+      setError(friendly);
+      setIsSubmitting(false);
+      return;
     }
+
     setIsSubmitting(false);
-    setEmail(''); // Clear email field after submission
+    router.replace('/');
+    router.refresh();
   };
 
   return (
     <div className="w-full max-w-md p-8 space-y-6 bg-white rounded shadow-md">
       <h2 className="text-2xl font-bold text-center">Happy Harvests Login</h2>
       <form onSubmit={handleLogin} className="space-y-6">
-        <div>
+        <div className="space-y-2">
           <Label htmlFor="email">Email Address</Label>
           <Input
             id="email"
@@ -59,8 +67,26 @@ function LoginFormContent() {
             className="mt-1"
           />
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+            placeholder="Your password"
+            required
+            disabled={isSubmitting}
+            className="mt-1"
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Link href="/auth/reset-password" className="text-sm text-primary underline-offset-4 hover:underline">
+            Forgot password?
+          </Link>
+        </div>
         <Button type="submit" disabled={isSubmitting} className="w-full">
-          {isSubmitting ? 'Sending...' : 'Send Login Link'}
+          {isSubmitting ? 'Signing in…' : 'Sign In'}
         </Button>
         {message && (
           <p className="text-sm text-center text-green-600">{message}</p>
@@ -72,6 +98,7 @@ function LoginFormContent() {
            <p className="text-sm text-center text-red-600">Error: {authError}</p>
         )}
       </form>
+      <p className="text-xs text-center text-muted-foreground">Don’t have an account? Contact an administrator.</p>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, startTransition } from 'react';
+import type { ChangeEvent } from 'react';
 import { useActionState } from 'react';
 import { createCropVariety, updateCropVariety, type CropVarietyFormState, createCropSimple, type SimpleCropFormState } from '../_actions';
 import type { Tables } from '@/lib/supabase-server';
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner"; // Assuming sonner for toasts
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Constants } from '@/lib/database.types';
@@ -20,6 +21,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { CropVarietySchema, type CropVarietyFormValues } from '@/lib/validation/crop-varieties';
+import { Plus, X } from 'lucide-react';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 
 type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null };
 type Crop = { id: number; name: string };
@@ -31,8 +44,6 @@ interface CropVarietyFormProps {
   formId?: string;
 }
 
-// Removed unused SubmitButton component
-
 export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }: CropVarietyFormProps) {
   const isEditing = Boolean(cropVariety?.id);
   // Update action functions
@@ -41,8 +52,59 @@ export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }
   const initialState: CropVarietyFormState = { message: '', errors: {}, cropVariety: cropVariety };
   const [state, dispatch] = useActionState(action, initialState);
   const [cropsLocal, setCropsLocal] = useState<Crop[]>(crops);
-  const [selectedCropId, setSelectedCropId] = useState<string>(state.cropVariety?.crop_id?.toString() ?? '');
   const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
+  const [newCropType, setNewCropType] = useState<string>("");
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [removeExistingImage, setRemoveExistingImage] = useState(false);
+
+  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setImagePreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+      setRemoveExistingImage(false);
+    } else {
+      setImagePreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    }
+  };
+
+  const handleClearSelectedImage = () => {
+    const inputEl = document.getElementById('image') as HTMLInputElement | null;
+    if (inputEl) {
+      inputEl.value = '';
+    }
+    setImagePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  };
+
+  const form = useForm({
+    resolver: zodResolver(CropVarietySchema),
+    mode: 'onSubmit',
+    defaultValues: {
+      id: cropVariety?.id,
+      crop_id: cropVariety?.crop_id ?? undefined,
+      name: cropVariety?.name ?? '',
+      latin_name: cropVariety?.latin_name ?? '',
+      is_organic: cropVariety?.is_organic ?? false,
+      notes: cropVariety?.notes ?? '',
+      dtm_direct_seed_min: cropVariety?.dtm_direct_seed_min ?? ('' as unknown as number),
+      dtm_direct_seed_max: cropVariety?.dtm_direct_seed_max ?? ('' as unknown as number),
+      dtm_transplant_min: cropVariety?.dtm_transplant_min ?? ('' as unknown as number),
+      dtm_transplant_max: cropVariety?.dtm_transplant_max ?? ('' as unknown as number),
+      plant_spacing_min: cropVariety?.plant_spacing_min ?? null,
+      plant_spacing_max: cropVariety?.plant_spacing_max ?? null,
+      row_spacing_min: cropVariety?.row_spacing_min ?? null,
+      row_spacing_max: cropVariety?.row_spacing_max ?? null,
+    },
+  });
 
   // Inline crop create action
   const inlineInitial: SimpleCropFormState = { message: '', errors: {}, crop: null };
@@ -51,23 +113,21 @@ export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }
   useEffect(() => {
     if (state.message) {
         if (state.errors && Object.keys(state.errors).length > 0) {
-            // Error toast
-            toast.error(state.message, {
-                description: Object.entries(state.errors)
-                    .map(([key, value]) => {
-                        // Ensure value is an array before joining
-                        const errorString = Array.isArray(value) ? value.join(', ') : 'Invalid error format';
-                        return `${key}: ${errorString}`;
-                    })
-                    .join('\n'),
+            // Set server errors on form fields
+            Object.entries(state.errors).forEach(([field, errors]) => {
+              const errorArray = Array.isArray(errors) ? errors : [errors];
+              form.setError(field as keyof CropVarietyFormValues, {
+                message: errorArray[0]
+              });
             });
+            toast.error(state.message);
         } else {
             // Success toast
             toast.success(state.message);
             closeDialog(); // Close dialog on success
         }
     }
-  }, [state, closeDialog]);
+  }, [state, closeDialog, form]);
 
   useEffect(() => {
     if (cropCreateState.message) {
@@ -79,131 +139,171 @@ export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }
           const next = [...prev, cropCreateState.crop as unknown as Crop];
           return next.sort((a, b) => a.name.localeCompare(b.name));
         });
-        setSelectedCropId((cropCreateState.crop.id as unknown as number).toString());
+        const createdId = cropCreateState.crop.id as unknown as number;
+        form.setValue('crop_id', createdId);
         toast.success(cropCreateState.message);
         setIsCropDialogOpen(false);
       }
     }
-  }, [cropCreateState]);
+  }, [cropCreateState, form]);
+
+  const onSubmit = async (values: CropVarietyFormValues) => {
+    const fd = new FormData();
+    if (isEditing && cropVariety?.id) fd.append('id', String(cropVariety.id));
+    fd.append('crop_id', String(values.crop_id));
+    fd.append('name', values.name);
+    fd.append('latin_name', values.latin_name);
+    fd.append('is_organic', values.is_organic ? 'on' : 'off');
+    fd.append('notes', values.notes ?? '');
+    fd.append('dtm_direct_seed_min', String(values.dtm_direct_seed_min));
+    fd.append('dtm_direct_seed_max', String(values.dtm_direct_seed_max));
+    fd.append('dtm_transplant_min', String(values.dtm_transplant_min));
+    fd.append('dtm_transplant_max', String(values.dtm_transplant_max));
+    fd.append('plant_spacing_min', values.plant_spacing_min != null ? String(values.plant_spacing_min) : '');
+    fd.append('plant_spacing_max', values.plant_spacing_max != null ? String(values.plant_spacing_max) : '');
+    fd.append('row_spacing_min', values.row_spacing_min != null ? String(values.row_spacing_min) : '');
+    fd.append('row_spacing_max', values.row_spacing_max != null ? String(values.row_spacing_max) : '');
+    const inputEl = document.getElementById('image') as HTMLInputElement | null;
+    if (inputEl && inputEl.files && inputEl.files[0]) {
+      fd.append('image', inputEl.files[0]);
+    }
+    fd.append('remove_image', removeExistingImage ? 'on' : 'off');
+    
+    startTransition(() => {
+      dispatch(fd);
+    });
+  };
 
   return (
     <TooltipProvider>
-      <form action={dispatch} id={formId} className="space-y-4">
+      <Form {...form}>
+        <form id={formId} onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         {/* Hidden input for ID if editing */}
         {isEditing && <input type="hidden" name="id" value={cropVariety?.id} />}
 
       {/* Crop Selection */}
-      <div>
-        <Label htmlFor="crop_id">Crop</Label>
-        <div className="flex gap-2 mt-1">
-          <Select name="crop_id" value={selectedCropId} onValueChange={setSelectedCropId}>
-            <SelectTrigger id="crop_id" aria-describedby="crop_id-error">
-              <SelectValue placeholder="Select crop" />
-            </SelectTrigger>
-            <SelectContent>
-              {cropsLocal.map((c) => (
-                <SelectItem key={c.id} value={c.id.toString()}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-                      <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="icon"
-                  onClick={() => setIsCropDialogOpen(true)}
+      <FormField
+        control={form.control}
+        name="crop_id"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Crop</FormLabel>
+            <div className="flex gap-2">
+              <FormControl>
+                <Select
+                  onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                  value={field.value ? field.value.toString() : ""}
                 >
-                  +
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Add new crop</p>
-              </TooltipContent>
-            </Tooltip>
-        </div>
-        <div id="crop_id-error" aria-live="polite" aria-atomic="true">
-          {state.errors?.crop_id &&
-            state.errors.crop_id.map((error: string) => (
-              <p className="mt-1 text-xs text-red-500" key={error}>
-                {error}
-              </p>
-            ))}
-        </div>
-      </div>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select crop" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cropsLocal.map((c) => (
+                      <SelectItem key={c.id} value={c.id.toString()}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="icon"
+                    onClick={() => setIsCropDialogOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Add new crop</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
 
       {/* Variety Information */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Name Field */}
-        <div>
-          <Label htmlFor="name">Variety Name</Label>
-          <Input
-            id="name"
-            name="name"
-            defaultValue={state.cropVariety?.name ?? ''}
-            required
-            aria-describedby="name-error"
-            className="mt-1"
-          />
-          <div id="name-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.name &&
-              state.errors.name.map((error: string) => (
-                <p className="mt-1 text-xs text-red-500" key={error}>
-                  {error}
-                </p>
-              ))}
-          </div>
-        </div>
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Variety Name</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         {/* Latin Name Field */}
-        <div>
-          <Label htmlFor="latin_name">Latin Name</Label>
-          <Input
-            id="latin_name"
-            name="latin_name"
-            defaultValue={state.cropVariety?.latin_name ?? ''}
-            aria-describedby="latin_name-error"
-            className="mt-1"
-            required
-          />
-          <div id="latin_name-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.latin_name &&
-              state.errors.latin_name.map((error: string) => (
-                <p className="mt-1 text-xs text-red-500" key={error}>
-                  {error}
-                </p>
-              ))}
-          </div>
-        </div>
+        <FormField
+          control={form.control}
+          name="latin_name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Latin Name</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         {/* Organic Toggle */}
-        <div>
-          <Label htmlFor="is_organic">Organic</Label>
-          <div className="mt-1 flex items-center h-10">
-            <input 
-              type="hidden" 
-              name="is_organic" 
-              value={state.cropVariety?.is_organic ? "on" : "off"} 
-            />
-            <Switch
-              id="is_organic"
-              defaultChecked={state.cropVariety?.is_organic ?? false}
-              onCheckedChange={(checked) => {
-                const input = document.querySelector('input[name="is_organic"]') as HTMLInputElement;
-                if (input) input.value = checked ? "on" : "off";
-              }}
-            />
-          </div>
-        </div>
+        <FormField
+          control={form.control}
+          name="is_organic"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Organic</FormLabel>
+              <FormControl>
+                <div className="flex items-center h-10">
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
       </div>
 
       {/* Image */}
       <div>
         <Label htmlFor="image">Image</Label>
         <div className="flex items-start gap-4 mt-1">
-          {state.cropVariety && (state.cropVariety as unknown as { image_url?: string | null })?.image_url && (
+          {imagePreviewUrl && (
+            <div className="relative inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imagePreviewUrl}
+                alt="Selected image preview"
+                className="h-20 w-20 rounded border object-cover"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                onClick={handleClearSelectedImage}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          {!imagePreviewUrl && !removeExistingImage && state.cropVariety && (state.cropVariety as unknown as { image_url?: string | null })?.image_url && (
             <div className="relative inline-block">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -217,16 +317,11 @@ export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }
                 size="sm"
                 className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
                 onClick={() => {
-                  const input = document.querySelector('input[name="remove_image"]') as HTMLInputElement;
-                  if (input) input.value = "on";
-                  // Hide the image preview
-                  const imageContainer = document.querySelector('.relative.inline-block') as HTMLElement;
-                  if (imageContainer) imageContainer.style.display = 'none';
+                  setRemoveExistingImage(true);
                 }}
               >
-                ×
+                <X className="h-4 w-4" />
               </Button>
-              <input type="hidden" name="remove_image" value="off" />
             </div>
           )}
           <div className="flex-1">
@@ -246,96 +341,92 @@ export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }
               type="file" 
               accept="image/*"
               className="sr-only"
+              onChange={handleImageChange}
             />
           </div>
         </div>
       </div>
 
-      {/* Inline Add Crop Dialog */}
-      <Dialog open={isCropDialogOpen} onOpenChange={setIsCropDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Crop</DialogTitle>
-          </DialogHeader>
-          <form action={createCropAction} className="space-y-4">
-            <div>
-              <Label htmlFor="new_crop_name">Name</Label>
-              <Input id="new_crop_name" name="name" required className="mt-1" aria-describedby="new_crop_name-error" />
-            </div>
-            <div>
-              <Label htmlFor="new_crop_type">Type</Label>
-              <Select name="crop_type" defaultValue="" required>
-                <SelectTrigger id="new_crop_type" className="mt-1" aria-describedby="new_crop_type-error">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Constants.public.Enums.crop_type as readonly string[])
-                    .slice()
-                    .sort((a, b) => a.localeCompare(b))
-                    .map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline" type="button">Cancel</Button>
-              </DialogClose>
-              <Button type="submit">Create</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
       {/* Days to Maturity */}
       <div className="border rounded-lg p-4 space-y-3">
         <h3 className="text-sm font-medium">Days to Maturity</h3>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label htmlFor="dtm_direct_seed_min" className="text-xs">Direct Seed Min</Label>
-            <Input
-              id="dtm_direct_seed_min"
-              name="dtm_direct_seed_min"
-              type="number"
-              defaultValue={state.cropVariety?.dtm_direct_seed_min ?? ''}
-              className="h-8"
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="dtm_direct_seed_max" className="text-xs">Direct Seed Max</Label>
-            <Input
-              id="dtm_direct_seed_max"
-              name="dtm_direct_seed_max"
-              type="number"
-              defaultValue={state.cropVariety?.dtm_direct_seed_max ?? ''}
-              className="h-8"
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="dtm_transplant_min" className="text-xs">Transplant Min</Label>
-            <Input
-              id="dtm_transplant_min"
-              name="dtm_transplant_min"
-              type="number"
-              defaultValue={state.cropVariety?.dtm_transplant_min ?? ''}
-              className="h-8"
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="dtm_transplant_max" className="text-xs">Transplant Max</Label>
-            <Input
-              id="dtm_transplant_max"
-              name="dtm_transplant_max"
-              type="number"
-              defaultValue={state.cropVariety?.dtm_transplant_max ?? ''}
-              className="h-8"
-              required
-            />
-          </div>
+          <FormField
+            control={form.control}
+            name="dtm_direct_seed_min"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs">Direct Seed Min</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number" 
+                    className="h-8" 
+                    {...field}
+                    value={field.value?.toString() ?? ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : '')}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="dtm_direct_seed_max"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs">Direct Seed Max</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number" 
+                    className="h-8" 
+                    {...field}
+                    value={field.value?.toString() ?? ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : '')}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="dtm_transplant_min"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs">Transplant Min</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number" 
+                    className="h-8" 
+                    {...field}
+                    value={field.value?.toString() ?? ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : '')}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="dtm_transplant_max"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs">Transplant Max</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number" 
+                    className="h-8" 
+                    {...field}
+                    value={field.value?.toString() ?? ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : '')}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
       </div>
 
@@ -343,67 +434,145 @@ export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }
       <div className="border rounded-lg p-4 space-y-3">
         <h3 className="text-sm font-medium">Plant Spacing (cm)</h3>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label htmlFor="plant_spacing_min" className="text-xs">Plant Min</Label>
-            <Input 
-              id="plant_spacing_min" 
-              name="plant_spacing_min" 
-              type="number" 
-              defaultValue={state.cropVariety?.plant_spacing_min ?? ''} 
-              className="h-8" 
-            />
-          </div>
-          <div>
-            <Label htmlFor="plant_spacing_max" className="text-xs">Plant Max</Label>
-            <Input 
-              id="plant_spacing_max" 
-              name="plant_spacing_max" 
-              type="number" 
-              defaultValue={state.cropVariety?.plant_spacing_max ?? ''} 
-              className="h-8" 
-            />
-          </div>
-          <div>
-            <Label htmlFor="row_spacing_min" className="text-xs">Row Min</Label>
-            <Input 
-              id="row_spacing_min" 
-              name="row_spacing_min" 
-              type="number" 
-              defaultValue={state.cropVariety?.row_spacing_min ?? ''} 
-              className="h-8" 
-            />
-          </div>
-          <div>
-            <Label htmlFor="row_spacing_max" className="text-xs">Row Max</Label>
-            <Input 
-              id="row_spacing_max" 
-              name="row_spacing_max" 
-              type="number" 
-              defaultValue={state.cropVariety?.row_spacing_max ?? ''} 
-              className="h-8" 
-            />
-          </div>
+          <FormField
+            control={form.control}
+            name="plant_spacing_min"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs">Plant Min</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number" 
+                    className="h-8" 
+                    {...field}
+                    value={field.value?.toString() ?? ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="plant_spacing_max"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs">Plant Max</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number" 
+                    className="h-8" 
+                    {...field}
+                    value={field.value?.toString() ?? ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="row_spacing_min"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs">Row Min</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number" 
+                    className="h-8" 
+                    {...field}
+                    value={field.value?.toString() ?? ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="row_spacing_max"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs">Row Max</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number" 
+                    className="h-8" 
+                    {...field}
+                    value={field.value?.toString() ?? ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
       </div>
 
       {/* Notes - Full width */}
-      <div>
-        <Label htmlFor="notes">Notes</Label>
-        <Textarea
-          id="notes"
-          name="notes"
-          defaultValue={state.cropVariety?.notes ?? ''}
-          className="mt-1"
-          placeholder="Additional notes about this variety..."
-          rows={4}
-        />
-      </div>
+      <FormField
+        control={form.control}
+        name="notes"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Notes</FormLabel>
+            <FormControl>
+              <Textarea 
+                placeholder="Additional notes about this variety..." 
+                rows={4} 
+                {...field}
+                value={field.value ?? ''}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
 
-      {/* Server Action Message Display */}
-      {/* Removed direct message display, handled by toast */}
-
-      {/* Footer moved to parent dialog to keep it locked while body scrolls */}
-    </form>
+        </form>
+      </Form>
+    {/* Add Crop Dialog moved OUTSIDE the main form to avoid nested validation */}
+    <Dialog open={isCropDialogOpen} onOpenChange={setIsCropDialogOpen}>
+      <DialogContent className="sm:max-w-[425px] max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add New Crop</DialogTitle>
+        </DialogHeader>
+        <form action={createCropAction} className="space-y-4">
+          <div>
+            <Label htmlFor="new_crop_name">Name</Label>
+            <Input id="new_crop_name" name="name" required className="mt-1" aria-describedby="new_crop_name-error" />
+          </div>
+          <div>
+            <Label htmlFor="new_crop_type">Type</Label>
+            <Select defaultValue={""} onValueChange={setNewCropType}>
+              <SelectTrigger id="new_crop_type" className="mt-1" aria-describedby="new_crop_type-error">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                {(Constants.public.Enums.crop_type as readonly string[])
+                  .slice()
+                  .sort((a, b) => a.localeCompare(b))
+                  .map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Hidden input to actually submit crop_type since shadcn Select isn't a native input */}
+            <input type="hidden" name="crop_type" value={newCropType} />
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" type="button">Cancel</Button>
+            </DialogClose>
+            <Button type="submit">Create</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
     </TooltipProvider>
   );
 }

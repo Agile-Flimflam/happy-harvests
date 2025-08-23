@@ -3,30 +3,9 @@
 import { createSupabaseServerClient, type Database, type Enums } from '@/lib/supabase-server';
 // Refactored to new schema: remove DaysToMaturity JSON
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
+import { CropVarietySchema, SimpleCropSchema } from '@/lib/validation/crop-varieties';
 
-const CropVarietySchema = z.object({
-  id: z.coerce.number().int().optional(),
-  crop_id: z.coerce.number().int({ message: 'Crop is required' }),
-  name: z.string().min(1, { message: 'Name is required' }),
-  latin_name: z.string().min(1, { message: 'Latin name is required' }),
-  is_organic: z.boolean().default(false),
-  notes: z.string().optional().nullable(),
-  dtm_direct_seed_min: z.coerce.number().int().nonnegative(),
-  dtm_direct_seed_max: z.coerce.number().int().nonnegative(),
-  dtm_transplant_min: z.coerce.number().int().nonnegative(),
-  dtm_transplant_max: z.coerce.number().int().nonnegative(),
-  plant_spacing_min: z.coerce.number().int().nonnegative().nullable(),
-  plant_spacing_max: z.coerce.number().int().nonnegative().nullable(),
-  row_spacing_min: z.coerce.number().int().nonnegative().nullable(),
-  row_spacing_max: z.coerce.number().int().nonnegative().nullable(),
-}).refine(data => data.dtm_direct_seed_min <= data.dtm_direct_seed_max, {
-  message: 'Direct seed min must be <= max',
-  path: ['dtm_direct_seed_max']
-}).refine(data => data.dtm_transplant_min <= data.dtm_transplant_max, {
-  message: 'Transplant min must be <= max',
-  path: ['dtm_transplant_max']
-});
+// Schema now centralized in src/lib/validation/crop-varieties
 
 type CropVariety = Database['public']['Tables']['crop_varieties']['Row'];
 type CropVarietyInsert = Database['public']['Tables']['crop_varieties']['Insert'];
@@ -331,10 +310,7 @@ type Crop = Database['public']['Tables']['crops']['Row'];
 type CropInsert = Database['public']['Tables']['crops']['Insert'];
 type CropType = Enums<'crop_type'>;
 
-const SimpleCropSchema = z.object({
-  name: z.string().min(1, { message: 'Name is required' }),
-  crop_type: z.enum(['Vegetable', 'Fruit', 'Windbreak', 'Covercrop'], { message: 'Crop type is required' }),
-});
+// Schema now centralized in src/lib/validation/crop-varieties
 
 export type SimpleCropFormState = {
   message: string;

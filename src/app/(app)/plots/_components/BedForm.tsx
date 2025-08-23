@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, startTransition } from 'react';
 import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
 import Fraction from 'fraction.js'; // Import fraction.js
 import { createBed, updateBed, type BedFormState } from '../_actions';
 import type { Tables } from '@/lib/supabase-server';
@@ -13,6 +12,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // Notes removed in new schema; Textarea not needed
 import { toast } from "sonner";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { useForm, type Resolver, type SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { BedSchema, type BedFormValues } from '@/lib/validation/plots';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 
 type Bed = Tables<'beds'>;
 type Location = Tables<'locations'>;
@@ -24,11 +34,10 @@ interface BedFormProps {
   closeDialog: () => void;
 }
 
-function SubmitButton({ isEditing }: { isEditing: boolean }) {
-  const { pending } = useFormStatus();
+function SubmitButton({ isEditing, submitting }: { isEditing: boolean; submitting: boolean }) {
   return (
-    <Button type="submit" disabled={pending} aria-disabled={pending}>
-      {pending ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Bed' : 'Create Bed')}
+    <Button type="submit" disabled={submitting} aria-disabled={submitting}>
+      {submitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Bed' : 'Create Bed')}
     </Button>
   );
 }
@@ -38,159 +47,181 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
   const action = isEditing ? updateBed : createBed;
   const initialState: BedFormState = { message: '', errors: {}, bed: bed };
   const [state, dispatch] = useActionState(action, initialState);
+  const form = useForm<BedFormValues>({
+    resolver: zodResolver(BedSchema) as Resolver<BedFormValues>,
+    mode: 'onSubmit',
+    defaultValues: {
+      id: bed?.id,
+      plot_id: bed?.plot_id ?? ('' as unknown as number),
+      length_inches: bed?.length_inches ?? ('' as unknown as number | null),
+      width_inches: bed?.width_inches ?? ('' as unknown as number | null),
+    },
+  });
 
-  // State to track input values for dynamic area calculation
-  const [currentLength, setCurrentLength] = useState<string>(bed?.length_inches?.toString() ?? '');
-  const [currentWidth, setCurrentWidth] = useState<string>(bed?.width_inches?.toString() ?? '');
-
-  // Update local state if the bed prop changes (e.g., opening edit dialog)
-  useEffect(() => {
-    setCurrentLength(bed?.length_inches?.toString() ?? '');
-    setCurrentWidth(bed?.width_inches?.toString() ?? '');
-  }, [bed]);
+  // (moved) watch is used after form initialization below
 
   useEffect(() => {
     if (state.message) {
-        if (state.errors && Object.keys(state.errors).length > 0) {
-            toast.error(state.message, {
-                description: Object.entries(state.errors)
-                    .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : 'Invalid error format'}`)
-                    .join('\n'),
-            });
-        } else {
-            toast.success(state.message);
-            closeDialog();
-        }
+      if (state.errors && Object.keys(state.errors).length > 0) {
+        Object.entries(state.errors).forEach(([field, errors]) => {
+          const message = Array.isArray(errors) ? errors[0] : (errors as unknown as string) || 'Invalid value';
+          form.setError(field as keyof BedFormValues, { message });
+        });
+        toast.error(state.message);
+      } else {
+        toast.success(state.message);
+        closeDialog();
+      }
     }
-  }, [state, closeDialog]);
+  }, [state, closeDialog, form]);
+
+  const onSubmit: SubmitHandler<BedFormValues> = async (values) => {
+    const fd = new FormData();
+    if (isEditing && bed?.id) fd.append('id', String(bed.id));
+    fd.append('plot_id', String(values.plot_id));
+    fd.append('length_inches', values.length_inches != null ? String(values.length_inches) : '');
+    fd.append('width_inches', values.width_inches != null ? String(values.width_inches) : '');
+    startTransition(() => {
+      dispatch(fd);
+    });
+  };
+
+  const { watch } = form;
+  const currentLength = watch('length_inches');
+  const currentWidth = watch('width_inches');
 
   return (
-    <form action={dispatch} className="space-y-4">
-      {isEditing && <input type="hidden" name="id" value={bed?.id} />}
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+        {isEditing && <input type="hidden" name="id" value={bed?.id} />}
 
-      {/* Plot Select Field */}
-      <div>
-        <Label htmlFor="plot_id">Plot</Label>
-        <Select name="plot_id" defaultValue={state.bed?.plot_id?.toString() ?? ''} required>
-            <SelectTrigger id="plot_id" aria-describedby="plot_id-error" className="mt-1">
-                <SelectValue placeholder="Select a plot" />
-            </SelectTrigger>
-            <SelectContent>
-                {plots.map((plot) => (
-                    <SelectItem key={plot.plot_id} value={plot.plot_id.toString()}>
+        {/* Plot Select Field */}
+        <FormField
+          control={form.control}
+          name="plot_id"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Plot</FormLabel>
+              <FormControl>
+                <Select value={field.value ? String(field.value) : ''} onValueChange={(val) => field.onChange(parseInt(val, 10))}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select a plot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plots.map((plot) => (
+                      <SelectItem key={plot.plot_id} value={plot.plot_id.toString()}>
                         {plot.name} @ {plot.locations?.name ?? 'No Location Assigned'}
-                    </SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
-         <div id="plot_id-error" aria-live="polite" aria-atomic="true">
-          {state.errors?.plot_id &&
-            state.errors.plot_id.map((error: string) => (
-              <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
-            ))}
-        </div>
-      </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-      {/* No bed name field in new schema */}
+        {/* No bed name field in new schema */}
 
-      {/* Dimensions Section using Fieldset */}
-      <fieldset className="border p-4 rounded-md space-y-4">
-        <legend className="text-sm font-medium px-1">Dimensions</legend>
+        {/* Dimensions Section using Fieldset */}
+        <fieldset className="border p-4 rounded-md space-y-4">
+          <legend className="text-sm font-medium px-1">Dimensions</legend>
 
-        {/* Combined Length and Width Fields */}
-        <div className="flex items-start gap-4">
-          {/* Length Field (Half Width) */}
-          <div className="flex-1">
-            <Label htmlFor="length_inches">Length (in)</Label>
-            <Input
-              id="length_inches"
+          {/* Combined Length and Width Fields */}
+          <div className="flex items-start gap-4">
+            {/* Length Field (Half Width) */}
+            <FormField
+              control={form.control}
               name="length_inches"
-              type="number"
-              value={currentLength}
-              onChange={(e) => setCurrentLength(e.target.value)}
-              aria-describedby="length_inches-error"
-              className="mt-1"
+              render={({ field }) => (
+                <FormItem className="flex-1">
+                  <FormLabel>Length (in)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      className="mt-1"
+                      value={field.value != null ? String(field.value) : ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            <div id="length_inches-error" aria-live="polite" aria-atomic="true">
-              {state.errors?.length_inches &&
-                state.errors.length_inches.map((error: string) => (
-                  <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
-                ))}
-            </div>
-          </div>
 
-          {/* Width Field (Half Width) */}
-          <div className="flex-1">
-            <Label htmlFor="width_inches">Width (in)</Label>
-            <Input
-              id="width_inches"
+            {/* Width Field (Half Width) */}
+            <FormField
+              control={form.control}
               name="width_inches"
-              type="number"
-              value={currentWidth}
-              onChange={(e) => setCurrentWidth(e.target.value)}
-              aria-describedby="width_inches-error"
-              className="mt-1"
+              render={({ field }) => (
+                <FormItem className="flex-1">
+                  <FormLabel>Width (in)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      className="mt-1"
+                      value={field.value != null ? String(field.value) : ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            <div id="width_inches-error" aria-live="polite" aria-atomic="true">
-              {state.errors?.width_inches &&
-                state.errors.width_inches.map((error: string) => (
-                  <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
-                ))}
+          </div>
+
+          {/* Combined Calculated Area and Acreage Displays */}
+          <div className="flex items-start gap-4">
+            {/* Display Calculated Area (Half Width) */}
+            <div className="flex-1">
+              <Label>Calculated Area</Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                {(() => {
+                  const lengthNum = typeof currentLength === 'number' ? currentLength : parseFloat(String(currentLength ?? ''));
+                  const widthNum = typeof currentWidth === 'number' ? currentWidth : parseFloat(String(currentWidth ?? ''));
+                  if (!isNaN(lengthNum) && !isNaN(widthNum) && lengthNum > 0 && widthNum > 0) {
+                    const areaSqIn = lengthNum * widthNum;
+                    const areaSqFt = areaSqIn / 144;
+                    return `${areaSqFt.toFixed(0)} sq ft`;
+                  }
+                  return '-';
+                })()}
+              </p>
+            </div>
+
+            {/* Display Calculated Acreage (Half Width) */}
+            <div className="flex-1">
+              <Label>Calculated Acreage</Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                {(() => {
+                  const lengthNum = typeof currentLength === 'number' ? currentLength : parseFloat(String(currentLength ?? ''));
+                  const widthNum = typeof currentWidth === 'number' ? currentWidth : parseFloat(String(currentWidth ?? ''));
+                  if (!isNaN(lengthNum) && !isNaN(widthNum) && lengthNum > 0 && widthNum > 0) {
+                    const areaSqIn = lengthNum * widthNum;
+                    const areaSqFt = areaSqIn / 144;
+                    const acreage = areaSqFt / 43560;
+                    if (acreage === 0) return '0 acres';
+                    // Use fraction.js - toFraction(true) attempts simplification
+                    const frac = new Fraction(acreage);
+                    return `${frac.toFraction(true)} acres`;
+                  }
+                  return '-';
+                })()}
+              </p>
             </div>
           </div>
-        </div>
+        </fieldset>
 
-        {/* Combined Calculated Area and Acreage Displays */}
-        <div className="flex items-start gap-4">
-          {/* Display Calculated Area (Half Width) */}
-          <div className="flex-1">
-            <Label>Calculated Area</Label>
-            <p className="text-sm text-muted-foreground mt-1">
-              {(() => {
-                const lengthNum = parseFloat(currentLength);
-                const widthNum = parseFloat(currentWidth);
-                if (!isNaN(lengthNum) && !isNaN(widthNum) && lengthNum > 0 && widthNum > 0) {
-                  const areaSqIn = lengthNum * widthNum;
-                  const areaSqFt = areaSqIn / 144;
-                  return `${areaSqFt.toFixed(0)} sq ft`;
-                }
-                return '-';
-              })()}
-            </p>
-          </div>
+        {/* No notes field in new schema */}
 
-          {/* Display Calculated Acreage (Half Width) */}
-          <div className="flex-1">
-            <Label>Calculated Acreage</Label>
-            <p className="text-sm text-muted-foreground mt-1">
-              {(() => {
-                const lengthNum = parseFloat(currentLength);
-                const widthNum = parseFloat(currentWidth);
-                if (!isNaN(lengthNum) && !isNaN(widthNum) && lengthNum > 0 && widthNum > 0) {
-                  const areaSqIn = lengthNum * widthNum;
-                  const areaSqFt = areaSqIn / 144;
-                  const acreage = areaSqFt / 43560;
-                  if (acreage === 0) return '0 acres';
-                  // Use fraction.js - toFraction(true) attempts simplification
-                  const frac = new Fraction(acreage);
-                  return `${frac.toFraction(true)} acres`;
-                }
-                return '-';
-              })()}
-            </p>
-          </div>
-        </div>
-      </fieldset>
-
-      {/* No notes field in new schema */}
-
-      <DialogFooter>
-         <DialogClose asChild>
-             <Button variant="outline">Cancel</Button>
-         </DialogClose>
-        <SubmitButton isEditing={isEditing} />
-      </DialogFooter>
-    </form>
+        <DialogFooter>
+           <DialogClose asChild>
+               <Button variant="outline">Cancel</Button>
+           </DialogClose>
+          <SubmitButton isEditing={isEditing} submitting={form.formState.isSubmitting} />
+        </DialogFooter>
+      </form>
+    </Form>
   );
 }
 

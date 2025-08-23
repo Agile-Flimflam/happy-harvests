@@ -1,15 +1,25 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, startTransition } from 'react';
 import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
 import { createPlot, updatePlot, type PlotFormState } from '../_actions';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { useForm, type Resolver, type SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { PlotSchema, type PlotFormValues } from '@/lib/validation/plots';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type Plot = Tables<'plots'>;
 type Location = Tables<'locations'>;
@@ -20,11 +30,10 @@ interface PlotFormProps {
   closeDialog: () => void;
 }
 
-function SubmitButton({ isEditing }: { isEditing: boolean }) {
-  const { pending } = useFormStatus();
+function SubmitButton({ isEditing, submitting }: { isEditing: boolean; submitting: boolean }) {
   return (
-    <Button type="submit" disabled={pending} aria-disabled={pending}>
-      {pending ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Plot' : 'Create Plot')}
+    <Button type="submit" disabled={submitting} aria-disabled={submitting}>
+      {submitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Plot' : 'Create Plot')}
     </Button>
   );
 }
@@ -34,72 +43,95 @@ export function PlotForm({ plot, locations, closeDialog }: PlotFormProps) {
   const action = isEditing ? updatePlot : createPlot;
   const initialState: PlotFormState = { message: '', errors: {}, plot: plot };
   const [state, dispatch] = useActionState(action, initialState);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const form = useForm<PlotFormValues>({
+    resolver: zodResolver(PlotSchema) as Resolver<PlotFormValues>,
+    mode: 'onSubmit',
+    defaultValues: {
+      plot_id: plot?.plot_id,
+      name: plot?.name ?? '',
+      location_id: plot?.location_id ?? '',
+    },
+  });
 
   useEffect(() => {
     if (state.message) {
         if (state.errors && Object.keys(state.errors).length > 0) {
-            toast.error(state.message, {
-                description: Object.entries(state.errors)
-                    .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : 'Invalid error format'}`)
-                    .join('\n'),
+            Object.entries(state.errors).forEach(([field, errors]) => {
+              const message = Array.isArray(errors) ? errors[0] : (errors as unknown as string) || 'Invalid value';
+              // name and location_id are only expected keys
+              form.setError(field as keyof PlotFormValues, { message });
             });
+            toast.error(state.message);
         } else {
             toast.success(state.message);
             closeDialog();
         }
     }
-  }, [state, closeDialog]);
+  }, [state, closeDialog, form]);
+
+  const onSubmit: SubmitHandler<PlotFormValues> = async (values) => {
+    const fd = new FormData();
+    if (isEditing && plot?.plot_id) fd.append('plot_id', String(plot.plot_id));
+    fd.append('name', values.name);
+    fd.append('location_id', values.location_id ?? '');
+    startTransition(() => {
+      dispatch(fd);
+    });
+  };
 
   return (
-    <form action={dispatch} className="space-y-4">
-      {isEditing && <input type="hidden" name="plot_id" value={plot?.plot_id} />}
-      <div>
-        <Label htmlFor="name">Name</Label>
-        <Input
-          id="name"
+    <Form {...form}>
+      <form ref={formRef} onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+        {isEditing && <input type="hidden" name="plot_id" value={plot?.plot_id} />}
+
+        <FormField
+          control={form.control}
           name="name"
-          defaultValue={state.plot?.name ?? ''}
-          required
-          aria-describedby="name-error"
-          className="mt-1"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Name</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-        <div id="name-error" aria-live="polite" aria-atomic="true">
-          {state.errors?.name &&
-            state.errors.name.map((error: string) => (
-              <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
-            ))}
-        </div>
-      </div>
-      <div>
-        <Label htmlFor="location_id">Location</Label>
-        <select
-          id="location_id"
+
+        <FormField
+          control={form.control}
           name="location_id"
-          defaultValue={state.plot?.location_id ?? ''}
-          required
-          className="mt-1 block w-full border rounded-md px-3 py-2 text-sm bg-background"
-          aria-describedby="location_id-error"
-        >
-          <option value="">— Unassigned —</option>
-          {locations.map((loc) => (
-            <option key={loc.id} value={loc.id}>
-              {loc.name}
-            </option>
-          ))}
-        </select>
-        <div id="location_id-error" aria-live="polite" aria-atomic="true">
-          {state.errors?.location_id &&
-            state.errors.location_id.map((error: string) => (
-              <p className="mt-1 text-xs text-red-500" key={error}>{error}</p>
-            ))}
-        </div>
-      </div>
-      <DialogFooter>
-        <DialogClose asChild>
-             <Button variant="outline">Cancel</Button>
-        </DialogClose>
-        <SubmitButton isEditing={isEditing} />
-      </DialogFooter>
-    </form>
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Location</FormLabel>
+              <FormControl>
+                <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                  <SelectTrigger className="mt-1 w-full">
+                    <SelectValue placeholder="Select a location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.map((loc) => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <DialogFooter>
+          <DialogClose asChild>
+               <Button variant="outline">Cancel</Button>
+          </DialogClose>
+          <SubmitButton isEditing={isEditing} submitting={form.formState.isSubmitting} />
+        </DialogFooter>
+      </form>
+    </Form>
   );
 }

@@ -2,7 +2,7 @@
 
 import { createSupabaseServerClient, type Database, type Tables, type Enums } from '@/lib/supabase-server';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
+import { PlantingSchema } from '@/lib/validation/plantings';
 
 type Planting = Tables<'bed_plantings'>;
 type PlantingInsert = Database['public']['Tables']['bed_plantings']['Insert'];
@@ -17,17 +17,7 @@ export type PlantingFormState = {
   planting?: Planting | null;
 }
 
-const PlantingSchema = z.object({
-  id: z.coerce.number().int().optional(),
-  crop_variety_id: z.coerce.number().int({ message: 'Plant Variety selection is required' }),
-  bed_id: z.coerce.number().int({ message: 'Bed selection is required' }),
-  planting_type: z.custom<PlantingType>(),
-  qty_planting: z.coerce.number().int().positive({ message: 'Quantity must be positive' }),
-  date_planted: z.string().regex(/\d{4}-\d{2}-\d{2}/, { message: 'Date is required (YYYY-MM-DD)' }),
-  harvested_date: z.string().regex(/\d{4}-\d{2}-\d{2}/).nullable().optional(),
-  status: z.custom<PlantingStatus>(),
-  notes: z.string().optional().nullable(),
-});
+// Schema now centralized in src/lib/validation/plantings
 
 export async function createPlanting(
   prevState: PlantingFormState,

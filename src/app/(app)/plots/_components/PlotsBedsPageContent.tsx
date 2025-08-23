@@ -11,6 +11,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -61,6 +63,10 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
   const [editingPlot, setEditingPlot] = useState<Plot | null>(null);
   const [editingBed, setEditingBed] = useState<Bed | null>(null);
   const [currentPlotForBed, setCurrentPlotForBed] = useState<Plot | null>(null);
+  const [deletePlotId, setDeletePlotId] = useState<number | null>(null);
+  const [deleteBedId, setDeleteBedId] = useState<number | null>(null);
+  const [isDeletingPlot, setIsDeletingPlot] = useState(false);
+  const [isDeletingBed, setIsDeletingBed] = useState(false);
 
   const plotsByLocation = groupPlotsByLocation(plotsWithBeds);
 
@@ -74,15 +80,20 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
     setIsPlotDialogOpen(true);
   };
 
-  const handleDeletePlot = async (id: string | number) => {
-    if (!confirm('Are you sure you want to delete this plot and ALL its beds?')) {
-      return;
-    }
-    const result = await deletePlot(id);
-    if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
-      toast.error(result.message);
-    } else {
-      toast.success(result.message);
+  const openDeletePlot = (id: number) => setDeletePlotId(id);
+  const confirmDeletePlot = async () => {
+    if (deletePlotId == null) return;
+    try {
+      setIsDeletingPlot(true);
+      const result = await deletePlot(deletePlotId);
+      if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
+        toast.error(result.message);
+      } else {
+        toast.success(result.message);
+      }
+    } finally {
+      setIsDeletingPlot(false);
+      setDeletePlotId(null);
     }
   };
 
@@ -103,15 +114,20 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
     setIsBedDialogOpen(true);
   };
 
-  const handleDeleteBed = async (id: string | number) => {
-    if (!confirm('Are you sure you want to delete this bed?')) {
-      return;
-    }
-    const result = await deleteBed(id);
-    if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
-      toast.error(result.message);
-    } else {
-      toast.success(result.message);
+  const openDeleteBed = (id: number) => setDeleteBedId(id);
+  const confirmDeleteBed = async () => {
+    if (deleteBedId == null) return;
+    try {
+      setIsDeletingBed(true);
+      const result = await deleteBed(deleteBedId);
+      if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
+        toast.error(result.message);
+      } else {
+        toast.success(result.message);
+      }
+    } finally {
+      setIsDeletingBed(false);
+      setDeleteBedId(null);
     }
   };
 
@@ -140,7 +156,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={() => handleDeletePlot(plot.plot_id)}
+                onClick={() => openDeletePlot(plot.plot_id)}
                 className="text-destructive hover:text-destructive"
               >
                 <Trash2 className="h-4 w-4" />
@@ -192,7 +208,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              onClick={() => handleDeleteBed(bed.id)}
+                              onClick={() => openDeleteBed(bed.id)}
                               className="text-destructive hover:text-destructive"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -279,6 +295,26 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
         </DialogContent>
       </Dialog>
 
+      {/* Delete Plot Confirmation */}
+      <Dialog open={deletePlotId != null} onOpenChange={(open) => { if (!open) setDeletePlotId(null); }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete plot?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete the plot and all associated beds. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button variant="destructive" onClick={confirmDeletePlot} disabled={isDeletingPlot} aria-disabled={isDeletingPlot}>
+              {isDeletingPlot ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isBedDialogOpen} onOpenChange={setIsBedDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -288,6 +324,26 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
             </DialogDescription>
           </DialogHeader>
           <BedForm bed={editingBed} plots={allPlots} closeDialog={closeBedDialog} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Bed Confirmation */}
+      <Dialog open={deleteBedId != null} onOpenChange={(open) => { if (!open) setDeleteBedId(null); }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete bed?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete the bed. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button variant="destructive" onClick={confirmDeleteBed} disabled={isDeletingBed} aria-disabled={isDeletingBed}>
+              {isDeletingBed ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

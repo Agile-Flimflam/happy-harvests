@@ -2,16 +2,9 @@
 
 import { createSupabaseServerClient, type Database, type Tables } from '@/lib/supabase-server';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
+import { PlotSchema, BedSchema } from '@/lib/validation/plots';
 
 // ----------------- PLOTS -----------------
-const PlotSchema = z.object({
-  plot_id: z.number().int().optional(),
-  name: z.string().min(1, { message: 'Name is required' }),
-  location_id: z
-    .string({ required_error: 'Location is required' })
-    .uuid({ message: 'Location is required' }),
-});
 
 type Plot = Tables<'plots'>;
 type Bed = Tables<'beds'>;
@@ -187,12 +180,6 @@ export async function getPlotsWithBeds(): Promise<{ plots?: PlotWithBeds[]; erro
 }
 
 // ----------------- BEDS -----------------
-const BedSchema = z.object({
-  id: z.number().int().optional(),
-  plot_id: z.coerce.number().int({ message: 'Plot selection is required' }),
-  length_inches: z.coerce.number().int().positive().optional().nullable(),
-  width_inches: z.coerce.number().int().positive().optional().nullable(),
-});
 
 type BedInsert = Database['public']['Tables']['beds']['Insert'];
 type BedUpdate = Database['public']['Tables']['beds']['Update'];

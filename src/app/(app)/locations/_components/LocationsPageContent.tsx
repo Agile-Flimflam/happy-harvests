@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { LocationForm } from './LocationForm';
 import { deleteLocation } from '../_actions';
 import { toast } from 'sonner';
@@ -21,6 +22,8 @@ interface LocationsPageContentProps {
 export function LocationsPageContent({ locations }: LocationsPageContentProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const handleAdd = () => {
     setEditingLocation(null);
@@ -32,13 +35,20 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this location?\nNote: You must reassign or delete associated plots first.')) return;
-    const result = await deleteLocation(id);
-    if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
-      toast.error(result.message);
-    } else {
-      toast.success(result.message);
+  const openDelete = (id: string) => setDeleteId(id);
+  const confirmDelete = async () => {
+    if (deleteId == null) return;
+    try {
+      setDeleting(true);
+      const result = await deleteLocation(deleteId);
+      if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
+        toast.error(result.message);
+      } else {
+        toast.success(result.message);
+      }
+    } finally {
+      setDeleting(false);
+      setDeleteId(null);
     }
   };
 
@@ -116,9 +126,19 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                           <Button variant="ghost" size="icon" onClick={() => handleEdit(loc)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(loc.id)} className="text-red-500 hover:text-red-700">
+                          <Button variant="ghost" size="icon" onClick={() => openDelete(loc.id)} className="text-red-500 hover:text-red-700">
                             <Trash2 className="h-4 w-4" />
                           </Button>
+      <ConfirmDialog
+        open={deleteId != null}
+        onOpenChange={(open) => { if (!open) setDeleteId(null); }}
+        title="Delete location?"
+        description="You must reassign or delete associated plots first."
+        confirmText="Delete"
+        confirmVariant="destructive"
+        confirming={deleting}
+        onConfirm={confirmDelete}
+      />
                         </TableCell>
                       </TableRow>
                     ))}

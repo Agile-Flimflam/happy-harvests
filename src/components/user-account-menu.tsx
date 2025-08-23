@@ -40,6 +40,10 @@ export function UserAccountMenu({ initialUser, initialProfile }: UserAccountMenu
   const [profile, setProfile] = React.useState<Profile | null>(initialProfile)
   const [accountMenuOpen, setAccountMenuOpen] = React.useState(false)
   const [profileDialogOpen, setProfileDialogOpen] = React.useState(false)
+  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = React.useState(false)
+  const [resettingPassword, setResettingPassword] = React.useState(false)
+  const [newPassword, setNewPassword] = React.useState("")
+  const [confirmNewPassword, setConfirmNewPassword] = React.useState("")
   const [avatarUploading, setAvatarUploading] = React.useState(false)
   const [profileSaving, setProfileSaving] = React.useState(false)
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
@@ -136,6 +140,29 @@ export function UserAccountMenu({ initialUser, initialProfile }: UserAccountMenu
     }
   }
 
+  async function handleResetPassword() {
+    const supabase = createClient()
+    try {
+      setResettingPassword(true)
+      if (newPassword.length < 6) {
+        throw new Error("Password must be at least 6 characters.")
+      }
+      if (newPassword !== confirmNewPassword) {
+        throw new Error("Passwords do not match.")
+      }
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) throw error
+      toast.success("Password reset")
+      setResetPasswordDialogOpen(false)
+      setNewPassword("")
+      setConfirmNewPassword("")
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to reset password"))
+    } finally {
+      setResettingPassword(false)
+    }
+  }
+
   return (
     <>
       <Dialog open={profileDialogOpen} onOpenChange={(open) => { setProfileDialogOpen(open); if (open) { setNameInput(profile?.display_name || profile?.full_name || ""); setPreviewUrl(null); setSelectedFile(null) } }}>
@@ -181,6 +208,36 @@ export function UserAccountMenu({ initialUser, initialProfile }: UserAccountMenu
         </DialogContent>
       </Dialog>
 
+      <Dialog open={resetPasswordDialogOpen} onOpenChange={setResetPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset password</DialogTitle>
+            <DialogDescription>Reset your account password.</DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => { e.preventDefault(); void handleResetPassword() }}
+            className="flex flex-col gap-6"
+          >
+            <div className="grid w-full max-w-sm items-center gap-1.5">
+              <Label htmlFor="newPassword">New password</Label>
+              <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New password" required />
+            </div>
+            <div className="grid w-full max-w-sm items-center gap-1.5">
+              <Label htmlFor="confirmNewPassword">Confirm new password</Label>
+              <Input id="confirmNewPassword" type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} placeholder="Confirm new password" required />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setResetPasswordDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={resettingPassword}>
+                {resettingPassword ? "Saving..." : "Reset password"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <DropdownMenu open={accountMenuOpen} onOpenChange={setAccountMenuOpen}>
         <DropdownMenuTrigger asChild>
           <SidebarMenuButton size="lg">
@@ -201,6 +258,7 @@ export function UserAccountMenu({ initialUser, initialProfile }: UserAccountMenu
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setAccountMenuOpen(false); setProfileDialogOpen(true) }}>Manage profile</DropdownMenuItem>
+          <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setAccountMenuOpen(false); setResetPasswordDialogOpen(true) }}>Reset password</DropdownMenuItem>
           <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

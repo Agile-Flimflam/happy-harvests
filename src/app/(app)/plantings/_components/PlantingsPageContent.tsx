@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { Tables, Enums } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { PlantingForm } from './PlantingForm';
@@ -29,6 +30,8 @@ interface PlantingsPageContentProps {
 export function PlantingsPageContent({ plantings, cropVarieties, beds }: PlantingsPageContentProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Planting | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const handleEdit = (p: Planting) => {
     setEditing(p);
@@ -43,13 +46,20 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds }: Plantin
     setEditing(null);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Delete this planting?')) return;
-    const result = await deletePlanting(id);
-    if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
-      toast.error(result.message);
-    } else {
-      toast.success(result.message);
+  const openDelete = (id: number) => setDeleteId(id);
+  const confirmDelete = async () => {
+    if (deleteId == null) return;
+    try {
+      setDeleting(true);
+      const result = await deletePlanting(deleteId);
+      if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
+        toast.error(result.message);
+      } else {
+        toast.success(result.message);
+      }
+    } finally {
+      setDeleting(false);
+      setDeleteId(null);
     }
   };
 
@@ -121,9 +131,19 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds }: Plantin
                   <Button variant="ghost" size="icon" onClick={() => handleEdit(p)} className="mr-2">
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)} className="text-red-500 hover:text-red-700">
+                  <Button variant="ghost" size="icon" onClick={() => openDelete(p.id)} className="text-red-500 hover:text-red-700">
                     <Trash2 className="h-4 w-4" />
                   </Button>
+      <ConfirmDialog
+        open={deleteId != null}
+        onOpenChange={(open) => { if (!open) setDeleteId(null); }}
+        title="Delete planting?"
+        description="This action cannot be undone."
+        confirmText="Delete"
+        confirmVariant="destructive"
+        confirming={deleting}
+        onConfirm={confirmDelete}
+      />
                 </TableCell>
               </TableRow>
             ))}

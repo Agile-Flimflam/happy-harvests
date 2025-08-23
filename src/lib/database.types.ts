@@ -17,6 +17,7 @@ export type Database = {
           avatar_url: string | null
           locale: string | null
           timezone: string | null
+          role: Database["public"]["Enums"]["user_role"]
           created_at: string
           updated_at: string
         }
@@ -27,6 +28,7 @@ export type Database = {
           avatar_url?: string | null
           locale?: string | null
           timezone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
           created_at?: string
           updated_at?: string
         }
@@ -37,6 +39,7 @@ export type Database = {
           avatar_url?: string | null
           locale?: string | null
           timezone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
           created_at?: string
           updated_at?: string
         }
@@ -305,6 +308,7 @@ export type Database = {
       crop_type: "Vegetable" | "Fruit" | "Windbreak" | "Covercrop"
       planting_type: "Direct Seed" | "Transplant"
       bed_planting_status: "Planted" | "Harvested" | "Nursery"
+      user_role: "admin" | "member"
     }
     CompositeTypes: {
       [_ in never]: never
