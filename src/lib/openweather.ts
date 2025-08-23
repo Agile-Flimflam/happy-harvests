@@ -19,6 +19,9 @@ export type OpenWeatherMinimal = {
       icon: string
     }>
   }
+  daily?: Array<{
+    moon_phase: number
+  }>
 }
 
 export type WeatherResult = {
@@ -35,6 +38,8 @@ export type WeatherResult = {
       icon: string
     } | null
   }
+  moonPhase?: number
+  moonPhaseLabel?: string
 }
 
 export async function fetchWeatherByCoords(
@@ -46,7 +51,7 @@ export async function fetchWeatherByCoords(
   if (!apiKey) throw new Error('Missing OPENWEATHER_API_KEY')
 
   const units = options?.units ?? 'imperial'
-  const exclude = 'minutely,hourly,daily,alerts'
+  const exclude = 'minutely,hourly,alerts'
 
   const url = new URL(OPENWEATHER_BASE_URL)
   url.searchParams.set('lat', String(latitude))
@@ -66,6 +71,19 @@ export async function fetchWeatherByCoords(
   }
   const data = (await res.json()) as OpenWeatherMinimal
 
+  function formatMoonPhase(phase: number) {
+    const p = ((phase % 1) + 1) % 1
+    const epsilon = 1e-6
+    if (Math.abs(p - 0) < epsilon || Math.abs(p - 1) < epsilon) return 'New Moon'
+    if (Math.abs(p - 0.25) < epsilon) return 'First Quarter'
+    if (Math.abs(p - 0.5) < epsilon) return 'Full Moon'
+    if (Math.abs(p - 0.75) < epsilon) return 'Last Quarter'
+    if (p > 0 && p < 0.25) return 'Waxing Crescent'
+    if (p > 0.25 && p < 0.5) return 'Waxing Gibbous'
+    if (p > 0.5 && p < 0.75) return 'Waning Gibbous'
+    return 'Waning Crescent'
+  }
+
   return {
     timezone: data.timezone,
     current: {
@@ -75,6 +93,8 @@ export async function fetchWeatherByCoords(
       temp: data.current.temp,
       weather: data.current.weather?.[0] ?? null,
     },
+    moonPhase: data.daily?.[0]?.moon_phase,
+    moonPhaseLabel: data.daily?.[0]?.moon_phase != null ? formatMoonPhase(data.daily?.[0]?.moon_phase) : undefined,
   }
 }
 

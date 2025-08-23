@@ -26,7 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlotForm } from '../_components/PlotForm';
 import { BedForm } from '../_components/BedForm';
 import { deletePlot, deleteBed } from '../_actions';
-import { Pencil, Trash2, PlusCircle, MapPin, Sunrise, Sunset } from 'lucide-react';
+import { Pencil, Trash2, PlusCircle, MapPin, Sunrise, Sunset, Moon } from 'lucide-react';
 import { toast } from "sonner";
 
 type Plot = Tables<'plots'>;
@@ -377,6 +377,8 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
             temp: number
             weather: { id: number; main: string; description: string; icon: string } | null
           }
+          moonPhase?: number
+          moonPhaseLabel?: string
         }
       }
   >({ status: 'idle' })
@@ -435,6 +437,11 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
           <Sunset className="h-3 w-3" /> {formatUnixToLocalTime(current.sunset)}
         </span>
       )}
+      {state.data.moonPhaseLabel && (
+        <span className="inline-flex items-center gap-1 text-muted-foreground">
+          <Moon className="h-3 w-3" /> {state.data.moonPhaseLabel}
+        </span>
+      )}
     </div>
   )
 }
@@ -447,4 +454,6 @@ function formatUnixToLocalTime(unixSeconds: number) {
     return ''
   }
 }
+
+// formatMoonPhase now imported from utils
 

@@ -11,7 +11,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { LocationForm } from './LocationForm';
 import { deleteLocation } from '../_actions';
 import { toast } from 'sonner';
-import { MapPin, Pencil, Trash2, PlusCircle, Sunrise, Sunset } from 'lucide-react';
+import { MapPin, Pencil, Trash2, PlusCircle, Sunrise, Sunset, Moon } from 'lucide-react';
 
 type Location = Tables<'locations'>;
 
@@ -171,6 +171,8 @@ function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number
             temp: number
             weather: { id: number; main: string; description: string; icon: string } | null
           }
+          moonPhase?: number
+          moonPhaseLabel?: string
         }
       }
   >({ status: 'idle' })
@@ -231,6 +233,11 @@ function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number
             <Sunset className="h-3 w-3" /> {formatUnixToLocalTime(current.sunset)}
           </span>
         )}
+        {state.data.moonPhaseLabel && (
+          <span className="inline-flex items-center gap-1">
+            <Moon className="h-3 w-3" /> {state.data.moonPhaseLabel}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -244,3 +251,5 @@ function formatUnixToLocalTime(unixSeconds: number) {
     return ''
   }
 }
+
+// formatMoonPhase now imported from utils
