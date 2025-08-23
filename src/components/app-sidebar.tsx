@@ -16,7 +16,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
 } from "@/components/ui/sidebar"
 import { UserAccountMenu } from "@/components/user-account-menu"
 
@@ -123,7 +122,6 @@ export function AppSidebar({ initialUser, initialProfile }: AppSidebarProps) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
     </>
   )
