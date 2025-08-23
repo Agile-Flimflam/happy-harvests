@@ -91,12 +91,12 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
               <div className="border rounded-md">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Address</TableHead>
-                      <TableHead>Coordinates</TableHead>
-                      <TableHead>Weather</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="font-semibold">Name</TableHead>
+                      <TableHead className="font-semibold">Address</TableHead>
+                      <TableHead className="font-semibold">Coordinates</TableHead>
+                      <TableHead className="font-semibold">Weather</TableHead>
+                      <TableHead className="text-right font-semibold">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
