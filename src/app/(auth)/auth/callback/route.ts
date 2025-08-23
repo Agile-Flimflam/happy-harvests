@@ -42,6 +42,23 @@ export async function GET(request: NextRequest) {
       const { error } = await supabase.auth.exchangeCodeForSession(token);
       if (error) throw error;
     }
+
+    // Optional: ensure a profile row exists for the authenticated user
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const metadata = (user.user_metadata || {}) as Record<string, unknown>;
+        const fullName = (metadata['full_name'] as string | undefined) || (metadata['name'] as string | undefined) || null;
+        const avatarUrl = (metadata['avatar_url'] as string | undefined) || (metadata['picture'] as string | undefined) || null;
+        // Upsert minimal profile; RLS should allow insert where auth.uid() = new.id
+        await supabase
+          .from('profiles')
+          .upsert({ id: user.id, full_name: fullName, avatar_url: avatarUrl }, { onConflict: 'id' });
+      }
+    } catch (profileErr) {
+      console.error('Auth callback profile upsert error:', profileErr);
+      // Do not block auth on profile failure
+    }
   } catch (err) {
     console.error('Supabase auth callback error:', err);
     return NextResponse.redirect(`${requestUrl.origin}/login?error=auth_callback_failed`);

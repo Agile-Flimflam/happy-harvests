@@ -39,8 +39,15 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
         ```
         NEXT_PUBLIC_SUPABASE_URL="YOUR_SUPABASE_URL"
         NEXT_PUBLIC_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
+        # Used to construct absolute redirect URLs for OAuth
+        NEXT_PUBLIC_SITE_URL="http://localhost:4000"
         ```
     *   **Enable Email Provider:** Go to **Authentication > Providers** in your Supabase dashboard and enable the **Email** provider. Disable "Confirm email" if you want users to be logged in instantly after clicking the magic link, otherwise they'll need to confirm their email first.
+    *   **Enable Google Provider:** In **Authentication > Providers > Google**, paste the **Client ID** and **Client Secret** from Google Cloud Console.
+        - In Google Cloud Console, configure:
+          - Authorized JavaScript origins: `http://localhost:4000` (dev) and your production origin (e.g., `https://app.happyharvests.com`).
+          - Authorized redirect URIs: `https://<YOUR_PROJECT_REF>.supabase.co/auth/v1/callback` (replace with your Supabase project ref). Add one per environment if using separate Supabase projects.
+        - In this app, OAuth sign-in will redirect to: `${NEXT_PUBLIC_SITE_URL}/auth/callback?next=/` which then exchanges the code and returns you to the app.
 
 4.  **Set up Supabase CLI and link project:**
     *   Install the Supabase CLI: Follow instructions at [docs.supabase.com/guides/cli](https://supabase.com/docs/guides/cli)
@@ -135,7 +142,7 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
     ```
 
 11. **Open the app:**
-    Navigate to [http://localhost:3000](http://localhost:3000) in your browser. You should be redirected to `/login`. Use the email link login to access the dashboard.
+    Navigate to [http://localhost:4000](http://localhost:4000) in your browser. You should be redirected to `/login`. Use the email link login to access the dashboard.
 
 ## Row Level Security (RLS)
 

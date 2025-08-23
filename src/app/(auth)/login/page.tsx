@@ -14,11 +14,13 @@ function LoginFormContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isOAuthRedirecting, setIsOAuthRedirecting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const supabase = createClient();
   const searchParams = useSearchParams();
   const authError = searchParams.get('error');
+  const nextParam = searchParams.get('next') || '/';
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -48,6 +50,32 @@ function LoginFormContent() {
     setIsSubmitting(false);
     router.replace('/');
     router.refresh();
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsOAuthRedirecting(true);
+      setError('');
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+      const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(nextParam)}`;
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          scopes: 'openid email profile',
+          queryParams: { prompt: 'select_account' },
+        },
+      });
+      if (oauthError) {
+        setError(`Error: ${oauthError.message}`);
+        setIsOAuthRedirecting(false);
+      }
+      // On success, the browser will redirect to Google → Supabase → our callback.
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Unknown error starting Google sign-in';
+      setError(`Error: ${message}`);
+      setIsOAuthRedirecting(false);
+    }
   };
 
   return (
@@ -87,6 +115,17 @@ function LoginFormContent() {
         </div>
         <Button type="submit" disabled={isSubmitting} className="w-full">
           {isSubmitting ? 'Signing in…' : 'Sign In'}
+        </Button>
+        <div className="relative py-2">
+          <div className="absolute inset-0 flex items-center" aria-hidden="true">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-white px-2 text-muted-foreground">Or</span>
+          </div>
+        </div>
+        <Button type="button" variant="outline" disabled={isOAuthRedirecting} onClick={handleGoogleSignIn} className="w-full">
+          {isOAuthRedirecting ? 'Redirecting…' : 'Continue with Google'}
         </Button>
         {message && (
           <p className="text-sm text-center text-green-600">{message}</p>
