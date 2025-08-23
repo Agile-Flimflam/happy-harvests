@@ -11,7 +11,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { LocationForm } from './LocationForm';
 import { deleteLocation } from '../_actions';
 import { toast } from 'sonner';
-import { MapPin, Pencil, Trash2, PlusCircle, Sunrise, Sunset, Moon } from 'lucide-react';
+import { MapPin, Pencil, Trash2, PlusCircle, Sunrise, Sunset, Moon, Droplet } from 'lucide-react';
 
 type Location = Tables<'locations'>;
 
@@ -169,6 +169,7 @@ function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number
             sunrise?: number
             sunset?: number
             temp: number
+            humidity: number
             weather: { id: number; main: string; description: string; icon: string } | null
           }
           moonPhase?: number
@@ -236,6 +237,11 @@ function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number
         {state.data.moonPhaseLabel && (
           <span className="inline-flex items-center gap-1">
             <Moon className="h-3 w-3" /> {state.data.moonPhaseLabel}
+          </span>
+        )}
+        {typeof current.humidity === 'number' && (
+          <span className="inline-flex items-center gap-1">
+            <Droplet className="h-3 w-3" /> {current.humidity}%
           </span>
         )}
       </div>

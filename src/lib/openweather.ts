@@ -12,6 +12,7 @@ export type OpenWeatherMinimal = {
     sunrise?: number
     sunset?: number
     temp: number
+    humidity: number
     weather: Array<{
       id: number
       main: string
@@ -31,6 +32,7 @@ export type WeatherResult = {
     sunrise?: number
     sunset?: number
     temp: number
+    humidity: number
     weather: {
       id: number
       main: string
@@ -91,6 +93,7 @@ export async function fetchWeatherByCoords(
       sunrise: data.current.sunrise,
       sunset: data.current.sunset,
       temp: data.current.temp,
+      humidity: data.current.humidity,
       weather: data.current.weather?.[0] ?? null,
     },
     moonPhase: data.daily?.[0]?.moon_phase,

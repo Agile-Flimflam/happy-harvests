@@ -26,7 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlotForm } from '../_components/PlotForm';
 import { BedForm } from '../_components/BedForm';
 import { deletePlot, deleteBed } from '../_actions';
-import { Pencil, Trash2, PlusCircle, MapPin, Sunrise, Sunset, Moon } from 'lucide-react';
+import { Pencil, Trash2, PlusCircle, MapPin, Sunrise, Sunset, Moon, Droplet } from 'lucide-react';
 import { toast } from "sonner";
 
 type Plot = Tables<'plots'>;
@@ -375,6 +375,7 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
             sunrise?: number
             sunset?: number
             temp: number
+            humidity: number
             weather: { id: number; main: string; description: string; icon: string } | null
           }
           moonPhase?: number
@@ -440,6 +441,11 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
       {state.data.moonPhaseLabel && (
         <span className="inline-flex items-center gap-1 text-muted-foreground">
           <Moon className="h-3 w-3" /> {state.data.moonPhaseLabel}
+        </span>
+      )}
+      {typeof current.humidity === 'number' && (
+        <span className="inline-flex items-center gap-1 text-muted-foreground">
+          <Droplet className="h-3 w-3" /> {current.humidity}%
         </span>
       )}
     </div>
