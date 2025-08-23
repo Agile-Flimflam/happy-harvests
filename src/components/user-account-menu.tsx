@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { useFormStatus } from "react-dom"
 import type { User } from "@supabase/supabase-js"
 import { ChevronUp } from "lucide-react"
 
@@ -21,6 +22,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase"
 import { toast } from "sonner"
+import { updateProfileAction, resetPasswordAction } from "@/app/(app)/profile/_actions"
 
 type Profile = {
   id: string
@@ -34,6 +36,15 @@ export type UserAccountMenuProps = {
   initialProfile: Profile | null
 }
 
+function SubmitButton({ children, ...props }: React.ComponentProps<typeof Button>) {
+  const { pending } = useFormStatus()
+  return (
+    <Button {...props} disabled={pending || props.disabled}>
+      {pending ? "Saving..." : children}
+    </Button>
+  )
+}
+
 export function UserAccountMenu({ initialUser, initialProfile }: UserAccountMenuProps) {
   const router = useRouter()
   const [user] = React.useState<User | null>(initialUser)
@@ -41,11 +52,6 @@ export function UserAccountMenu({ initialUser, initialProfile }: UserAccountMenu
   const [accountMenuOpen, setAccountMenuOpen] = React.useState(false)
   const [profileDialogOpen, setProfileDialogOpen] = React.useState(false)
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = React.useState(false)
-  const [resettingPassword, setResettingPassword] = React.useState(false)
-  const [newPassword, setNewPassword] = React.useState("")
-  const [confirmNewPassword, setConfirmNewPassword] = React.useState("")
-  const [avatarUploading, setAvatarUploading] = React.useState(false)
-  const [profileSaving, setProfileSaving] = React.useState(false)
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
@@ -63,9 +69,47 @@ export function UserAccountMenu({ initialUser, initialProfile }: UserAccountMenu
     return () => URL.revokeObjectURL(url)
   }, [selectedFile])
 
-  function getErrorMessage(error: unknown, fallback = "Failed to update profile"): string {
-    if (error instanceof Error) return error.message
-    return fallback
+  // Handle form submissions with direct async functions
+  async function handleProfileSubmit(formData: FormData) {
+    const result = await updateProfileAction({ message: "" }, formData)
+    
+    if (result.errors) {
+      const errorMessages = Object.values(result.errors).flat().filter(Boolean)
+      if (errorMessages.length > 0) {
+        toast.error(errorMessages[0])
+      }
+      return
+    }
+
+    if (result.profile) {
+      setProfile(prev => ({
+        ...prev,
+        id: result.profile!.id,
+        display_name: result.profile!.display_name,
+        full_name: prev?.full_name || null,
+        avatar_url: result.profile!.avatar_url
+      }))
+    }
+    
+    toast.success(result.message)
+    setProfileDialogOpen(false)
+    setSelectedFile(null)
+    setPreviewUrl(null)
+  }
+
+  async function handlePasswordSubmit(formData: FormData) {
+    const result = await resetPasswordAction({ message: "" }, formData)
+    
+    if (result.errors) {
+      const errorMessages = Object.values(result.errors).flat().filter(Boolean)
+      if (errorMessages.length > 0) {
+        toast.error(errorMessages[0])
+      }
+      return
+    }
+
+    toast.success(result.message)
+    setResetPasswordDialogOpen(false)
   }
 
   type UserMetadata = {
@@ -84,84 +128,7 @@ export function UserAccountMenu({ initialUser, initialProfile }: UserAccountMenu
     router.refresh()
   }
 
-  async function handleSaveProfile() {
-    if (!user) return
-    const supabase = createClient()
-    try {
-      setProfileSaving(true)
-      let newAvatarUrl: string | null = profile?.avatar_url || null
-      if (selectedFile) {
-        setAvatarUploading(true)
-        try {
-          const ext = selectedFile.name.split(".").pop() || "jpg"
-          const path = `${user.id}/${Date.now()}.${ext}`
-          const { error: uploadError } = await supabase.storage
-            .from("avatars")
-            .upload(path, selectedFile, { cacheControl: "3600", upsert: false, contentType: selectedFile.type || "image/*" })
-          if (uploadError) throw uploadError
-          const { data: publicData } = supabase.storage.from("avatars").getPublicUrl(path)
-          newAvatarUrl = publicData.publicUrl
-        } catch (e: unknown) {
-          console.error("Avatar upload failed:", e)
-          throw new Error(`Avatar upload failed: ${getErrorMessage(e, "Unknown error")}`)
-        } finally {
-          setAvatarUploading(false)
-        }
-      }
 
-      const name = nameInput.trim() || null
-      const upsertPayload: Partial<Profile> & { id: string } = { id: user.id }
-      if (name !== (profile?.display_name || null)) upsertPayload.display_name = name
-      if (newAvatarUrl !== (profile?.avatar_url || null)) upsertPayload.avatar_url = newAvatarUrl
-
-      if (Object.keys(upsertPayload).length > 1) {
-        try {
-          const { data, error } = await supabase
-            .from("profiles")
-            .upsert(upsertPayload)
-            .select()
-            .single()
-          if (error) throw error
-          setProfile((prev) => ({ ...(prev || { id: user.id, display_name: null, full_name: null, avatar_url: null }), display_name: data?.display_name ?? name, avatar_url: data?.avatar_url ?? newAvatarUrl ?? null }))
-        } catch (e: unknown) {
-          console.error("Profile upsert failed:", e)
-          throw new Error(`Profile update failed: ${getErrorMessage(e, "Unknown error")}`)
-        }
-      }
-      toast.success("Profile updated")
-      setProfileDialogOpen(false)
-      setSelectedFile(null)
-      setPreviewUrl(null)
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err))
-    } finally {
-      setProfileSaving(false)
-      setAvatarUploading(false)
-    }
-  }
-
-  async function handleResetPassword() {
-    const supabase = createClient()
-    try {
-      setResettingPassword(true)
-      if (newPassword.length < 6) {
-        throw new Error("Password must be at least 6 characters.")
-      }
-      if (newPassword !== confirmNewPassword) {
-        throw new Error("Passwords do not match.")
-      }
-      const { error } = await supabase.auth.updateUser({ password: newPassword })
-      if (error) throw error
-      toast.success("Password reset")
-      setResetPasswordDialogOpen(false)
-      setNewPassword("")
-      setConfirmNewPassword("")
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Failed to reset password"))
-    } finally {
-      setResettingPassword(false)
-    }
-  }
 
   return (
     <>
@@ -172,7 +139,13 @@ export function UserAccountMenu({ initialUser, initialProfile }: UserAccountMenu
             <DialogDescription>Update your display name and avatar.</DialogDescription>
           </DialogHeader>
           <form
-            onSubmit={(e) => { e.preventDefault(); void handleSaveProfile() }}
+            action={async (formData) => {
+              formData.set('displayName', nameInput)
+              if (selectedFile) {
+                formData.set('avatar', selectedFile)
+              }
+              await handleProfileSubmit(formData)
+            }}
             className="flex flex-col gap-6"
           >
             <div className="flex items-center gap-4">
@@ -184,6 +157,7 @@ export function UserAccountMenu({ initialUser, initialProfile }: UserAccountMenu
                 <Label htmlFor="avatar">Avatar</Label>
                 <Input
                   id="avatar"
+                  name="avatar"
                   ref={fileInputRef}
                   type="file"
                   accept="image/png,image/jpeg,image/jpg"
@@ -194,15 +168,21 @@ export function UserAccountMenu({ initialUser, initialProfile }: UserAccountMenu
             </div>
             <div className="grid w-full max-w-sm items-center gap-1.5">
               <Label htmlFor="displayName">Display name</Label>
-              <Input id="displayName" value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="Your name" />
+              <Input 
+                id="displayName" 
+                name="displayName"
+                value={nameInput} 
+                onChange={(e) => setNameInput(e.target.value)} 
+                placeholder="Your name" 
+              />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setProfileDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={profileSaving || avatarUploading}>
-                {profileSaving || avatarUploading ? "Saving..." : "Save"}
-              </Button>
+              <SubmitButton type="submit">
+                Save
+              </SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -215,24 +195,36 @@ export function UserAccountMenu({ initialUser, initialProfile }: UserAccountMenu
             <DialogDescription>Reset your account password.</DialogDescription>
           </DialogHeader>
           <form
-            onSubmit={(e) => { e.preventDefault(); void handleResetPassword() }}
+            action={handlePasswordSubmit}
             className="flex flex-col gap-6"
           >
             <div className="grid w-full max-w-sm items-center gap-1.5">
               <Label htmlFor="newPassword">New password</Label>
-              <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New password" required />
+              <Input 
+                id="newPassword" 
+                name="newPassword"
+                type="password" 
+                placeholder="New password" 
+                required 
+              />
             </div>
             <div className="grid w-full max-w-sm items-center gap-1.5">
-              <Label htmlFor="confirmNewPassword">Confirm new password</Label>
-              <Input id="confirmNewPassword" type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} placeholder="Confirm new password" required />
+              <Label htmlFor="confirmPassword">Confirm new password</Label>
+              <Input 
+                id="confirmPassword" 
+                name="confirmPassword"
+                type="password" 
+                placeholder="Confirm new password" 
+                required 
+              />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setResetPasswordDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={resettingPassword}>
-                {resettingPassword ? "Saving..." : "Reset password"}
-              </Button>
+              <SubmitButton type="submit">
+                Reset password
+              </SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>

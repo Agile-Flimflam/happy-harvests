@@ -18,26 +18,29 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { UserAccountMenu } from "@/components/user-account-menu"
+import type { Tables } from "@/lib/supabase-server"
+import { isAdmin } from "@/lib/authz"
 
 type AppSidebarProps = {
   initialUser: User | null
-  initialProfile: {
-    id: string
-    display_name: string | null
-    full_name: string | null
-    avatar_url: string | null
-  } | null
+  initialProfile: (
+    Pick<
+      Tables<'profiles'>,
+      'id' | 'display_name' | 'full_name' | 'avatar_url' | 'role'
+    >
+  ) | null
 }
 
 export function AppSidebar({ initialUser, initialProfile }: AppSidebarProps) {
   const pathname = usePathname()
+  const showAdmin = isAdmin(initialProfile)
 
   return (
     <>
       <Sidebar variant="inset" collapsible="icon">
-      <SidebarContent className="gap-1">
-        <SidebarGroup className="p-1">
-          <SidebarGroupLabel className="h-7">Overview</SidebarGroupLabel>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Overview</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -52,8 +55,8 @@ export function AppSidebar({ initialUser, initialProfile }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="p-1">
-          <SidebarGroupLabel className="h-7">Work</SidebarGroupLabel>
+        <SidebarGroup>
+          <SidebarGroupLabel>Work</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -68,8 +71,8 @@ export function AppSidebar({ initialUser, initialProfile }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="p-1">
-          <SidebarGroupLabel className="h-7">Setup</SidebarGroupLabel>
+        <SidebarGroup>
+          <SidebarGroupLabel>Setup</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -99,21 +102,23 @@ export function AppSidebar({ initialUser, initialProfile }: AppSidebarProps) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup className="p-1">
-          <SidebarGroupLabel className="h-7">Admin</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/users"} tooltip="Users">
-                  <Link href="/users">
-                    <Users />
-                    <span>Users</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {showAdmin ? (
+          <SidebarGroup>
+            <SidebarGroupLabel>Admin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/users"} tooltip="Users">
+                    <Link href="/users">
+                      <Users />
+                      <span>Users</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>

@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const CropVarietySchema = z.object({
   id: z.coerce.number().int().optional(),
-  crop_id: z.number({ message: 'Please select a crop' }).int({ message: 'Please select a crop' }),
+  crop_id: z.coerce.number({ message: 'Please select a crop' }).int({ message: 'Please select a crop' }),
   name: z.string().min(1, { message: 'Name is required' }),
   latin_name: z.string().min(1, { message: 'Latin name is required' }),
   is_organic: z.boolean().default(false),
@@ -31,5 +31,3 @@ export const SimpleCropSchema = z.object({
 });
 
 export type SimpleCropValues = z.infer<typeof SimpleCropSchema>;
-
-

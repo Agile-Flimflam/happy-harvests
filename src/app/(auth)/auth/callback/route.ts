@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import type { Database } from '@/lib/database.types';
+import { createServerClient } from '@supabase/ssr';
+import type { Database } from '@/lib/supabase-server';
+import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -16,18 +17,16 @@ export async function GET(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  // Create a Supabase client wired up to read from the incoming request cookies and
-  // set cookies on the outgoing response
+  // Create a Supabase client wired to read incoming cookies and set outgoing cookies (Next 15+ API)
   const supabase = createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      get(name: string) {
-        return request.cookies.get(name)?.value;
+      getAll() {
+        return request.cookies.getAll();
       },
-      set(name: string, value: string, options: CookieOptions) {
-        response.cookies.set({ name, value, ...options });
-      },
-      remove(name: string, options: CookieOptions) {
-        response.cookies.set({ name, value: '', ...options });
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          response.cookies.set({ name, value, ...options });
+        });
       },
     },
   });
@@ -51,9 +50,15 @@ export async function GET(request: NextRequest) {
         const fullName = (metadata['full_name'] as string | undefined) || (metadata['name'] as string | undefined) || null;
         const avatarUrl = (metadata['avatar_url'] as string | undefined) || (metadata['picture'] as string | undefined) || null;
         // Upsert minimal profile; RLS should allow insert where auth.uid() = new.id
-        await supabase
+        const payload: Database['public']['Tables']['profiles']['Insert'] = {
+          id: user.id,
+          full_name: fullName,
+          avatar_url: avatarUrl,
+        };
+        const admin = createSupabaseAdminClient();
+        await admin
           .from('profiles')
-          .upsert({ id: user.id, full_name: fullName, avatar_url: avatarUrl }, { onConflict: 'id' });
+          .upsert(payload, { onConflict: 'id' });
       }
     } catch (profileErr) {
       console.error('Auth callback profile upsert error:', profileErr);
@@ -66,5 +71,3 @@ export async function GET(request: NextRequest) {
 
   return response;
 }
-
-
