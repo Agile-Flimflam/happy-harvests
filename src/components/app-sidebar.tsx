@@ -43,7 +43,7 @@ export function AppSidebar({ initialUser, initialProfile }: AppSidebarProps) {
 
   return (
     <>
-      <Sidebar variant="inset" collapsible="icon">
+      <Sidebar variant="inset" collapsible="offcanvas">
       <SidebarContent>
         {NAV_GROUPS.filter((group) => group.label !== "Admin" || showAdmin).map((group) => (
           <SidebarGroup key={group.label}>

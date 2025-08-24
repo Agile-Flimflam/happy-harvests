@@ -188,10 +188,7 @@ export type Database = {
       }
       external_integrations: {
         Row: {
-          api_key_ciphertext: string | null
-          api_key_hint: string | null
-          api_key_iv: string | null
-          api_key_tag: string | null
+          settings: Json | null
           created_at: string
           enabled: boolean
           id: string
@@ -200,10 +197,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
-          api_key_ciphertext?: string | null
-          api_key_hint?: string | null
-          api_key_iv?: string | null
-          api_key_tag?: string | null
+          settings?: Json | null
           created_at?: string
           enabled?: boolean
           id?: string
@@ -212,16 +206,46 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
-          api_key_ciphertext?: string | null
-          api_key_hint?: string | null
-          api_key_iv?: string | null
-          api_key_tag?: string | null
+          settings?: Json | null
           created_at?: string
           enabled?: boolean
           id?: string
           service?: string
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      external_events: {
+        Row: {
+          id: string
+          provider: string
+          resource_type: string
+          resource_id: number
+          calendar_id: string
+          event_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          provider: string
+          resource_type: string
+          resource_id: number
+          calendar_id: string
+          event_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          provider?: string
+          resource_type?: string
+          resource_id?: number
+          calendar_id?: string
+          event_id?: string
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

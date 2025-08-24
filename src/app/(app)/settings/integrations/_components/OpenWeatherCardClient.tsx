@@ -12,11 +12,11 @@ import { toast } from 'sonner';
 
 type Props = {
   enabled: boolean;
-  apiKeyHint: string | null;
+  hasKey: boolean;
 };
 
-export default function OpenWeatherCardClient({ enabled, apiKeyHint }: Props) {
-  const hasStoredKey = Boolean(apiKeyHint);
+export default function OpenWeatherCardClient({ enabled, hasKey }: Props) {
+  const hasStoredKey = hasKey;
   const [apiKeyInput, setApiKeyInput] = React.useState<string>("");
   const [revealed, setRevealed] = React.useState<string | null>(null);
   const [revealing, setRevealing] = React.useState(false);

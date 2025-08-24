@@ -4,12 +4,11 @@ import { revalidateTag } from 'next/cache';
 import { createSupabaseAdminClient } from './supabase-admin';
 import { decryptSecret, encryptSecret, getDataEncryptionKey } from './crypto';
 import type { Tables } from './supabase-server';
-import type { Database } from './database.types';
+import type { Database, Json } from './database.types';
 
 type OpenWeatherIntegration = {
   enabled: boolean;
   apiKey: string | null;
-  apiKeyHint: string | null;
 };
 
 const INTEGRATION_TAG = 'integration-openweather';
@@ -23,26 +22,30 @@ async function getIntegrationRaw() {
     .maybeSingle();
   if (error) throw new Error(`DB error reading integration: ${error.message}`);
   if (!data) {
-    return { enabled: false, apiKey: null, apiKeyHint: null } as OpenWeatherIntegration;
+    return { enabled: false, apiKey: null } as OpenWeatherIntegration;
   }
   const key = getDataEncryptionKey();
   let apiKey: string | null = null;
-  const row = data as Tables<'external_integrations'>;
-  if (row.api_key_ciphertext && row.api_key_iv && row.api_key_tag) {
-    try {
+  const row = data as Tables<'external_integrations'> & { settings?: Record<string, unknown> };
+  try {
+    const settings = (row.settings as unknown as { secrets?: Record<string, unknown> } | null) || null;
+    const def = (settings?.secrets as Record<string, unknown> | undefined)?.['default'] as
+      | { ciphertextB64?: string; ivB64?: string; tagB64?: string }
+      | undefined;
+    if (def?.ciphertextB64 && def?.ivB64 && def?.tagB64) {
       apiKey = decryptSecret(
         {
-          ciphertextB64: row.api_key_ciphertext,
-          ivB64: row.api_key_iv,
-          tagB64: row.api_key_tag,
+          ciphertextB64: def.ciphertextB64,
+          ivB64: def.ivB64,
+          tagB64: def.tagB64,
         },
         key
       );
-    } catch {
-      apiKey = null;
     }
+  } catch {
+    apiKey = null;
   }
-  return { enabled: Boolean(row.enabled), apiKey, apiKeyHint: row.api_key_hint ?? null } as OpenWeatherIntegration;
+  return { enabled: Boolean(row.enabled), apiKey } as OpenWeatherIntegration;
 }
 
 export async function getOpenWeatherIntegration(): Promise<OpenWeatherIntegration> {
@@ -59,30 +62,36 @@ export async function setOpenWeatherIntegration(params: { enabled: boolean; apiK
     enabled: params.enabled,
     updated_by: params.updatedBy ?? null,
   };
-  if (typeof params.apiKey === 'string') {
-    const key = getDataEncryptionKey();
-    const { ciphertextB64, ivB64, tagB64 } = encryptSecret(params.apiKey, key);
-    payload.api_key_ciphertext = ciphertextB64;
-    payload.api_key_iv = ivB64;
-    payload.api_key_tag = tagB64;
-    payload.api_key_hint = params.apiKey.slice(-4);
-  }
+  // We'll write encrypted key into settings.secrets.default
 
   const { data: existing, error: selectError } = await supabase
     .from('external_integrations')
-    .select('id')
+    .select('id, settings')
     .eq('service', 'openweather')
     .maybeSingle();
   if (selectError) throw new Error(`DB error checking integration: ${selectError.message}`);
 
   if (existing) {
+    // Merge settings
+    let settings: Record<string, Json> = {};
+    try {
+      settings = (existing.settings as unknown as Record<string, Json>) || {};
+    } catch {
+      settings = {};
+    }
+    if (typeof params.apiKey === 'string') {
+      const key = getDataEncryptionKey();
+      const { ciphertextB64, ivB64, tagB64 } = encryptSecret(params.apiKey, key);
+      const secrets: Record<string, Json> = {
+        ...(settings.secrets as Record<string, Json> | undefined),
+        default: { ciphertextB64, ivB64, tagB64 } as unknown as Json,
+      };
+      settings = { ...settings, secrets };
+    }
     const updates: ExternalIntegrationsUpdate = {
       enabled: payload.enabled,
       updated_by: payload.updated_by ?? null,
-      api_key_ciphertext: payload.api_key_ciphertext ?? undefined,
-      api_key_iv: payload.api_key_iv ?? undefined,
-      api_key_tag: payload.api_key_tag ?? undefined,
-      api_key_hint: payload.api_key_hint ?? undefined,
+      settings: settings as unknown as Json,
     };
     const { error: updateError } = await supabase
       .from('external_integrations')
@@ -90,9 +99,17 @@ export async function setOpenWeatherIntegration(params: { enabled: boolean; apiK
       .eq('service', 'openweather');
     if (updateError) throw new Error(`DB error updating integration: ${updateError.message}`);
   } else {
+    // Build settings for insert
+    let settings: Json | null = null;
+    if (typeof params.apiKey === 'string') {
+      const key = getDataEncryptionKey();
+      const { ciphertextB64, ivB64, tagB64 } = encryptSecret(params.apiKey, key);
+      const secrets: Record<string, Json> = { default: { ciphertextB64, ivB64, tagB64 } };
+      settings = ({ secrets } as unknown) as Json;
+    }
     const { error: insertError } = await supabase
       .from('external_integrations')
-      .insert(payload as never);
+      .insert({ ...payload, settings } as never);
     if (insertError) throw new Error(`DB error creating integration: ${insertError.message}`);
   }
   revalidateTag(INTEGRATION_TAG);
