@@ -5,13 +5,12 @@ import { useActionState } from 'react';
 import Fraction from 'fraction.js'; // Import fraction.js
 import { createBed, updateBed, type BedFormState } from '../_actions';
 import type { Tables } from '@/lib/supabase-server';
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Select for plot_id
 // Notes removed in new schema; Textarea not needed
 import { toast } from "sonner";
-import { DialogFooter, DialogClose } from "@/components/ui/dialog";
+// (Dialog footer handled by parent FormDialog)
 import { useForm, type Resolver, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { BedSchema, type BedFormValues } from '@/lib/validation/plots';
@@ -32,17 +31,11 @@ interface BedFormProps {
   bed?: Bed | null;
   plots: PlotForSelect[]; // Need list of plots for the dropdown
   closeDialog: () => void;
+  formId?: string;
 }
 
-function SubmitButton({ isEditing, submitting }: { isEditing: boolean; submitting: boolean }) {
-  return (
-    <Button type="submit" disabled={submitting} aria-disabled={submitting}>
-      {submitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Bed' : 'Create Bed')}
-    </Button>
-  );
-}
 
-export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
+export function BedForm({ bed, plots, closeDialog, formId }: BedFormProps) {
   const isEditing = Boolean(bed?.id);
   const action = isEditing ? updateBed : createBed;
   const initialState: BedFormState = { message: '', errors: {}, bed: bed };
@@ -90,9 +83,11 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
   const currentLength = watch('length_inches');
   const currentWidth = watch('width_inches');
 
+  const effectiveFormId = formId ?? 'bedFormSubmit'
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+      <form id={effectiveFormId} onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
         {isEditing && <input type="hidden" name="id" value={bed?.id} />}
 
         {/* Plot Select Field */}
@@ -214,12 +209,7 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
 
         {/* No notes field in new schema */}
 
-        <DialogFooter>
-           <DialogClose asChild>
-               <Button variant="outline">Cancel</Button>
-           </DialogClose>
-          <SubmitButton isEditing={isEditing} submitting={form.formState.isSubmitting} />
-        </DialogFooter>
+        {/* Footer handled by parent FormDialog */}
       </form>
     </Form>
   );

@@ -5,15 +5,8 @@ import { WeatherBadge } from '@/components/weather/WeatherBadge';
 import Fraction from 'fraction.js';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import FormDialog from "@/components/dialogs/FormDialog";
 import {
   Table,
   TableBody,
@@ -287,17 +280,17 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
         )}
       />
 
-      <Dialog open={isPlotDialogOpen} onOpenChange={setIsPlotDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>{editingPlot ? 'Edit Plot' : 'Add New Plot'}</DialogTitle>
-            <DialogDescription>
-              {editingPlot ? 'Update the details of the plot.' : 'Enter the details for the new plot.'}
-            </DialogDescription>
-          </DialogHeader>
-          <PlotForm plot={editingPlot} locations={locations} closeDialog={closePlotDialog} />
-        </DialogContent>
-      </Dialog>
+      <FormDialog
+        open={isPlotDialogOpen}
+        onOpenChange={setIsPlotDialogOpen}
+        title={editingPlot ? 'Edit Plot' : 'Add New Plot'}
+        description={editingPlot ? 'Update the details of the plot.' : 'Enter the details for the new plot.'}
+        submitLabel={editingPlot ? 'Update Plot' : 'Create Plot'}
+        formId="plotFormSubmit"
+        className="sm:max-w-[425px]"
+      >
+        <PlotForm plot={editingPlot} locations={locations} closeDialog={closePlotDialog} formId="plotFormSubmit" />
+      </FormDialog>
 
       {/* Delete Plot Confirmation */}
       <Dialog open={deletePlotId != null} onOpenChange={(open) => { if (!open) setDeletePlotId(null); }}>
@@ -319,17 +312,17 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isBedDialogOpen} onOpenChange={setIsBedDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>{editingBed ? 'Edit Bed' : `Add New Bed to ${currentPlotForBed?.name ?? 'Plot'}`}</DialogTitle>
-            <DialogDescription>
-              {editingBed ? 'Update the details of the bed.' : 'Enter the details for the new bed.'}
-            </DialogDescription>
-          </DialogHeader>
-          <BedForm bed={editingBed} plots={allPlots} closeDialog={closeBedDialog} />
-        </DialogContent>
-      </Dialog>
+      <FormDialog
+        open={isBedDialogOpen}
+        onOpenChange={setIsBedDialogOpen}
+        title={editingBed ? 'Edit Bed' : `Add New Bed to ${currentPlotForBed?.name ?? 'Plot'}`}
+        description={editingBed ? 'Update the details of the bed.' : 'Enter the details for the new bed.'}
+        submitLabel={editingBed ? 'Update Bed' : 'Create Bed'}
+        formId="bedFormSubmit"
+        className="sm:max-w-[425px]"
+      >
+        <BedForm bed={editingBed} plots={allPlots} closeDialog={closeBedDialog} formId="bedFormSubmit" />
+      </FormDialog>
 
       {/* Delete Bed Confirmation */}
       <Dialog open={deleteBedId != null} onOpenChange={(open) => { if (!open) setDeleteBedId(null); }}>

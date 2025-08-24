@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { DialogFooter, DialogClose } from '@/components/ui/dialog';
+// (Dialog footer handled by parent FormDialog)
 import { ExternalLink } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UsaStates } from 'usa-states';
@@ -29,20 +29,13 @@ type Location = Tables<'locations'>;
 interface LocationFormProps {
   location?: Location | null;
   closeDialog: () => void;
-}
-
-function SubmitButton({ isEditing, submitting }: { isEditing: boolean; submitting: boolean }) {
-  return (
-    <Button type="submit" disabled={submitting} aria-disabled={submitting}>
-      {submitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Location' : 'Create Location')}
-    </Button>
-  );
+  formId?: string;
 }
 
 const usStates = new UsaStates();
 const states = usStates.states;
 
-export function LocationForm({ location, closeDialog }: LocationFormProps) {
+export function LocationForm({ location, closeDialog, formId }: LocationFormProps) {
   const isEditing = Boolean(location?.id);
   const action = isEditing ? updateLocation : createLocation;
   const initialState: LocationFormState = { message: '', errors: {}, location };
@@ -129,7 +122,7 @@ export function LocationForm({ location, closeDialog }: LocationFormProps) {
 
   return (
     <Form {...form}>
-      <form ref={formRef} onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+      <form id={formId} ref={formRef} onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
         {isEditing && <input type="hidden" name="id" value={location?.id} />}
 
         <FormField
@@ -292,12 +285,7 @@ export function LocationForm({ location, closeDialog }: LocationFormProps) {
           )}
         />
 
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
-          </DialogClose>
-          <SubmitButton isEditing={isEditing} submitting={form.formState.isSubmitting} />
-        </DialogFooter>
+        {/* Footer handled by parent DialogLayout */}
       </form>
     </Form>
   );

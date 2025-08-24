@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import type { Tables, Enums } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import FormDialog from "@/components/dialogs/FormDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { PlantingForm } from './PlantingForm';
@@ -86,17 +86,17 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds }: Plantin
         )}
       />
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editing ? 'Edit Planting' : 'Add New Planting'}</DialogTitle>
-            <DialogDescription>
-              {editing ? 'Update the details of the planting.' : 'Enter the details for the new planting.'}
-            </DialogDescription>
-          </DialogHeader>
-          <PlantingForm planting={editing} cropVarieties={cropVarieties} beds={beds} closeDialog={closeDialog} />
-        </DialogContent>
-      </Dialog>
+      <FormDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        title={editing ? 'Edit Planting' : 'Add New Planting'}
+        description={editing ? 'Update the details of the planting.' : 'Enter the details for the new planting.'}
+        submitLabel={editing ? 'Update Planting' : 'Create Planting'}
+        formId="plantingFormSubmit"
+        className="sm:max-w-md"
+      >
+        <PlantingForm planting={editing} cropVarieties={cropVarieties} beds={beds} closeDialog={closeDialog} formId="plantingFormSubmit" />
+      </FormDialog>
 
       <PageContent>
       <div className="border rounded-lg overflow-hidden">

@@ -4,10 +4,9 @@ import { useEffect, useRef, startTransition } from 'react';
 import { useActionState } from 'react';
 import { createPlot, updatePlot, type PlotFormState } from '../_actions';
 import type { Tables } from '@/lib/supabase-server';
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { DialogFooter, DialogClose } from "@/components/ui/dialog";
+// (Dialog footer handled by parent FormDialog)
 import { useForm, type Resolver, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PlotSchema, type PlotFormValues } from '@/lib/validation/plots';
@@ -28,17 +27,12 @@ interface PlotFormProps {
   plot?: Plot | null;
   locations: Location[];
   closeDialog: () => void;
+  formId?: string;
 }
 
-function SubmitButton({ isEditing, submitting }: { isEditing: boolean; submitting: boolean }) {
-  return (
-    <Button type="submit" disabled={submitting} aria-disabled={submitting}>
-      {submitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Plot' : 'Create Plot')}
-    </Button>
-  );
-}
+// Submit button is owned by parent dialog footer
 
-export function PlotForm({ plot, locations, closeDialog }: PlotFormProps) {
+export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps) {
   const isEditing = Boolean(plot?.plot_id);
   const action = isEditing ? updatePlot : createPlot;
   const initialState: PlotFormState = { message: '', errors: {}, plot: plot };
@@ -83,7 +77,7 @@ export function PlotForm({ plot, locations, closeDialog }: PlotFormProps) {
 
   return (
     <Form {...form}>
-      <form ref={formRef} onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+      <form id={formId} ref={formRef} onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
         {isEditing && <input type="hidden" name="plot_id" value={plot?.plot_id} />}
 
         <FormField
@@ -125,12 +119,7 @@ export function PlotForm({ plot, locations, closeDialog }: PlotFormProps) {
           )}
         />
 
-        <DialogFooter>
-          <DialogClose asChild>
-               <Button variant="outline">Cancel</Button>
-          </DialogClose>
-          <SubmitButton isEditing={isEditing} submitting={form.formState.isSubmitting} />
-        </DialogFooter>
+        {/* Footer handled by parent FormDialog */}
       </form>
     </Form>
   );

@@ -4,11 +4,10 @@ import { useEffect, startTransition } from 'react';
 import { useActionState } from 'react';
 import type { Tables, Enums } from '@/lib/supabase-server';
 import { createPlanting, updatePlanting, type PlantingFormState } from '../_actions';
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { DialogFooter, DialogClose } from "@/components/ui/dialog";
+// (Dialog footer handled by parent FormDialog)
 import { toast } from "sonner";
 import { useForm, type Resolver, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -31,17 +30,11 @@ interface PlantingFormProps {
   cropVarieties: CropVariety[];
   beds: Bed[];
   closeDialog: () => void;
+  formId?: string;
 }
 
-function SubmitButton({ isEditing, submitting }: { isEditing: boolean; submitting: boolean }) {
-  return (
-    <Button type="submit" disabled={submitting} aria-disabled={submitting}>
-      {submitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Planting' : 'Create Planting')}
-    </Button>
-  );
-}
 
-export function PlantingForm({ planting, cropVarieties, beds, closeDialog }: PlantingFormProps) {
+export function PlantingForm({ planting, cropVarieties, beds, closeDialog, formId }: PlantingFormProps) {
   const isEditing = Boolean(planting?.id);
   const action = isEditing ? updatePlanting : createPlanting;
   const initialState: PlantingFormState = { message: '', errors: {}, planting };
@@ -112,7 +105,7 @@ export function PlantingForm({ planting, cropVarieties, beds, closeDialog }: Pla
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+      <form id={formId} onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
         {isEditing && <input type="hidden" name="id" value={planting?.id} />}
 
         <FormField
@@ -273,12 +266,7 @@ export function PlantingForm({ planting, cropVarieties, beds, closeDialog }: Pla
           )}
         />
 
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
-          </DialogClose>
-          <SubmitButton isEditing={isEditing} submitting={form.formState.isSubmitting} />
-        </DialogFooter>
+        {/* Footer handled by parent dialog */}
       </form>
     </Form>
   );

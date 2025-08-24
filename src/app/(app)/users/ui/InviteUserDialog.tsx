@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { useForm, type SubmitHandler, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { PlusCircle } from 'lucide-react';
 import {
   Form,
   FormControl,
@@ -57,11 +58,15 @@ export default function InviteUserDialog({ onInvite }: Props) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button onClick={() => setOpen(true)}>Invite user</Button>
+        <Button onClick={() => setOpen(true)}>
+          <PlusCircle className="h-4 w-4 mr-2" />
+          Invite User
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Invite user</DialogTitle>
+          
+          <DialogTitle>Invite User</DialogTitle>
           <DialogDescription>Send an invitation email and assign a role.</DialogDescription>
         </DialogHeader>
         <Form {...form}>

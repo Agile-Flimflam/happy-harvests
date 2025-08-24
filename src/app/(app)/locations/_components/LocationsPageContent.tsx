@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/page-header';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import PageContent from '@/components/page-content';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+// Dialog header/footer handled by FormDialog
+import FormDialog from '@/components/dialogs/FormDialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { LocationForm } from './LocationForm';
 import { deleteLocation } from '../_actions';
@@ -70,17 +71,17 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
         )}
       />
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[540px]">
-          <DialogHeader>
-            <DialogTitle>{editingLocation ? 'Edit Location' : 'Add New Location'}</DialogTitle>
-            <DialogDescription>
-              {editingLocation ? 'Update the details of the location.' : 'Enter the details for the new location.'}
-            </DialogDescription>
-          </DialogHeader>
-          <LocationForm location={editingLocation} closeDialog={closeDialog} />
-        </DialogContent>
-      </Dialog>
+      <FormDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        title={editingLocation ? 'Edit Location' : 'Add New Location'}
+        description={editingLocation ? 'Update the details of the location.' : 'Enter the details for the new location.'}
+        submitLabel={editingLocation ? 'Update Location' : 'Create Location'}
+        formId="locationFormSubmit"
+        className="sm:max-w-[540px]"
+      >
+        <LocationForm location={editingLocation} closeDialog={closeDialog} formId="locationFormSubmit" />
+      </FormDialog>
 
       <PageContent>
         {locations.length === 0 ? (

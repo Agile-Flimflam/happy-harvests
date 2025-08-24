@@ -4,15 +4,7 @@ import { useState } from 'react';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+import FormDialog from "@/components/dialogs/FormDialog";
 import {
   Table,
   TableBody,
@@ -92,27 +84,17 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
           </Button>
         )}
       />
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>{editingCropVariety ? 'Edit Crop Variety' : 'Add New Crop Variety'}</DialogTitle>
-            <DialogDescription>
-              {editingCropVariety ? 'Make changes to the crop variety details.' : 'Enter the details for the new crop variety.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="-mx-6 px-6 overflow-y-auto flex-1">
-            <CropVarietyForm formId={formId} cropVariety={editingCropVariety} crops={crops} closeDialog={closeDialog} />
-          </div>
-          <DialogFooter className="pt-2">
-            <DialogClose asChild>
-              <Button variant="outline" type="button">Cancel</Button>
-            </DialogClose>
-            <Button type="submit" form={formId}>
-              {editingCropVariety ? 'Update Crop Variety' : 'Create Crop Variety'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FormDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        title={editingCropVariety ? 'Edit Crop Variety' : 'Add New Crop Variety'}
+        description={editingCropVariety ? 'Make changes to the crop variety details.' : 'Enter the details for the new crop variety.'}
+        submitLabel={editingCropVariety ? 'Update Crop Variety' : 'Create Crop Variety'}
+        formId={formId}
+        className="sm:max-w-[425px]"
+      >
+        <CropVarietyForm formId={formId} cropVariety={editingCropVariety} crops={crops} closeDialog={closeDialog} />
+      </FormDialog>
 
       <PageContent>
       <div className="border rounded-lg overflow-hidden">

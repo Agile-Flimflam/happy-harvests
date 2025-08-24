@@ -20,6 +20,7 @@ import { UserAccountMenu } from "@/components/user-account-menu"
 import type { Tables } from "@/lib/supabase-server"
 import { isAdmin } from "@/lib/authz"
 import { NAV_GROUPS } from "@/components/nav-config"
+import { useSidebar } from "@/components/ui/sidebar"
 
 type AppSidebarProps = {
   initialUser: User | null
@@ -34,6 +35,11 @@ type AppSidebarProps = {
 export function AppSidebar({ initialUser, initialProfile }: AppSidebarProps) {
   const pathname = usePathname()
   const showAdmin = isAdmin(initialProfile)
+  const { isMobile, setOpenMobile } = useSidebar()
+
+  const handleNavClick = React.useCallback(() => {
+    if (isMobile) setOpenMobile(false)
+  }, [isMobile, setOpenMobile])
 
   return (
     <>
@@ -46,7 +52,7 @@ export function AppSidebar({ initialUser, initialProfile }: AppSidebarProps) {
               <SidebarMenu>
                 {group.items.map((item) => (
                   <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
+                    <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label} onClick={handleNavClick}>
                       <Link href={item.href}>
                         <item.icon />
                         <span>{item.label}</span>
