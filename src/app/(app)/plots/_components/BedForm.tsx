@@ -2,12 +2,13 @@
 
 import { useEffect, startTransition } from 'react';
 import { useActionState } from 'react';
-import Fraction from 'fraction.js'; // Import fraction.js
 import { createBed, updateBed, type BedFormState } from '../_actions';
 import type { Tables } from '@/lib/supabase-server';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Select for plot_id
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { formatSquareFeet, formatAcres, squareFeetToAcres } from '@/lib/utils';
 // Notes removed in new schema; Textarea not needed
 import { toast } from "sonner";
 // (Dialog footer handled by parent FormDialog)
@@ -190,7 +191,16 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
                   if (!isNaN(lengthNum) && !isNaN(widthNum) && lengthNum > 0 && widthNum > 0) {
                     const areaSqIn = lengthNum * widthNum;
                     const areaSqFt = areaSqIn / 144;
-                    return `${areaSqFt.toFixed(0)} sq ft`;
+                    const display = formatSquareFeet(areaSqFt);
+                    const exact = formatSquareFeet(areaSqFt, { variant: 'tooltip' });
+                    return (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help">{display} sq ft</span>
+                        </TooltipTrigger>
+                        <TooltipContent>{exact} sq ft</TooltipContent>
+                      </Tooltip>
+                    );
                   }
                   return '-';
                 })()}
@@ -207,11 +217,20 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
                   if (!isNaN(lengthNum) && !isNaN(widthNum) && lengthNum > 0 && widthNum > 0) {
                     const areaSqIn = lengthNum * widthNum;
                     const areaSqFt = areaSqIn / 144;
-                    const acreage = areaSqFt / 43560;
-                    if (acreage === 0) return '0 acres';
-                    // Use fraction.js - toFraction(true) attempts simplification
-                    const frac = new Fraction(acreage);
-                    return `${frac.toFraction(true)} acres`;
+                    const acresRaw = squareFeetToAcres(areaSqFt);
+                    const display = formatAcres(acresRaw);
+                    const exact = formatAcres(acresRaw, { variant: 'tooltip' });
+                    if (!display) return '—';
+                    return (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help">{display} ac</span>
+                        </TooltipTrigger>
+                        {exact && (
+                          <TooltipContent>{exact} ac</TooltipContent>
+                        )}
+                      </Tooltip>
+                    );
                   }
                   return '-';
                 })()}

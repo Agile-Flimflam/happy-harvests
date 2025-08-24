@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { WeatherBadge } from '@/components/weather/WeatherBadge';
-import Fraction from 'fraction.js';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { formatSquareFeet, formatAcres, squareFeetToAcres } from '@/lib/utils';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -175,25 +176,42 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
                 <TableBody>
                   {plot.beds.map((bed) => {
                     const areaSqIn = (bed.length_inches && bed.width_inches) ? bed.length_inches * bed.width_inches : null;
-                    const areaSqFt = areaSqIn ? areaSqIn / 144 : null;
-                    const acreage = areaSqFt ? areaSqFt / 43560 : null;
+                    const areaSqFt = areaSqIn != null ? areaSqIn / 144 : null;
+                    const acresRaw = areaSqFt != null ? squareFeetToAcres(areaSqFt) : null;
+                    const sqFtDisplay = areaSqFt != null ? formatSquareFeet(areaSqFt) : null;
+                    const sqFtTooltip = areaSqFt != null ? formatSquareFeet(areaSqFt, { variant: 'tooltip' }) : null;
+                    const acresDisplay = acresRaw != null ? formatAcres(acresRaw) : null;
+                    const acresTooltip = acresRaw != null ? formatAcres(acresRaw, { variant: 'tooltip' }) : null;
                     return (
                       <TableRow key={bed.id} className="hover:bg-muted/30">
                         <TableCell className="font-medium">#{bed.id}</TableCell>
                         <TableCell className="font-mono text-sm">
                           {bed.length_inches && bed.width_inches 
-                            ? `${bed.length_inches}" × ${bed.width_inches}"`
+                            ? `${bed.length_inches}" × ${bed.width_inches}`
                             : '—'
                           }
                         </TableCell>
                         <TableCell className="font-mono text-sm">
-                          {areaSqFt !== null ? `${Math.round(areaSqFt)} sq ft` : '—'}
+                          {areaSqFt !== null ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help">{sqFtDisplay} sq ft</span>
+                              </TooltipTrigger>
+                              <TooltipContent>{sqFtTooltip} sq ft</TooltipContent>
+                            </Tooltip>
+                          ) : '—'}
                         </TableCell>
-                        <TableCell>
-                          {acreage !== null && acreage > 0 
-                            ? new Fraction(acreage).toFraction(true) 
-                            : '—'
-                          }
+                        <TableCell className="font-mono text-sm">
+                          {acresRaw !== null ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help">{acresDisplay ? `${acresDisplay} ac` : '—'}</span>
+                              </TooltipTrigger>
+                              {acresTooltip && (
+                                <TooltipContent>{acresTooltip} ac</TooltipContent>
+                              )}
+                            </Tooltip>
+                          ) : '—'}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
