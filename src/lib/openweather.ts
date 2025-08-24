@@ -1,4 +1,5 @@
 import 'server-only'
+import { getOpenWeatherIntegration } from '@/lib/integrations'
 
 const OPENWEATHER_BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall'
 
@@ -47,10 +48,17 @@ export type WeatherResult = {
 export async function fetchWeatherByCoords(
   latitude: number,
   longitude: number,
-  options?: { units?: 'standard' | 'metric' | 'imperial' }
+  options?: { units?: 'standard' | 'metric' | 'imperial'; apiKey?: string }
 ): Promise<WeatherResult> {
-  const apiKey = process.env.OPENWEATHER_API_KEY
-  if (!apiKey) throw new Error('Missing OPENWEATHER_API_KEY')
+  // Resolve API key: explicit > integration (if enabled) > env var
+  let apiKey = options?.apiKey ?? null
+  if (!apiKey) {
+    const integration = await getOpenWeatherIntegration()
+    if (integration.enabled && integration.apiKey) {
+      apiKey = integration.apiKey
+    }
+  }
+  if (!apiKey) throw new Error('OpenWeather integration is disabled or missing API key')
 
   const units = options?.units ?? 'imperial'
   const exclude = 'minutely,hourly,alerts'

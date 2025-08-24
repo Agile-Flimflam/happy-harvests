@@ -20,6 +20,11 @@ export const metadata: Metadata = {
   description: "Garden plot management app",
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export default async function RootLayout({
   children,
 }: Readonly<{

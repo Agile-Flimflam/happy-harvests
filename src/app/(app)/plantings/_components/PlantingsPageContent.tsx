@@ -74,9 +74,9 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds }: Plantin
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-semibold">Manage Plantings</h1>
-        <Button onClick={handleAdd} size="sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+        <h1 className="text-2xl md:text-3xl font-semibold">Manage Plantings</h1>
+        <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
           <PlusCircle className="h-4 w-4 mr-2" />
           Add Planting
         </Button>

@@ -7,242 +7,13 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "12.2.3 (519615d)"
+  }
   public: {
     Tables: {
-      profiles: {
-        Row: {
-          id: string
-          display_name: string | null
-          full_name: string | null
-          avatar_url: string | null
-          locale: string | null
-          timezone: string | null
-          role: Database["public"]["Enums"]["user_role"]
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id: string
-          display_name?: string | null
-          full_name?: string | null
-          avatar_url?: string | null
-          locale?: string | null
-          timezone?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          display_name?: string | null
-          full_name?: string | null
-          avatar_url?: string | null
-          locale?: string | null
-          timezone?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      plots: {
-        Row: {
-          created_at: string
-          name: string
-          plot_id: number
-          location_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          name: string
-          plot_id?: number
-          location_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          name?: string
-          plot_id?: number
-          location_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "plots_location_id_fkey"
-            columns: ["location_id"]
-            isOneToOne: false
-            referencedRelation: "locations"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      ,
-      locations: {
-        Row: {
-          id: string
-          created_at: string
-          name: string
-          street: string | null
-          city: string | null
-          state: string | null
-          zip: string | null
-          latitude: number | null
-          longitude: number | null
-          timezone: string | null
-          notes: string | null
-        }
-        Insert: {
-          id?: string
-          created_at?: string
-          name: string
-          street?: string | null
-          city?: string | null
-          state?: string | null
-          zip?: string | null
-          latitude?: number | null
-          longitude?: number | null
-          timezone?: string | null
-          notes?: string | null
-        }
-        Update: {
-          id?: string
-          created_at?: string
-          name?: string
-          street?: string | null
-          city?: string | null
-          state?: string | null
-          zip?: string | null
-          latitude?: number | null
-          longitude?: number | null
-          timezone?: string | null
-          notes?: string | null
-        }
-        Relationships: []
-      }
-      beds: {
-        Row: {
-          created_at: string
-          id: number
-          length_inches: number | null
-          plot_id: number
-          width_inches: number | null
-        }
-        Insert: {
-          created_at?: string
-          id?: number
-          length_inches?: number | null
-          plot_id: number
-          width_inches?: number | null
-        }
-        Update: {
-          created_at?: string
-          id?: number
-          length_inches?: number | null
-          plot_id?: number
-          width_inches?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "Bed_plot_id_fkey"
-            columns: ["plot_id"]
-            isOneToOne: false
-            referencedRelation: "plots"
-            referencedColumns: ["plot_id"]
-          }
-        ]
-      }
-      crops: {
-        Row: {
-          created_at: string
-          crop_type: Database["public"]["Enums"]["crop_type"]
-          id: number
-          name: string
-        }
-        Insert: {
-          created_at?: string
-          crop_type: Database["public"]["Enums"]["crop_type"]
-          id?: number
-          name: string
-        }
-        Update: {
-          created_at?: string
-          crop_type?: Database["public"]["Enums"]["crop_type"]
-          id?: number
-          name?: string
-        }
-        Relationships: []
-      }
-      crop_varieties: {
-        Row: {
-          created_at: string
-          crop_id: number
-          dtm_direct_seed_max: number
-          dtm_direct_seed_min: number
-          dtm_transplant_max: number
-          dtm_transplant_min: number
-          id: number
-          is_organic: boolean
-          latin_name: string
-          name: string
-          notes: string | null
-          image_path: string | null
-          plant_spacing_max: number | null
-          plant_spacing_min: number | null
-          row_spacing_max: number | null
-          row_spacing_min: number | null
-        }
-        Insert: {
-          created_at?: string
-          crop_id: number
-          dtm_direct_seed_max: number
-          dtm_direct_seed_min: number
-          dtm_transplant_max: number
-          dtm_transplant_min: number
-          id?: number
-          is_organic: boolean
-          latin_name: string
-          name: string
-          notes?: string | null
-          image_path?: string | null
-          plant_spacing_max?: number | null
-          plant_spacing_min?: number | null
-          row_spacing_max?: number | null
-          row_spacing_min?: number | null
-        }
-        Update: {
-          created_at?: string
-          crop_id?: number
-          dtm_direct_seed_max?: number
-          dtm_direct_seed_min?: number
-          dtm_transplant_max?: number
-          dtm_transplant_min?: number
-          id?: number
-          is_organic?: boolean
-          latin_name?: string
-          name?: string
-          notes?: string | null
-          image_path?: string | null
-          plant_spacing_max?: number | null
-          plant_spacing_min?: number | null
-          row_spacing_max?: number | null
-          row_spacing_min?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "crop_varieties_crop_id_fkey"
-            columns: ["crop_id"]
-            isOneToOne: false
-            referencedRelation: "crops"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
       bed_plantings: {
         Row: {
           bed_id: number
@@ -282,32 +53,336 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "Bed Plantings_bed_id_fkey"
+            columns: ["bed_id"]
+            isOneToOne: false
+            referencedRelation: "beds"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "Bed Plantings_crop_variety_id_fkey"
             columns: ["crop_variety_id"]
             isOneToOne: false
             referencedRelation: "crop_varieties"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "Bed Plantings_bed_id_fkey"
-            columns: ["bed_id"]
-            isOneToOne: false
-            referencedRelation: "beds"
-            referencedColumns: ["id"]
-          }
         ]
+      }
+      beds: {
+        Row: {
+          created_at: string
+          id: number
+          length_inches: number | null
+          plot_id: number
+          width_inches: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          length_inches?: number | null
+          plot_id: number
+          width_inches?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          length_inches?: number | null
+          plot_id?: number
+          width_inches?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "Bed_plot_id_fkey"
+            columns: ["plot_id"]
+            isOneToOne: false
+            referencedRelation: "plots"
+            referencedColumns: ["plot_id"]
+          },
+        ]
+      }
+      crop_varieties: {
+        Row: {
+          created_at: string
+          crop_id: number
+          dtm_direct_seed_max: number
+          dtm_direct_seed_min: number
+          dtm_transplant_max: number
+          dtm_transplant_min: number
+          id: number
+          image_path: string | null
+          is_organic: boolean
+          latin_name: string
+          name: string
+          notes: string | null
+          plant_spacing_max: number | null
+          plant_spacing_min: number | null
+          row_spacing_max: number | null
+          row_spacing_min: number | null
+        }
+        Insert: {
+          created_at?: string
+          crop_id: number
+          dtm_direct_seed_max: number
+          dtm_direct_seed_min: number
+          dtm_transplant_max: number
+          dtm_transplant_min: number
+          id?: number
+          image_path?: string | null
+          is_organic: boolean
+          latin_name: string
+          name: string
+          notes?: string | null
+          plant_spacing_max?: number | null
+          plant_spacing_min?: number | null
+          row_spacing_max?: number | null
+          row_spacing_min?: number | null
+        }
+        Update: {
+          created_at?: string
+          crop_id?: number
+          dtm_direct_seed_max?: number
+          dtm_direct_seed_min?: number
+          dtm_transplant_max?: number
+          dtm_transplant_min?: number
+          id?: number
+          image_path?: string | null
+          is_organic?: boolean
+          latin_name?: string
+          name?: string
+          notes?: string | null
+          plant_spacing_max?: number | null
+          plant_spacing_min?: number | null
+          row_spacing_max?: number | null
+          row_spacing_min?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crop_varieties_crop_id_fkey"
+            columns: ["crop_id"]
+            isOneToOne: false
+            referencedRelation: "crops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crops: {
+        Row: {
+          created_at: string
+          crop_type: Database["public"]["Enums"]["crop_type"]
+          id: number
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          crop_type: Database["public"]["Enums"]["crop_type"]
+          id?: number
+          name: string
+        }
+        Update: {
+          created_at?: string
+          crop_type?: Database["public"]["Enums"]["crop_type"]
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
+      external_integrations: {
+        Row: {
+          api_key_ciphertext: string | null
+          api_key_hint: string | null
+          api_key_iv: string | null
+          api_key_tag: string | null
+          created_at: string
+          enabled: boolean
+          id: string
+          service: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          api_key_ciphertext?: string | null
+          api_key_hint?: string | null
+          api_key_iv?: string | null
+          api_key_tag?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          service: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          api_key_ciphertext?: string | null
+          api_key_hint?: string | null
+          api_key_iv?: string | null
+          api_key_tag?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          service?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      locations: {
+        Row: {
+          city: string | null
+          created_at: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          name: string
+          notes: string | null
+          state: string | null
+          street: string | null
+          timezone: string | null
+          zip: string | null
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          notes?: string | null
+          state?: string | null
+          street?: string | null
+          timezone?: string | null
+          zip?: string | null
+        }
+        Update: {
+          city?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          notes?: string | null
+          state?: string | null
+          street?: string | null
+          timezone?: string | null
+          zip?: string | null
+        }
+        Relationships: []
+      }
+      plots: {
+        Row: {
+          created_at: string
+          location_id: string
+          name: string
+          plot_id: number
+        }
+        Insert: {
+          created_at?: string
+          location_id: string
+          name: string
+          plot_id?: number
+        }
+        Update: {
+          created_at?: string
+          location_id?: string
+          name?: string
+          plot_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plots_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          full_name: string | null
+          id: string
+          locale: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          timezone: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          full_name?: string | null
+          id: string
+          locale?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          timezone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          full_name?: string | null
+          id?: string
+          locale?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          timezone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
-      [_ in never]: never
+      public_profiles: {
+        Row: {
+          avatar_url: string | null
+          id: string | null
+          name: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          id?: string | null
+          name?: never
+        }
+        Update: {
+          avatar_url?: string | null
+          id?: string | null
+          name?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      citext: {
+        Args: { "": boolean } | { "": string } | { "": unknown }
+        Returns: string
+      }
+      citext_hash: {
+        Args: { "": string }
+        Returns: number
+      }
+      citextin: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      citextout: {
+        Args: { "": string }
+        Returns: unknown
+      }
+      citextrecv: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      citextsend: {
+        Args: { "": string }
+        Returns: string
+      }
     }
     Enums: {
+      bed_planting_status: "Planted" | "Harvested" | "Nursery"
       crop_type: "Vegetable" | "Fruit" | "Windbreak" | "Covercrop"
       planting_type: "Direct Seed" | "Transplant"
-      bed_planting_status: "Planted" | "Harvested" | "Nursery"
       user_role: "admin" | "member"
     }
     CompositeTypes: {
@@ -316,21 +391,25 @@ export type Database = {
   }
 }
 
-type DefaultSchema = Database[Extract<keyof Database, "public">]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
@@ -348,14 +427,16 @@ export type Tables<
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
@@ -371,14 +452,16 @@ export type TablesInsert<
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
@@ -394,14 +477,16 @@ export type TablesUpdate<
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
@@ -409,14 +494,16 @@ export type Enums<
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
@@ -424,9 +511,10 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      bed_planting_status: ["Planted", "Harvested", "Nursery"],
       crop_type: ["Vegetable", "Fruit", "Windbreak", "Covercrop"],
       planting_type: ["Direct Seed", "Transplant"],
-      bed_planting_status: ["Planted", "Harvested", "Nursery"],
+      user_role: ["admin", "member"],
     },
   },
 } as const

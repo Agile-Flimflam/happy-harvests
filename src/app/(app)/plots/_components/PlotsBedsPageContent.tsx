@@ -243,8 +243,8 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
     return (
       <div key={locationKey} className="space-y-6">
         {/* Location Header */}
-        <div className="flex items-center justify-between border-b pb-4 mb-6">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b pb-4 mb-6">
+          <div className="flex items-center gap-3 min-w-0">
             <MapPin className="h-5 w-5 text-muted-foreground" />
             <div>
               <h2 className="text-xl font-semibold">{locationName}</h2>
@@ -255,7 +255,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
               )}
             </div>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-6 justify-start sm:justify-end">
             {location ? (
               <LocationWeather id={location.id} latitude={location.latitude} longitude={location.longitude} />
             ) : null}
@@ -275,9 +275,9 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Plots & Beds</h1>
-        <Button onClick={handleAddPlot} size="sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold">Plots & Beds</h1>
+        <Button onClick={handleAddPlot} size="sm" className="w-full sm:w-auto">
           <PlusCircle className="h-4 w-4 mr-2" />
           Add Plot
         </Button>

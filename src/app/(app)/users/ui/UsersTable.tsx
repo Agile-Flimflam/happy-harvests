@@ -6,11 +6,13 @@ import { ColumnDef, flexRender, getCoreRowModel, getFilteredRowModel, useReactTa
 import type { ListedUser } from '../_actions'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import EditUserDialog from './EditUserDialog'
 import { updateUserProfileAction } from '../_actions'
 import { Pencil } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
 type Props = {
   initialUsers: ListedUser[]
@@ -24,16 +26,30 @@ export default function UsersTable({ initialUsers }: Props) {
 
   const columns = useMemo<ColumnDef<ListedUser>[]>(() => [
     {
-      id: 'displayName',
-      header: 'Name',
+      id: 'user',
+      header: 'User',
       accessorKey: 'displayName',
-      cell: ({ row }) => <span>{row.original.displayName}</span>,
-    },
-    {
-      id: 'email',
-      header: 'Email',
-      accessorKey: 'email',
-      cell: ({ row }) => <span className="font-medium">{row.original.email}</span>,
+      cell: ({ row }) => {
+        const u = row.original
+        const initials = (u.displayName || u.email || '')
+          .split(' ')
+          .map((s) => s[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase()
+        return (
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar className="size-8 ring-1 ring-border">
+              <AvatarImage src={u.avatarUrl || undefined} alt={u.displayName} />
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <div className="font-medium leading-tight truncate">{u.displayName}</div>
+              <div className="text-xs text-muted-foreground truncate">{u.email}</div>
+            </div>
+          </div>
+        )
+      },
     },
     {
       id: 'role',
@@ -70,8 +86,8 @@ export default function UsersTable({ initialUsers }: Props) {
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     globalFilterFn: (row, _columnId, filterValue) => {
-      const v = (row.original.email || '').toLowerCase()
-      return v.includes(String(filterValue).toLowerCase())
+      const haystack = `${row.original.email || ''} ${row.original.displayName || ''}`.toLowerCase()
+      return haystack.includes(String(filterValue).toLowerCase())
     },
   })
 
@@ -80,27 +96,27 @@ export default function UsersTable({ initialUsers }: Props) {
       <div className="flex items-center gap-2">
         <Input placeholder="Search email…" value={globalFilter} onChange={(e) => setGlobalFilter(e.target.value)} className="max-w-xs" />
       </div>
-      <div className="rounded border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
+      <div className="rounded border overflow-hidden">
+        <Table>
+          <TableHeader>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id}>
+              <TableRow key={hg.id} className="bg-muted/50">
                 {hg.headers.map((h) => (
-                  <th key={h.id} className="text-left p-2 font-medium">{h.isPlaceholder ? null : h.column.columnDef.header as string}</th>
+                  <TableHead key={h.id}>{h.isPlaceholder ? null : (h.column.columnDef.header as string)}</TableHead>
                 ))}
-              </tr>
+              </TableRow>
             ))}
-          </thead>
-          <tbody>
+          </TableHeader>
+          <TableBody>
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-t">
+              <TableRow key={row.id}>
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="p-2">{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                  <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       <EditUserDialog
         user={editing ? { id: editing.id, email: editing.email, displayName: editing.displayName, role: editing.role, avatarUrl: editing.avatarUrl } : null}

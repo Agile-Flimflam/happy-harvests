@@ -128,7 +128,7 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
           <legend className="text-sm font-medium px-1">Dimensions</legend>
 
           {/* Combined Length and Width Fields */}
-          <div className="flex items-start gap-4">
+          <div className="flex flex-col sm:flex-row items-start gap-4">
             {/* Length Field (Half Width) */}
             <FormField
               control={form.control}
@@ -171,7 +171,7 @@ export function BedForm({ bed, plots, closeDialog }: BedFormProps) {
           </div>
 
           {/* Combined Calculated Area and Acreage Displays */}
-          <div className="flex items-start gap-4">
+          <div className="flex flex-col sm:flex-row items-start gap-4">
             {/* Display Calculated Area (Half Width) */}
             <div className="flex-1">
               <Label>Calculated Area</Label>

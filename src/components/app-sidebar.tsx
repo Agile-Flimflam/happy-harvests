@@ -4,7 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
-import { Home, Leaf, Fence, Sprout, MapPin, Users } from "lucide-react"
+import { Home, Leaf, Fence, Sprout, MapPin, Users, Settings } from "lucide-react"
 
 import {
   Sidebar,
@@ -112,6 +112,14 @@ export function AppSidebar({ initialUser, initialProfile }: AppSidebarProps) {
                     <Link href="/users">
                       <Users />
                       <span>Users</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/settings/integrations"} tooltip="Integrations">
+                    <Link href="/settings/integrations">
+                      <Settings />
+                      <span>Integrations</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

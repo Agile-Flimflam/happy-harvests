@@ -59,9 +59,9 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold flex items-center gap-2"><MapPin className="h-6 w-6" /> Locations</h1>
-        <Button onClick={handleAdd} size="sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2"><MapPin className="h-6 w-6" /> Locations</h1>
+        <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
           <PlusCircle className="h-4 w-4 mr-2" />
           Add Location
         </Button>
@@ -88,22 +88,22 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
             {locations.length === 0 ? (
               <p className="text-center text-gray-500">No locations found. Add one to get started.</p>
             ) : (
-              <div className="border rounded-md">
+              <div className="border rounded-md overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="font-semibold">Name</TableHead>
-                      <TableHead className="font-semibold">Address</TableHead>
-                      <TableHead className="font-semibold">Coordinates</TableHead>
-                      <TableHead className="font-semibold">Weather</TableHead>
-                      <TableHead className="text-right font-semibold">Actions</TableHead>
+                      <TableHead className="font-semibold whitespace-normal">Name</TableHead>
+                      <TableHead className="font-semibold whitespace-normal">Address</TableHead>
+                      <TableHead className="font-semibold whitespace-normal">Coordinates</TableHead>
+                      <TableHead className="font-semibold whitespace-normal">Weather</TableHead>
+                      <TableHead className="text-right font-semibold whitespace-normal">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {locations.map((loc) => (
                       <TableRow key={loc.id}>
-                        <TableCell className="font-medium">{loc.name}</TableCell>
-                        <TableCell>
+                        <TableCell className="font-medium whitespace-normal break-words">{loc.name}</TableCell>
+                        <TableCell className="whitespace-normal break-words">
                           {(() => {
                             const street = loc.street ?? ''
                             const cityState = [loc.city, loc.state].filter(Boolean).join(', ')
@@ -112,17 +112,17 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                             return full || '-'
                           })()}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-normal">
                           {loc.latitude != null && loc.longitude != null ? `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}` : '-'}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-normal break-words">
                           <WeatherCell
                             id={loc.id}
                             latitude={loc.latitude}
                             longitude={loc.longitude}
                           />
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right whitespace-nowrap">
                           <Button variant="ghost" size="icon" onClick={() => handleEdit(loc)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
