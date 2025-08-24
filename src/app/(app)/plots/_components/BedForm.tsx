@@ -32,10 +32,11 @@ interface BedFormProps {
   plots: PlotForSelect[]; // Need list of plots for the dropdown
   closeDialog: () => void;
   formId?: string;
+  initialPlotId?: number | null;
 }
 
 
-export function BedForm({ bed, plots, closeDialog, formId }: BedFormProps) {
+export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedFormProps) {
   const isEditing = Boolean(bed?.id);
   const action = isEditing ? updateBed : createBed;
   const initialState: BedFormState = { message: '', errors: {}, bed: bed };
@@ -45,7 +46,7 @@ export function BedForm({ bed, plots, closeDialog, formId }: BedFormProps) {
     mode: 'onSubmit',
     defaultValues: {
       id: bed?.id,
-      plot_id: bed?.plot_id ?? ('' as unknown as number),
+      plot_id: bed?.plot_id ?? (initialPlotId ?? ('' as unknown as number)),
       length_inches: bed?.length_inches ?? ('' as unknown as number | null),
       width_inches: bed?.width_inches ?? ('' as unknown as number | null),
     },
@@ -67,6 +68,13 @@ export function BedForm({ bed, plots, closeDialog, formId }: BedFormProps) {
       }
     }
   }, [state, closeDialog, form]);
+
+  // Ensure plot is preselected when creating from a specific plot
+  useEffect(() => {
+    if (!isEditing && initialPlotId != null) {
+      form.setValue('plot_id', initialPlotId);
+    }
+  }, [isEditing, initialPlotId, form]);
 
   const onSubmit: SubmitHandler<BedFormValues> = async (values) => {
     const fd = new FormData();
@@ -99,13 +107,18 @@ export function BedForm({ bed, plots, closeDialog, formId }: BedFormProps) {
               <FormLabel>Plot</FormLabel>
               <FormControl>
                 <Select value={field.value ? String(field.value) : ''} onValueChange={(val) => field.onChange(parseInt(val, 10))}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="mt-1 py-2" style={{ height: 44 }}>
                     <SelectValue placeholder="Select a plot" />
                   </SelectTrigger>
                   <SelectContent>
                     {plots.map((plot) => (
-                      <SelectItem key={plot.plot_id} value={plot.plot_id.toString()}>
-                        {plot.name} @ {plot.locations?.name ?? 'No Location Assigned'}
+                      <SelectItem key={plot.plot_id} value={String(plot.plot_id)} textValue={plot.name}>
+                        <span className="flex flex-col items-start text-left leading-tight">
+                          <span className="font-medium">{plot.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {plot.locations?.name ?? 'No Location Assigned'}
+                          </span>
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

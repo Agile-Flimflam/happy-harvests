@@ -321,7 +321,13 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
         formId="bedFormSubmit"
         className="sm:max-w-[425px]"
       >
-        <BedForm bed={editingBed} plots={allPlots} closeDialog={closeBedDialog} formId="bedFormSubmit" />
+        <BedForm
+          bed={editingBed}
+          plots={allPlots}
+          closeDialog={closeBedDialog}
+          formId="bedFormSubmit"
+          initialPlotId={currentPlotForBed?.plot_id ?? null}
+        />
       </FormDialog>
 
       {/* Delete Bed Confirmation */}

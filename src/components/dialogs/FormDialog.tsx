@@ -30,18 +30,20 @@ export default function FormDialog({
 }: FormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("flex max-h-[85vh] w-full max-w-[calc(100vw-2rem)] flex-col overflow-hidden", className)}>
-        <DialogHeader className="shrink-0">
+      <DialogContent className={cn("flex max-h-[85vh] w-full max-w-[calc(100vw-2rem)] flex-col overflow-visible px-0 py-6", className)}>
+        <DialogHeader className="shrink-0 px-6">
           <DialogTitle className="whitespace-normal break-words">{title}</DialogTitle>
           {description ? <DialogDescription className="whitespace-normal break-words">{description}</DialogDescription> : null}
         </DialogHeader>
         <div
           style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" as React.CSSProperties["overscrollBehavior"] }}
-          className="flex-1 min-h-0 overflow-x-hidden overflow-y-auto"
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-visible"
         >
-          {children}
+          <div className="px-6">
+            {children}
+          </div>
         </div>
-        <DialogFooter className="shrink-0">
+        <DialogFooter className="shrink-0 px-6">
           <DialogClose asChild>
             <Button variant="outline">{cancelLabel}</Button>
           </DialogClose>
