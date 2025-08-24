@@ -39,6 +39,15 @@ const GCAL_EVENT_COLORS: Record<string, { name: string; hex: string }> = {
 export default function GoogleCalendarCardClient({ enabled, calendarId, hasServiceAccount }: Props) {
   const [serviceAccountJson, setServiceAccountJson] = React.useState<string>("");
   const [isAllDay, setIsAllDay] = React.useState<boolean>(true);
+  const serviceAccountEmail = React.useMemo(() => {
+    try {
+      if (!serviceAccountJson) return null;
+      const obj = JSON.parse(serviceAccountJson);
+      return typeof obj?.client_email === 'string' ? obj.client_email : null;
+    } catch {
+      return null;
+    }
+  }, [serviceAccountJson]);
   const tzList = React.useMemo(() => getTimeZones().filter((tz) => tz.countryCode === 'US'), []);
   const defaultTz = React.useMemo(() => {
     try {
@@ -102,14 +111,14 @@ export default function GoogleCalendarCardClient({ enabled, calendarId, hasServi
             <Label htmlFor="calendarId">Calendar ID</Label>
             <Input id="calendarId" name="calendarId" defaultValue={calendarId ?? ''} placeholder="primary or calendar@example.com" autoComplete="off" inputMode="text" />
             <p className="text-sm text-muted-foreground">
-              Use &quot;primary&quot; for your main calendar or find the specific ID in{' '}
+              With service accounts, &quot;primary&quot; refers to the service account’s own calendar. For a team calendar, paste that calendar’s ID here and share it with the service account (see below).{' '}
               <a 
                 href="https://support.google.com/calendar/answer/37103" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-800 underline"
               >
-                Google Calendar settings
+                Learn how to find a calendar ID
               </a>
               .
             </p>
@@ -140,6 +149,34 @@ export default function GoogleCalendarCardClient({ enabled, calendarId, hasServi
               </a>
               .
             </p>
+            <div className="rounded-md border border-dashed p-3">
+              <div className="text-sm font-medium">Share the calendar with the service account</div>
+              <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
+                <li>Open the calendar’s Settings and sharing in Google Calendar.</li>
+                <li>Under “Share with specific people or groups”, add the service account email.</li>
+                <li>Grant permission “Make changes to events”.</li>
+              </ol>
+              {serviceAccountEmail ? (
+                <div className="mt-2 flex items-center gap-2">
+                  <code className="rounded bg-muted px-2 py-1 text-xs">{serviceAccountEmail}</code>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => navigator.clipboard.writeText(serviceAccountEmail)}
+                  >
+                    Copy email
+                  </Button>
+                </div>
+              ) : hasServiceAccount ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  For security, the saved email isn’t displayed. Paste the JSON again to reveal it.
+                </p>
+              ) : null}
+              <p className="mt-2 text-xs text-muted-foreground">
+                Note: With service accounts, “primary” refers to the service account’s own calendar. To use a team calendar, paste that calendar’s ID above and share it with the service account.
+              </p>
+            </div>
           </div>
         </form>
         <form id="gcalTestForm" action={testAction} className="hidden">
