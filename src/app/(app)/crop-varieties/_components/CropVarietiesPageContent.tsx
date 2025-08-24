@@ -27,6 +27,8 @@ import { Pencil, Trash2, PlusCircle } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from "sonner";
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import PageHeader from '@/components/page-header';
+import PageContent from '@/components/page-content';
 
 type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null } & { image_url?: string | null };
 type Crop = { id: number; name: string };
@@ -81,14 +83,15 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-semibold">Manage Crop Varieties</h1>
-        <Button onClick={handleAdd} size="sm">
-          <PlusCircle className="h-4 w-4 mr-2" />
-          Add Crop Variety
-        </Button>
-      </div>
-
+      <PageHeader
+        title="Crop Varieties"
+        action={(
+          <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
+            <PlusCircle className="h-4 w-4 mr-2" />
+            Add Crop Variety
+          </Button>
+        )}
+      />
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[425px] max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
@@ -111,6 +114,7 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
         </DialogContent>
       </Dialog>
 
+      <PageContent>
       <div className="border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
@@ -182,6 +186,7 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
           </TableBody>
         </Table>
       </div>
+      </PageContent>
     </div>
   );
 }

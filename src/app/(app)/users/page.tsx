@@ -3,6 +3,8 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { listUsersWithRolesAction, inviteUserWithRoleAction } from './_actions'
 import InviteUserDialog from './ui/InviteUserDialog'
 import UsersTable from './ui/UsersTable'
+import PageHeader from '@/components/page-header'
+import PageContent from '@/components/page-content'
 
 export default async function UsersPage() {
   const supabase = await createSupabaseServerClient()
@@ -19,15 +21,13 @@ export default async function UsersPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-semibold">User management</h1>
-      <InviteUserDialog onInvite={inviteUserWithRoleAction} />
-      <div className="space-y-2">
+      <PageHeader
+        title="User Management"
+        action={<InviteUserDialog onInvite={inviteUserWithRoleAction} />}
+      />
+      <PageContent>
         <UsersTable initialUsers={users} />
-      </div>
+      </PageContent>
     </div>
   )
 }
-
-// client button moved to ./ui/InviteUserButton
-
-

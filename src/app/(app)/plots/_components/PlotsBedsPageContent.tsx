@@ -28,6 +28,8 @@ import { BedForm } from '../_components/BedForm';
 import { deletePlot, deleteBed } from '../_actions';
 import { Pencil, Trash2, PlusCircle, MapPin, Sunrise, Sunset, Moon, Droplet } from 'lucide-react';
 import { toast } from "sonner";
+import PageHeader from '@/components/page-header';
+import PageContent from '@/components/page-content';
 
 type Plot = Tables<'plots'>;
 type Bed = Tables<'beds'>;
@@ -275,13 +277,15 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
 
   return (
     <div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold">Plots & Beds</h1>
-        <Button onClick={handleAddPlot} size="sm" className="w-full sm:w-auto">
-          <PlusCircle className="h-4 w-4 mr-2" />
-          Add Plot
-        </Button>
-      </div>
+      <PageHeader
+        title="Plots & Beds"
+        action={(
+          <Button onClick={handleAddPlot} size="sm" className="w-full sm:w-auto">
+            <PlusCircle className="h-4 w-4 mr-2" />
+            Add Plot
+          </Button>
+        )}
+      />
 
       <Dialog open={isPlotDialogOpen} onOpenChange={setIsPlotDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
@@ -347,6 +351,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
         </DialogContent>
       </Dialog>
 
+      <PageContent>
       <div className="space-y-8">
         {plotsWithBeds.length === 0 ? (
           <p className="text-center text-gray-500">No plots found. Add a plot to get started.</p>
@@ -356,6 +361,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
           )
         )}
       </div>
+      </PageContent>
     </div>
   );
 }

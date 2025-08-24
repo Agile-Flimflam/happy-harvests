@@ -8,5 +8,3 @@ export default async function LocationsPage() {
   }
   return <LocationsPageContent locations={locations || []} />;
 }
-
-

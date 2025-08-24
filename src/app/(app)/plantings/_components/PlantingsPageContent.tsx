@@ -11,6 +11,8 @@ import { PlantingForm } from './PlantingForm';
 import { deletePlanting } from '../_actions';
 import { Pencil, Trash2, PlusCircle } from 'lucide-react';
 import { toast } from "sonner";
+import PageHeader from '@/components/page-header';
+import PageContent from '@/components/page-content';
 
 type Planting = Tables<'bed_plantings'>;
 type CropVariety = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name'> & { crops?: { name: string } | null };
@@ -74,13 +76,15 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds }: Plantin
 
   return (
     <div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-        <h1 className="text-2xl md:text-3xl font-semibold">Manage Plantings</h1>
-        <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
-          <PlusCircle className="h-4 w-4 mr-2" />
-          Add Planting
-        </Button>
-      </div>
+      <PageHeader
+        title="Plantings"
+        action={(
+          <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
+            <PlusCircle className="h-4 w-4 mr-2" />
+            Add Planting
+          </Button>
+        )}
+      />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -94,6 +98,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds }: Plantin
         </DialogContent>
       </Dialog>
 
+      <PageContent>
       <div className="border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
@@ -150,6 +155,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds }: Plantin
           </TableBody>
         </Table>
       </div>
+      </PageContent>
     </div>
   );
 }

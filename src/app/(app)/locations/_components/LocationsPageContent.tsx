@@ -4,14 +4,15 @@ import { useState, useEffect } from 'react';
 import { WeatherBadge } from '@/components/weather/WeatherBadge';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import PageHeader from '@/components/page-header';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import PageContent from '@/components/page-content';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { LocationForm } from './LocationForm';
 import { deleteLocation } from '../_actions';
 import { toast } from 'sonner';
-import { MapPin, Pencil, Trash2, PlusCircle, Sunrise, Sunset, Moon, Droplet } from 'lucide-react';
+import { Pencil, Trash2, PlusCircle, Sunrise, Sunset, Moon, Droplet } from 'lucide-react';
 
 type Location = Tables<'locations'>;
 
@@ -59,13 +60,15 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
 
   return (
     <div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2"><MapPin className="h-6 w-6" /> Locations</h1>
-        <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
-          <PlusCircle className="h-4 w-4 mr-2" />
-          Add Location
-        </Button>
-      </div>
+      <PageHeader
+        title="Locations"
+        action={(
+          <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
+            <PlusCircle className="h-4 w-4 mr-2" />
+            Add Location
+          </Button>
+        )}
+      />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[540px]">
@@ -79,80 +82,72 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
         </DialogContent>
       </Dialog>
 
-      <div className="space-y-6">
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle>All Locations</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {locations.length === 0 ? (
-              <p className="text-center text-gray-500">No locations found. Add one to get started.</p>
-            ) : (
-              <div className="border rounded-md overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="font-semibold whitespace-normal">Name</TableHead>
-                      <TableHead className="font-semibold whitespace-normal">Address</TableHead>
-                      <TableHead className="font-semibold whitespace-normal">Coordinates</TableHead>
-                      <TableHead className="font-semibold whitespace-normal">Weather</TableHead>
-                      <TableHead className="text-right font-semibold whitespace-normal">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {locations.map((loc) => (
-                      <TableRow key={loc.id}>
-                        <TableCell className="font-medium whitespace-normal break-words">{loc.name}</TableCell>
-                        <TableCell className="whitespace-normal break-words">
-                          {(() => {
-                            const street = loc.street ?? ''
-                            const cityState = [loc.city, loc.state].filter(Boolean).join(', ')
-                            const cityStateZip = [cityState, loc.zip ?? ''].filter(Boolean).join(' ')
-                            const full = [street, cityStateZip].filter(Boolean).join(', ')
-                            return full || '-'
-                          })()}
-                        </TableCell>
-                        <TableCell className="whitespace-normal">
-                          {loc.latitude != null && loc.longitude != null ? `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}` : '-'}
-                        </TableCell>
-                        <TableCell className="whitespace-normal break-words">
-                          <WeatherCell
-                            id={loc.id}
-                            latitude={loc.latitude}
-                            longitude={loc.longitude}
-                          />
-                        </TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(loc)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => openDelete(loc.id)} className="text-red-500 hover:text-red-700">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-      <ConfirmDialog
-        open={deleteId != null}
-        onOpenChange={(open) => { if (!open) setDeleteId(null); }}
-        title="Delete location?"
-        description="You must reassign or delete associated plots first."
-        confirmText="Delete"
-        confirmVariant="destructive"
-        confirming={deleting}
-        onConfirm={confirmDelete}
-      />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <PageContent>
+        {locations.length === 0 ? (
+          <p className="text-center text-gray-500">No locations found. Add one to get started.</p>
+        ) : (
+          <div className="border rounded-md overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="font-semibold whitespace-normal">Name</TableHead>
+                  <TableHead className="font-semibold whitespace-normal">Address</TableHead>
+                  <TableHead className="font-semibold whitespace-normal">Coordinates</TableHead>
+                  <TableHead className="font-semibold whitespace-normal">Weather</TableHead>
+                  <TableHead className="text-right font-semibold whitespace-normal">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {locations.map((loc) => (
+                  <TableRow key={loc.id}>
+                    <TableCell className="font-medium whitespace-normal break-words">{loc.name}</TableCell>
+                    <TableCell className="whitespace-normal break-words">
+                      {(() => {
+                        const street = loc.street ?? ''
+                        const cityState = [loc.city, loc.state].filter(Boolean).join(', ')
+                        const cityStateZip = [cityState, loc.zip ?? ''].filter(Boolean).join(' ')
+                        const full = [street, cityStateZip].filter(Boolean).join(', ')
+                        return full || '-'
+                      })()}
+                    </TableCell>
+                    <TableCell className="whitespace-normal">
+                      {loc.latitude != null && loc.longitude != null ? `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}` : '-'}
+                    </TableCell>
+                    <TableCell className="whitespace-normal break-words">
+                      <WeatherCell
+                        id={loc.id}
+                        latitude={loc.latitude}
+                        longitude={loc.longitude}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(loc)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => openDelete(loc.id)} className="text-red-500 hover:text-red-700">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      <ConfirmDialog
+                        open={deleteId != null}
+                        onOpenChange={(open) => { if (!open) setDeleteId(null); }}
+                        title="Delete location?"
+                        description="You must reassign or delete associated plots first."
+                        confirmText="Delete"
+                        confirmVariant="destructive"
+                        confirming={deleting}
+                        onConfirm={confirmDelete}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </PageContent>
     </div>
   );
 }
-
 
 
 function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number | null; longitude: number | null }) {
@@ -161,21 +156,21 @@ function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number
     | { status: 'loading' }
     | { status: 'error'; message: string }
     | {
-        status: 'ready'
-        data: {
-          timezone: string
-          current: {
-            dt: number
-            sunrise?: number
-            sunset?: number
-            temp: number
-            humidity: number
-            weather: { id: number; main: string; description: string; icon: string } | null
-          }
-          moonPhase?: number
-          moonPhaseLabel?: string
+      status: 'ready'
+      data: {
+        timezone: string
+        current: {
+          dt: number
+          sunrise?: number
+          sunset?: number
+          temp: number
+          humidity: number
+          weather: { id: number; main: string; description: string; icon: string } | null
         }
+        moonPhase?: number
+        moonPhaseLabel?: string
       }
+    }
   >({ status: 'idle' })
 
   useEffect(() => {
@@ -257,5 +252,3 @@ function formatUnixToLocalTime(unixSeconds: number) {
     return ''
   }
 }
-
-// formatMoonPhase now imported from utils

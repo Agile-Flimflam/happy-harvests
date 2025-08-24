@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useMemo, useState } from 'react'
-import { ColumnDef, flexRender, getCoreRowModel, getFilteredRowModel, useReactTable } from '@tanstack/react-table'
+import { ColumnDef, flexRender, getCoreRowModel, getFilteredRowModel, getSortedRowModel, type SortingState, useReactTable } from '@tanstack/react-table'
 import type { ListedUser } from '../_actions'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import EditUserDialog from './EditUserDialog'
 import { updateUserProfileAction } from '../_actions'
-import { Pencil } from 'lucide-react'
+import { ChevronsUpDown, Pencil } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
 type Props = {
@@ -20,6 +20,7 @@ type Props = {
 
 export default function UsersTable({ initialUsers }: Props) {
   const [globalFilter, setGlobalFilter] = useState('')
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'user', desc: false }])
   const [users, setUsers] = useState(initialUsers)
 
   const [editing, setEditing] = useState<ListedUser | null>(null)
@@ -27,7 +28,15 @@ export default function UsersTable({ initialUsers }: Props) {
   const columns = useMemo<ColumnDef<ListedUser>[]>(() => [
     {
       id: 'user',
-      header: 'User',
+      header: ({ column }) => (
+        <button
+          className="inline-flex items-center gap-2 font-medium"
+          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+        >
+          User
+          <ChevronsUpDown className="size-4 opacity-50" />
+        </button>
+      ),
       accessorKey: 'displayName',
       cell: ({ row }) => {
         const u = row.original
@@ -81,10 +90,12 @@ export default function UsersTable({ initialUsers }: Props) {
   const table = useReactTable({
     data: users,
     columns,
-    state: { globalFilter },
+    state: { globalFilter, sorting },
     onGlobalFilterChange: setGlobalFilter,
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     globalFilterFn: (row, _columnId, filterValue) => {
       const haystack = `${row.original.email || ''} ${row.original.displayName || ''}`.toLowerCase()
       return haystack.includes(String(filterValue).toLowerCase())
@@ -102,7 +113,7 @@ export default function UsersTable({ initialUsers }: Props) {
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id} className="bg-muted/50">
                 {hg.headers.map((h) => (
-                  <TableHead key={h.id}>{h.isPlaceholder ? null : (h.column.columnDef.header as string)}</TableHead>
+                  <TableHead key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</TableHead>
                 ))}
               </TableRow>
             ))}
@@ -140,5 +151,3 @@ export default function UsersTable({ initialUsers }: Props) {
     </div>
   )
 }
-
-
