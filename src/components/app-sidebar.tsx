@@ -4,7 +4,6 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
-import { Home, Leaf, Fence, Sprout, MapPin, Users, Settings } from "lucide-react"
 
 import {
   Sidebar,
@@ -20,6 +19,7 @@ import {
 import { UserAccountMenu } from "@/components/user-account-menu"
 import type { Tables } from "@/lib/supabase-server"
 import { isAdmin } from "@/lib/authz"
+import { NAV_GROUPS } from "@/components/nav-config"
 
 type AppSidebarProps = {
   initialUser: User | null
@@ -39,94 +39,25 @@ export function AppSidebar({ initialUser, initialProfile }: AppSidebarProps) {
     <>
       <Sidebar variant="inset" collapsible="icon">
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Overview</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/"} tooltip="Dashboard">
-                  <Link href="/">
-                    <Home />
-                    <span>Dashboard</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Work</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/plantings"} tooltip="Plantings">
-                  <Link href="/plantings">
-                    <Sprout />
-                    <span>Plantings</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Setup</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/locations"} tooltip="Locations">
-                  <Link href="/locations">
-                    <MapPin />
-                    <span>Locations</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/plots"} tooltip="Plots & Beds">
-                  <Link href="/plots">
-                    <Fence />
-                    <span>Plots & Beds</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/crop-varieties"} tooltip="Crop Varieties">
-                  <Link href="/crop-varieties">
-                    <Leaf />
-                    <span>Crop Varieties</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        {showAdmin ? (
-          <SidebarGroup>
-            <SidebarGroupLabel>Admin</SidebarGroupLabel>
+        {NAV_GROUPS.filter((group) => group.label !== "Admin" || showAdmin).map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/users"} tooltip="Users">
-                    <Link href="/users">
-                      <Users />
-                      <span>Users</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/settings/integrations"} tooltip="Integrations">
-                    <Link href="/settings/integrations">
-                      <Settings />
-                      <span>Integrations</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
+                      <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        ) : null}
+        ))}
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
