@@ -6,7 +6,10 @@
     "dev": "next dev --turbopack -p 4000",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:start": "supabase start",
+    "db:reset": "supabase db reset --force",
+    "db:migrate": "supabase db migrate up"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
