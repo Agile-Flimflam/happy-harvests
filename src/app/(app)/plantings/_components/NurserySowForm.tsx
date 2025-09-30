@@ -105,7 +105,25 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
             <FormItem>
               <FormLabel>Quantity</FormLabel>
               <FormControl>
-                <Input type="number" className="mt-1" value={field.value != null ? String(field.value) : ''} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : '')} />
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  min={1}
+                  step={1}
+                  className="mt-1"
+                  value={field.value != null ? String(field.value) : ''}
+                  onKeyDown={(e) => {
+                    if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                      e.preventDefault()
+                    }
+                  }}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/[^0-9]/g, '')
+                    field.onChange(digits === '' ? '' : Number(digits))
+                  }}
+                  onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -142,7 +160,12 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
             <FormItem>
               <FormLabel>Date</FormLabel>
               <FormControl>
-                <Input type="date" className="mt-1" {...field} />
+                <Input
+                  type="date"
+                  className="mt-1"
+                  value={typeof field.value === 'string' ? field.value : ''}
+                  onChange={(e) => field.onChange(e.target.value)}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

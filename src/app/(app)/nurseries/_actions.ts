@@ -49,8 +49,10 @@ export async function actionCreateNursery(prev: NurseryFormState, formData: Form
   const name = String(formData.get('name') || '');
   const location_id = String(formData.get('location_id') || '');
   const notes = (formData.get('notes') as string) || undefined;
+  if (!name.trim()) return { message: 'Please fix the highlighted fields.', errors: { name: ['Name is required'] } };
+  if (!location_id) return { message: 'Please fix the highlighted fields.', errors: { location_id: ['Location is required'] } };
   const { error } = await supabase.from('nurseries').insert({ name, location_id, notes: notes ?? null });
-  if (error) return { message: `Database Error: ${error.message}` };
+  if (error) return { message: 'Failed to create nursery. Please try again.' };
   revalidatePath('/nurseries');
   return { message: 'Nursery created.' };
 }
@@ -61,8 +63,11 @@ export async function actionUpdateNursery(prev: NurseryFormState, formData: Form
   const name = String(formData.get('name') || '');
   const location_id = String(formData.get('location_id') || '');
   const notes = (formData.get('notes') as string) || undefined;
+  if (!id) return { message: 'Something went wrong. Please close and try again.' };
+  if (!name.trim()) return { message: 'Please fix the highlighted fields.', errors: { name: ['Name is required'] } };
+  if (!location_id) return { message: 'Please fix the highlighted fields.', errors: { location_id: ['Location is required'] } };
   const { error } = await supabase.from('nurseries').update({ name, location_id, notes: notes ?? null }).eq('id', id);
-  if (error) return { message: `Database Error: ${error.message}` };
+  if (error) return { message: 'Failed to update nursery. Please try again.' };
   revalidatePath('/nurseries');
   return { message: 'Nursery updated.' };
 }
@@ -70,7 +75,7 @@ export async function actionUpdateNursery(prev: NurseryFormState, formData: Form
 export async function actionDeleteNursery(id: string) {
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from('nurseries').delete().eq('id', id);
-  if (error) return { error: error.message };
+  if (error) return { error: 'Failed to delete nursery.' };
   revalidatePath('/nurseries');
   return { ok: true } as const;
 }

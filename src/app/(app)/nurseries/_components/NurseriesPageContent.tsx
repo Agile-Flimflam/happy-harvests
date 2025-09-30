@@ -3,16 +3,18 @@
 import PageHeader from '@/components/page-header';
 import PageContent from '@/components/page-content';
 import FormDialog from '@/components/dialogs/FormDialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useActionState } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { actionCreateNursery, actionUpdateNursery, type NurseryFormState } from '../_actions';
+import { actionCreateNursery, actionUpdateNursery, actionDeleteNursery, type NurseryFormState } from '../_actions';
 import type { Tables } from '@/lib/database.types';
-import { PlusCircle, Sprout } from 'lucide-react';
+import { PlusCircle, Sprout, Pencil, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 type Nursery = Tables<'nurseries'>;
 type Location = Tables<'locations'>;
@@ -20,9 +22,67 @@ type Location = Tables<'locations'>;
 export default function NurseriesPageContent({ nurseries, locations, error }: { nurseries: Nursery[]; locations: Pick<Location, 'id' | 'name'>[]; error?: string }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Nursery | null>(null);
+  const [name, setName] = useState<string>('');
+  const [locationId, setLocationId] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; location_id?: string }>({});
   const initial: NurseryFormState = { message: '' };
-  const [, createAction] = useActionState<NurseryFormState, FormData>(actionCreateNursery, initial);
-  const [, updateAction] = useActionState<NurseryFormState, FormData>(actionUpdateNursery, initial);
+  const [createState, createAction] = useActionState<NurseryFormState, FormData>(actionCreateNursery, initial);
+  const [updateState, updateAction] = useActionState<NurseryFormState, FormData>(actionUpdateNursery, initial);
+  const [deleteTarget, setDeleteTarget] = useState<Nursery | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Initialize/reset form state when opening dialog
+  useEffect(() => {
+    if (open) {
+      setName(editing?.name ?? '');
+      setLocationId(editing?.location_id ?? '');
+      setNotes(editing?.notes ?? '');
+      setFieldErrors({});
+    } else {
+      setName('');
+      setLocationId('');
+      setNotes('');
+      setFieldErrors({});
+    }
+  }, [open, editing]);
+
+  useEffect(() => {
+    const state = editing ? updateState : createState;
+    if (!state?.message) return;
+    const successMessages = new Set(['Nursery created.', 'Nursery updated.']);
+    if (!successMessages.has(state.message)) {
+      // Map server-side field errors for highlighting when present
+      if (state.errors) {
+        setFieldErrors({
+          name: state.errors.name?.[0],
+          location_id: state.errors.location_id?.[0],
+        });
+      }
+      toast.error(state.message);
+      return;
+    }
+    toast.success(state.message);
+    setOpen(false);
+    setEditing(null);
+  }, [createState, updateState, editing]);
+
+  const openDelete = (n: Nursery) => setDeleteTarget(n);
+  const confirmDelete = async () => {
+    if (deleteTarget == null) return;
+    try {
+      setDeleting(true);
+      const result = await actionDeleteNursery(deleteTarget.id);
+      if ('error' in result && result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success('Nursery deleted.');
+      }
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
 
   return (
     <div>
@@ -57,8 +117,24 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
                   <TableRow key={n.id}>
                     <TableCell className="font-medium">{n.name}</TableCell>
                     <TableCell>{locations.find((l) => l.id === n.location_id)?.name ?? '—'}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => { setEditing(n); setOpen(true); }}>Edit</Button>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => { setEditing(n); setOpen(true); }}
+                        aria-label="Edit nursery"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openDelete(n)}
+                        className="text-red-500 hover:text-red-700"
+                        aria-label="Delete nursery"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -68,6 +144,26 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
         )}
       </PageContent>
 
+      {/* Single confirm dialog instance to avoid stacked overlays and include deterministic copy */}
+      <ConfirmDialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title='Delete nursery?'
+        description={
+          deleteTarget ? (
+            <span>
+              Are you sure you want to delete <strong>{deleteTarget.name}</strong>? This action cannot be undone. You must remove or reassign any associated records first.
+            </span>
+          ) : (
+            'This action cannot be undone.'
+          )
+        }
+        confirmText="Delete"
+        confirmVariant="destructive"
+        confirming={deleting}
+        onConfirm={confirmDelete}
+      />
+
       <FormDialog
         open={open}
         onOpenChange={setOpen}
@@ -76,16 +172,44 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
         submitLabel={editing ? 'Save changes' : 'Create nursery'}
         formId="nurseryForm"
       >
-        <form id="nurseryForm" action={editing ? updateAction : createAction} className="space-y-4">
+        <form
+          id="nurseryForm"
+          action={editing ? updateAction : createAction}
+          className="space-y-4"
+          onSubmit={(e) => {
+            const errors: { name?: string; location_id?: string } = {};
+            if (!name.trim()) errors.name = 'Name is required';
+            if (!locationId) errors.location_id = 'Location is required';
+            if (errors.name || errors.location_id) {
+              e.preventDefault();
+              setFieldErrors(errors);
+              toast.error('Please fix the highlighted fields.');
+            } else {
+              setFieldErrors({});
+            }
+          }}
+        >
           {editing && <input type="hidden" name="id" value={editing.id} />}
           <div>
             <label className="text-sm font-medium">Name</label>
-            <Input name="name" defaultValue={editing?.name ?? ''} className="mt-1" required />
+            {/* Hidden required input ensures form submission is blocked unless a name is provided */}
+            <input type="hidden" name="name" value={name} required />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={`mt-1 ${fieldErrors.name ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+              aria-invalid={fieldErrors.name ? 'true' : undefined}
+            />
+            {fieldErrors.name ? (
+              <p className="text-destructive text-sm mt-1">{fieldErrors.name}</p>
+            ) : null}
           </div>
           <div>
             <label className="text-sm font-medium">Location</label>
-            <Select name="location_id" defaultValue={editing?.location_id ?? ''}>
-              <SelectTrigger className="mt-1">
+            {/* Hidden required input ensures form submission is blocked unless a location is selected */}
+            <input type="hidden" name="location_id" value={locationId} required />
+            <Select value={locationId} onValueChange={(v) => setLocationId(v)}>
+              <SelectTrigger className={`mt-1 ${fieldErrors.location_id ? 'border-red-500 focus-visible:ring-red-500' : ''}`}>
                 <SelectValue placeholder="Select a location" />
               </SelectTrigger>
               <SelectContent>
@@ -94,10 +218,13 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
                 ))}
               </SelectContent>
             </Select>
+            {fieldErrors.location_id ? (
+              <p className="text-destructive text-sm mt-1">{fieldErrors.location_id}</p>
+            ) : null}
           </div>
           <div>
             <label className="text-sm font-medium">Notes</label>
-            <Textarea name="notes" defaultValue={editing?.notes ?? ''} className="mt-1" rows={3} />
+            <Textarea name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1" rows={3} />
           </div>
         </form>
       </FormDialog>
