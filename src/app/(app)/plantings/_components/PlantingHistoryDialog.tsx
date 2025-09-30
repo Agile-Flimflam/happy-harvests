@@ -20,7 +20,6 @@ interface Props {
   varietyName?: string | null;
   cropName?: string | null;
   status?: Enums<'planting_status'> | null;
-  closeDialog: () => void;
 }
 
 function formatBed(ev: EventItem) {
@@ -38,7 +37,7 @@ function formatDate(dateStr: string) {
   }
 }
 
-export default function PlantingHistoryDialog({ plantingId, varietyName, cropName, status, closeDialog }: Props) {
+export default function PlantingHistoryDialog({ plantingId, varietyName, cropName, status }: Props) {
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -196,8 +195,7 @@ export default function PlantingHistoryDialog({ plantingId, varietyName, cropNam
               </Table>
             </div>
           </TabsContent>
-            {/* Hidden form to enable FormDialog footer "Close" submit */}
-            <form id="historyForm" onSubmit={(e) => { e.preventDefault(); closeDialog(); }} />
+            {/* No form needed: FormDialog renders a non-submitting Close button when no submitLabel/formId */}
           </Tabs>
         </>
       )}

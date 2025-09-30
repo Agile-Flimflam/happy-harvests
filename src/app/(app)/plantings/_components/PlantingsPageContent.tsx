@@ -211,7 +211,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
             <MoveForm plantingId={actionDialog.plantingId} beds={beds} closeDialog={closeActionDialog} formId="moveForm" />
           )}
           {actionDialog && actionDialog.type === 'harvest' && (
-            <HarvestForm plantingId={actionDialog.plantingId} closeDialog={closeActionDialog} formId="harvestForm" defaultQty={(plantings.find(x => x.id === actionDialog.plantingId)?.qty_initial) ?? undefined} defaultWeight={undefined} />
+            <HarvestForm plantingId={actionDialog.plantingId} closeDialog={closeActionDialog} formId="harvestForm" defaultQty={actionDialog.defaultQty ?? undefined} defaultWeight={actionDialog.defaultWeight ?? undefined} />
           )}
           {actionDialog.type === 'history' && (
             <PlantingHistoryDialog
@@ -219,7 +219,6 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
               varietyName={plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.name}
               cropName={plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.crops?.name ?? null}
               status={plantings.find((x) => x.id === actionDialog.plantingId)?.status ?? null}
-              closeDialog={closeActionDialog}
             />
           )}
           {actionDialog.type === 'remove' && (

@@ -176,6 +176,7 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
           id="nurseryForm"
           action={editing ? updateAction : createAction}
           className="space-y-4"
+          noValidate
           onSubmit={(e) => {
             const errors: { name?: string; location_id?: string } = {};
             if (!name.trim()) errors.name = 'Name is required';
@@ -192,9 +193,8 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
           {editing && <input type="hidden" name="id" value={editing.id} />}
           <div>
             <label className="text-sm font-medium">Name</label>
-            {/* Hidden required input ensures form submission is blocked unless a name is provided */}
-            <input type="hidden" name="name" value={name} required />
             <Input
+              name="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className={`mt-1 ${fieldErrors.name ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
@@ -206,8 +206,8 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
           </div>
           <div>
             <label className="text-sm font-medium">Location</label>
-            {/* Hidden required input ensures form submission is blocked unless a location is selected */}
-            <input type="hidden" name="location_id" value={locationId} required />
+            {/* Hidden input carries selected value from shadcn Select to server action */}
+            <input type="hidden" name="location_id" value={locationId} />
             <Select value={locationId} onValueChange={(v) => setLocationId(v)}>
               <SelectTrigger className={`mt-1 ${fieldErrors.location_id ? 'border-red-500 focus-visible:ring-red-500' : ''}`}>
                 <SelectValue placeholder="Select a location" />
