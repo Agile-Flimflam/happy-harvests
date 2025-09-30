@@ -9,7 +9,7 @@
     "lint": "next lint",
     "db:start": "supabase start",
     "db:reset": "supabase db reset --force",
-    "db:migrate": "supabase db migrate up"
+    "db:migrate": "supabase migration up"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

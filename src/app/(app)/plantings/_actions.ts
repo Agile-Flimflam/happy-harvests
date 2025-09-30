@@ -1,15 +1,9 @@
-'use server';
+"use server";
 
-import { createSupabaseServerClient, type Database, type Tables, type Enums } from '@/lib/supabase-server';
-import { revalidatePath } from 'next/cache';
-import { PlantingSchema } from '@/lib/validation/plantings';
+import { createSupabaseServerClient, type Tables } from "@/lib/supabase-server";
+import { revalidatePath } from "next/cache";
 
-type Planting = Tables<'bed_plantings'>;
-type PlantingInsert = Database['public']['Tables']['bed_plantings']['Insert'];
-type PlantingUpdate = Database['public']['Tables']['bed_plantings']['Update'];
-
-export type PlantingType = Enums<'planting_type'>;
-export type PlantingStatus = Enums<'bed_planting_status'>;
+type Planting = Tables<'plantings'>;
 
 export type PlantingFormState = {
   message: string;
@@ -17,84 +11,43 @@ export type PlantingFormState = {
   planting?: Planting | null;
 }
 
-// Schema now centralized in src/lib/validation/plantings
-
-export async function createPlanting(
-  prevState: PlantingFormState,
-  formData: FormData
-): Promise<PlantingFormState> {
+// Server Actions for form submissions (UI-friendly)
+export async function actionNurserySow(prev: PlantingFormState, formData: FormData): Promise<PlantingFormState> {
   const supabase = await createSupabaseServerClient();
-  const validated = PlantingSchema.safeParse({
-    crop_variety_id: formData.get('crop_variety_id'),
-    bed_id: formData.get('bed_id'),
-    planting_type: formData.get('planting_type'),
-    qty_planting: formData.get('qty_planting'),
-    date_planted: formData.get('date_planted'),
-    harvested_date: formData.get('harvested_date') || null,
-    status: formData.get('status'),
-    notes: formData.get('notes') || null,
+  const cropVarietyId = formData.get('crop_variety_id');
+  const qtyInitial = formData.get('qty_initial');
+  const nurseryId = formData.get('nursery_id');
+  const eventDate = formData.get('event_date');
+  const notes = (formData.get('notes') as string) || undefined;
+  const { error } = await supabase.rpc('fn_create_nursery_planting', {
+    p_crop_variety_id: Number(cropVarietyId),
+    p_qty_initial: Number(qtyInitial),
+    p_nursery_id: String(nurseryId),
+    p_event_date: String(eventDate),
+    p_notes: notes ?? undefined,
   });
-  if (!validated.success) {
-    const fields = validated.error.flatten().fieldErrors;
-    return { message: 'Validation failed. Could not create planting.', errors: fields };
-  }
-  const insertData: PlantingInsert = {
-    crop_variety_id: validated.data.crop_variety_id,
-    bed_id: validated.data.bed_id,
-    planting_type: validated.data.planting_type as PlantingType,
-    qty_planting: validated.data.qty_planting,
-    date_planted: validated.data.date_planted,
-    harvested_date: validated.data.harvested_date ?? null,
-    status: validated.data.status as PlantingStatus,
-    notes: validated.data.notes ?? null,
-  };
-  const { error } = await supabase.from('bed_plantings').insert(insertData);
-  if (error) {
-    console.error('Supabase Error:', error);
-    return { message: `Database Error: ${error.message}` };
-  }
+  if (error) return { message: `Database Error: ${error.message}` };
   revalidatePath('/plantings');
-  return { message: 'Planting created successfully.', planting: null, errors: {} };
+  return { message: 'Nursery planting created.' };
 }
 
-export async function updatePlanting(
-  prevState: PlantingFormState,
-  formData: FormData
-): Promise<PlantingFormState> {
+export async function actionDirectSeed(prev: PlantingFormState, formData: FormData): Promise<PlantingFormState> {
   const supabase = await createSupabaseServerClient();
-  const validated = PlantingSchema.safeParse({
-    id: formData.get('id'),
-    crop_variety_id: formData.get('crop_variety_id'),
-    bed_id: formData.get('bed_id'),
-    planting_type: formData.get('planting_type'),
-    qty_planting: formData.get('qty_planting'),
-    date_planted: formData.get('date_planted'),
-    harvested_date: formData.get('harvested_date') || null,
-    status: formData.get('status'),
-    notes: formData.get('notes') || null,
+  const cropVarietyId = formData.get('crop_variety_id');
+  const qtyInitial = formData.get('qty_initial');
+  const bedId = formData.get('bed_id');
+  const eventDate = formData.get('event_date');
+  const notes = (formData.get('notes') as string) || undefined;
+  const { error } = await supabase.rpc('fn_create_direct_seed_planting', {
+    p_crop_variety_id: Number(cropVarietyId),
+    p_qty_initial: Number(qtyInitial),
+    p_bed_id: Number(bedId),
+    p_event_date: String(eventDate),
+    p_notes: notes ?? undefined,
   });
-  if (!validated.success || !validated.data.id) {
-    const fields = !validated.success ? validated.error.flatten().fieldErrors : {};
-    return { message: 'Validation failed. Could not update planting.', errors: fields, planting: prevState.planting };
-  }
-  const { id, ...rest } = validated.data;
-  const updateData: PlantingUpdate = {
-    crop_variety_id: rest.crop_variety_id,
-    bed_id: rest.bed_id,
-    planting_type: rest.planting_type as PlantingType,
-    qty_planting: rest.qty_planting,
-    date_planted: rest.date_planted,
-    harvested_date: rest.harvested_date ?? null,
-    status: rest.status as PlantingStatus,
-    notes: rest.notes ?? null,
-  };
-  const { error } = await supabase.from('bed_plantings').update(updateData).eq('id', id);
-  if (error) {
-    console.error('Supabase Error:', error);
-    return { message: `Database Error: ${error.message}`, planting: prevState.planting };
-  }
+  if (error) return { message: `Database Error: ${error.message}` };
   revalidatePath('/plantings');
-  return { message: 'Planting updated successfully.', planting: null, errors: {} };
+  return { message: 'Direct-seeded planting created.' };
 }
 
 export async function deletePlanting(id: number | string): Promise<{ message: string }> {
@@ -103,13 +56,18 @@ export async function deletePlanting(id: number | string): Promise<{ message: st
   if (!numericId || Number.isNaN(numericId)) {
     return { message: 'Error: Missing Planting ID for delete.' };
   }
-  const { error } = await supabase.from('bed_plantings').delete().eq('id', numericId);
+  const today = new Date().toISOString().slice(0, 10);
+  const { error } = await supabase.rpc('fn_remove_planting', {
+    p_planting_id: numericId,
+    p_event_date: today,
+    p_reason: 'deleted via UI'
+  });
   if (error) {
-    console.error('Supabase Error:', error);
+    console.error('Supabase RPC Error:', error);
     return { message: `Database Error: ${error.message}` };
   }
   revalidatePath('/plantings');
-  return { message: 'Planting deleted successfully.' };
+  return { message: 'Planting removed successfully.' };
 }
 
 type PlantingWithDetails = Planting & {
@@ -120,16 +78,18 @@ type PlantingWithDetails = Planting & {
     width_inches: number | null;
     plots: { locations: { name: string } | null } | null;
   } | null;
+  nurseries: { name: string } | null;
 };
 
 export async function getPlantingsWithDetails(): Promise<{ plantings?: PlantingWithDetails[]; error?: string }> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
-    .from('bed_plantings')
+    .from('plantings')
     .select(`
       *,
       crop_varieties ( name, latin_name, crops ( name ) ),
-      beds ( id, length_inches, width_inches, plots ( locations ( name ) ) )
+      beds ( id, length_inches, width_inches, plots ( locations ( name ) ) ),
+      nurseries ( name )
     `)
     .order('created_at', { ascending: false });
   if (error) {
@@ -151,6 +111,73 @@ export async function getCropVarietiesForSelect(): Promise<{ varieties?: CropVar
   return { varieties: (data as unknown as CropVarietyForSelect[]) || [] };
 }
 
+// Lifecycle actions (RPC)
+export async function createNurseryPlanting(input: { crop_variety_id: number; qty_initial: number; nursery_id: string; event_date: string; notes?: string }) {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc('fn_create_nursery_planting', {
+    p_crop_variety_id: input.crop_variety_id,
+    p_qty_initial: input.qty_initial,
+    p_nursery_id: input.nursery_id,
+    p_event_date: input.event_date,
+    p_notes: input.notes ?? undefined,
+  });
+  if (error) return { error: error.message };
+  revalidatePath('/plantings');
+  return { ok: true };
+}
+
+export async function createDirectSeedPlanting(input: { crop_variety_id: number; qty_initial: number; bed_id: number; event_date: string; notes?: string }) {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc('fn_create_direct_seed_planting', {
+    p_crop_variety_id: input.crop_variety_id,
+    p_qty_initial: input.qty_initial,
+    p_bed_id: input.bed_id,
+    p_event_date: input.event_date,
+    p_notes: input.notes ?? undefined,
+  });
+  if (error) return { error: error.message };
+  revalidatePath('/plantings');
+  return { ok: true };
+}
+
+export async function transplantPlanting(input: { planting_id: number; bed_id: number; event_date: string }) {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc('fn_transplant_planting', {
+    p_planting_id: input.planting_id,
+    p_bed_id: input.bed_id,
+    p_event_date: input.event_date,
+  });
+  if (error) return { error: error.message };
+  revalidatePath('/plantings');
+  return { ok: true };
+}
+
+export async function movePlanting(input: { planting_id: number; bed_id: number; event_date: string }) {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc('fn_move_planting', {
+    p_planting_id: input.planting_id,
+    p_bed_id: input.bed_id,
+    p_event_date: input.event_date,
+  });
+  if (error) return { error: error.message };
+  revalidatePath('/plantings');
+  return { ok: true };
+}
+
+export async function harvestPlanting(input: { planting_id: number; event_date: string; qty_harvested?: number | null; weight_grams?: number | null; quantity_unit?: string | null }) {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc('fn_harvest_planting', {
+    p_planting_id: input.planting_id,
+    p_event_date: input.event_date,
+    p_qty_harvested: input.qty_harvested ?? undefined,
+    p_weight_grams: input.weight_grams ?? undefined,
+    p_quantity_unit: input.quantity_unit ?? undefined,
+  });
+  if (error) return { error: error.message };
+  revalidatePath('/plantings');
+  return { ok: true };
+}
+
 type BedForSelect = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { locations: { name: string } | null } | null };
 
 export async function getBedsForSelect(): Promise<{ beds?: BedForSelect[]; error?: string }> {
@@ -163,4 +190,14 @@ export async function getBedsForSelect(): Promise<{ beds?: BedForSelect[]; error
   return { beds: (data as unknown as BedForSelect[]) || [] };
 }
 
+type NurseryForSelect = Pick<Tables<'nurseries'>, 'id'> & { name: string };
 
+export async function getNurseriesForSelect(): Promise<{ nurseries?: NurseryForSelect[]; error?: string }> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('nurseries')
+    .select('id, name')
+    .order('name', { ascending: true });
+  if (error) return { error: error.message };
+  return { nurseries: (data as unknown as NurseryForSelect[]) || [] };
+}

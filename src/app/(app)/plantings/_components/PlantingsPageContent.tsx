@@ -8,8 +8,10 @@ import FormDialog from "@/components/dialogs/FormDialog";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { PlantingForm } from './PlantingForm';
+// import { PlantingForm } from './PlantingForm'; // legacy
 import { deletePlanting } from '../_actions';
+import { NurserySowForm } from './NurserySowForm';
+import { DirectSeedForm } from './DirectSeedForm';
 import {
   Pencil,
   Trash2,
@@ -21,40 +23,45 @@ import {
 } from 'lucide-react';
 import { toast } from "sonner";
 import PageHeader from '@/components/page-header';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import PageContent from '@/components/page-content';
 
-type Planting = Tables<'bed_plantings'>;
+type Planting = Tables<'plantings'>;
 type CropVariety = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name'> & { crops?: { name: string } | null };
 type Bed = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { locations: { name: string } | null } | null };
 
 type PlantingWithDetails = Planting & {
   crop_varieties: { name: string; latin_name: string; crops: { name: string } | null } | null;
   beds: { id: number; length_inches: number | null; width_inches: number | null; plots: { locations: { name: string } | null } | null } | null;
+  nurseries: { name: string } | null;
 };
 
 interface PlantingsPageContentProps {
   plantings: PlantingWithDetails[];
   cropVarieties: CropVariety[];
   beds: Bed[];
+  nurseries: { id: string; name: string }[];
 }
 
-export function PlantingsPageContent({ plantings, cropVarieties, beds }: PlantingsPageContentProps) {
+export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries: _nurseries }: PlantingsPageContentProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Planting | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [createMode, setCreateMode] = useState<'nursery' | 'direct' | null>(null);
 
-  const handleEdit = (p: Planting) => {
-    setEditing(p);
-    setIsDialogOpen(true);
+  const handleEdit = () => {
+    toast.error('Edit not implemented yet');
   };
-  const handleAdd = () => {
-    setEditing(null);
-    setIsDialogOpen(true);
-  };
+  const openNurserySow = () => { setCreateMode('nursery'); setIsDialogOpen(true); };
+  const openDirectSeed = () => { setCreateMode('direct'); setIsDialogOpen(true); };
   const closeDialog = () => {
     setIsDialogOpen(false);
-    setEditing(null);
+    setCreateMode(null);
   };
 
   const openDelete = (id: number) => setDeleteId(id);
@@ -74,19 +81,19 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds }: Plantin
     }
   };
 
-  const statusVariant = (status: Enums<'bed_planting_status'> | null): "default" | "secondary" | "destructive" | "outline" | null | undefined => {
+  const statusVariant = (status: Enums<'planting_status'> | null): "default" | "secondary" | "destructive" | "outline" | null | undefined => {
     switch (status) {
-      case 'Planted': return 'default';
-      case 'Nursery': return 'secondary';
-      case 'Harvested': return 'outline';
+      case 'planted': return 'default';
+      case 'nursery': return 'secondary';
+      case 'harvested': return 'outline';
       default: return 'secondary';
     }
   };
 
   const getStatusStats = () => {
-    const nurseryCount = plantings.filter(p => p.status === 'Nursery').length;
-    const plantedCount = plantings.filter(p => p.status === 'Planted').length;
-    const harvestedCount = plantings.filter(p => p.status === 'Harvested').length;
+    const nurseryCount = plantings.filter(p => p.status === 'nursery').length;
+    const plantedCount = plantings.filter(p => p.status === 'planted').length;
+    const harvestedCount = plantings.filter(p => p.status === 'harvested').length;
 
     return {
       total: plantings.length,
@@ -105,15 +112,20 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds }: Plantin
       <div className="mx-auto w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
         <Sprout className="h-12 w-12 text-muted-foreground" />
       </div>
-      <h3 className="text-lg font-semibold mb-2">No plantings yet</h3>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-        Start tracking your garden by adding your first planting. Record what you&apos;ve planted, 
-        where, and when to keep track of your growing season.
-      </p>
-      <Button onClick={handleAdd} size="lg">
-        <PlusCircle className="h-5 w-5 mr-2" />
-        Add Your First Planting
-      </Button>
+      <h3 className="text-lg font-semibold mb-2">No plantings recorded</h3>
+      <p className="text-muted-foreground mb-6 max-w-md mx-auto">Add your first planting to get started.</p>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="lg">
+            <PlusCircle className="h-5 w-5 mr-2" />
+            Add Your First Planting
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="center">
+          <DropdownMenuItem onClick={openNurserySow}>Nursery sow</DropdownMenuItem>
+          <DropdownMenuItem onClick={openDirectSeed}>Direct seed</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 
@@ -122,24 +134,39 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds }: Plantin
       <PageHeader
         title="Plantings"
         action={(
-          <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
-            <PlusCircle className="h-4 w-4 mr-2" />
-            Add Planting
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" className="w-full sm:w-auto">
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add Planting
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={openNurserySow}>Nursery sow</DropdownMenuItem>
+              <DropdownMenuItem onClick={openDirectSeed}>Direct seed</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       />
 
-      <FormDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        title={editing ? 'Edit Planting' : 'Add New Planting'}
-        description={editing ? 'Update the details of the planting.' : 'Enter the details for the new planting.'}
-        submitLabel={editing ? 'Update Planting' : 'Create Planting'}
-        formId="plantingFormSubmit"
-        className="sm:max-w-md"
-      >
-        <PlantingForm planting={editing} cropVarieties={cropVarieties} beds={beds} closeDialog={closeDialog} formId="plantingFormSubmit" />
-      </FormDialog>
+      {createMode && (
+        <FormDialog
+          open={isDialogOpen}
+          onOpenChange={setIsDialogOpen}
+          title={createMode === 'nursery' ? 'Nursery sow' : 'Direct seed'}
+          description={createMode === 'nursery' ? 'Start in nursery' : 'Seed directly in field'}
+          submitLabel={createMode === 'nursery' ? 'Create Nursery Planting' : 'Create Direct Seed Planting'}
+          formId={createMode === 'nursery' ? 'nurserySowForm' : 'directSeedForm'}
+          className="sm:max-w-md"
+        >
+          {createMode === 'nursery' && (
+            <NurserySowForm cropVarieties={cropVarieties} nurseries={_nurseries} closeDialog={closeDialog} formId="nurserySowForm" />
+          )}
+          {createMode === 'direct' && (
+            <DirectSeedForm cropVarieties={cropVarieties} beds={beds} closeDialog={closeDialog} formId="directSeedForm" />
+          )}
+        </FormDialog>
+      )}
 
       <ConfirmDialog
         open={deleteId != null}
@@ -226,16 +253,20 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds }: Plantin
                       <TableCell className="font-medium">{p.crop_varieties?.name ?? 'N/A'}</TableCell>
                       <TableCell>{p.crop_varieties?.crops?.name ?? 'N/A'}</TableCell>
                       <TableCell>
-                        Bed #{p.beds?.id} ({p.beds?.length_inches ?? '?'}x{p.beds?.width_inches ?? '?'}) @{p.beds?.plots?.locations?.name ?? 'N/A'}
+                        {p.status === 'nursery'
+                          ? (p.nurseries?.name ?? 'Nursery')
+                          : (
+                            <>Bed #{p.beds?.id} ({p.beds?.length_inches ?? '?'}x{p.beds?.width_inches ?? '?'}) @{p.beds?.plots?.locations?.name ?? 'N/A'}</>
+                          )}
                       </TableCell>
-                      <TableCell>{p.planting_type}</TableCell>
-                      <TableCell>{p.qty_planting}</TableCell>
-                      <TableCell>{p.date_planted}</TableCell>
+                      <TableCell>{p.propagation_method}</TableCell>
+                      <TableCell>{p.qty_initial}</TableCell>
+                      <TableCell>{p.planted_date ?? '-'}</TableCell>
                       <TableCell>
                         <Badge variant={statusVariant(p.status)}>{p.status}</Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(p)} className="mr-2">
+                        <Button variant="ghost" size="icon" onClick={handleEdit} className="mr-2" disabled>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => openDelete(p.id)} className="text-red-500 hover:text-red-700">
