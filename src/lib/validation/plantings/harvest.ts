@@ -17,7 +17,6 @@ export const HarvestSchema = z.object({
     (v) => (v == null || v === '' ? null : typeof v === 'number' ? v : parseInt(String(v), 10)),
     z.number().int().positive().nullable().optional()
   ),
-  quantity_unit: z.string().optional().nullable(),
 }).refine((v) => (v.qty_harvested ?? 0) > 0 || (v.weight_grams ?? 0) > 0, {
   message: 'Provide quantity or weight',
   path: ['qty_harvested'],

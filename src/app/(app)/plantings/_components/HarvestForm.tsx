@@ -22,9 +22,11 @@ interface Props {
   plantingId: number;
   closeDialog: () => void;
   formId?: string;
+  defaultQty?: number | null;
+  defaultWeight?: number | null;
 }
 
-export default function HarvestForm({ plantingId, closeDialog, formId }: Props) {
+export default function HarvestForm({ plantingId, closeDialog, formId, defaultQty, defaultWeight }: Props) {
   const initial: PlantingFormState = { message: '', errors: {}, planting: null };
   const [state, formAction] = useActionState(actionHarvest, initial);
 
@@ -34,9 +36,8 @@ export default function HarvestForm({ plantingId, closeDialog, formId }: Props) 
     defaultValues: {
       planting_id: plantingId,
       event_date: new Date().toISOString().slice(0, 10),
-      qty_harvested: undefined,
-      weight_grams: undefined,
-      quantity_unit: '',
+      qty_harvested: defaultQty ?? undefined,
+      weight_grams: defaultWeight ?? undefined,
     },
   });
 
@@ -61,7 +62,6 @@ export default function HarvestForm({ plantingId, closeDialog, formId }: Props) 
     fd.append('event_date', parsed.event_date);
     if (parsed.qty_harvested != null) fd.append('qty_harvested', String(parsed.qty_harvested));
     if (parsed.weight_grams != null) fd.append('weight_grams', String(parsed.weight_grams));
-    if (parsed.quantity_unit) fd.append('quantity_unit', parsed.quantity_unit);
     startTransition(() => formAction(fd));
   };
 
@@ -120,20 +120,7 @@ export default function HarvestForm({ plantingId, closeDialog, formId }: Props) 
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="quantity_unit"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Unit</FormLabel>
-                <FormControl>
-                  <Input className="mt-1" value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value)} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
+        
           <FormField
             control={form.control}
             name="weight_grams"

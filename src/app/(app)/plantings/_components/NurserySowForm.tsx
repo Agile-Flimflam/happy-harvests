@@ -2,7 +2,7 @@
 
 import { startTransition, useEffect } from 'react';
 import { useActionState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { NurserySowSchema, type NurserySowInput } from '@/lib/validation/plantings/nursery-sow';
 import { actionNurserySow, type PlantingFormState } from '../_actions';
@@ -35,7 +35,7 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
   const [state, formAction] = useActionState(actionNurserySow, initial);
 
   const form = useForm<z.input<typeof NurserySowSchema>>({
-    resolver: zodResolver(NurserySowSchema),
+    resolver: zodResolver(NurserySowSchema) as Resolver<z.input<typeof NurserySowSchema>>,
     mode: 'onSubmit',
     defaultValues: {
       crop_variety_id: undefined,
@@ -43,6 +43,7 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
       nursery_id: '',
       event_date: '',
       notes: '',
+      weight_grams: undefined,
     },
   });
 
@@ -61,7 +62,7 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
     }
   }, [state, form, closeDialog]);
 
-  const onSubmit = (values: z.input<typeof NurserySowSchema>) => {
+  const onSubmit = (values: unknown) => {
     const parsed: NurserySowInput = NurserySowSchema.parse(values);
     const fd = new FormData();
     fd.append('crop_variety_id', String(parsed.crop_variety_id));
@@ -69,6 +70,7 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
     fd.append('nursery_id', String(parsed.nursery_id));
     fd.append('event_date', parsed.event_date);
     if (parsed.notes) fd.append('notes', parsed.notes);
+    if (parsed.weight_grams != null) fd.append('weight_grams', String(parsed.weight_grams));
     startTransition(() => formAction(fd));
   };
 
@@ -98,37 +100,71 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="qty_initial"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Quantity</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  min={1}
-                  step={1}
-                  className="mt-1"
-                  value={field.value != null ? String(field.value) : ''}
-                  onKeyDown={(e) => {
-                    if (['e', 'E', '+', '-', '.'].includes(e.key)) {
-                      e.preventDefault()
-                    }
-                  }}
-                  onChange={(e) => {
-                    const digits = e.target.value.replace(/[^0-9]/g, '')
-                    field.onChange(digits === '' ? '' : Number(digits))
-                  }}
-                  onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FormField
+            control={form.control}
+            name="qty_initial"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Quantity</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    min={1}
+                    step={1}
+                    className="mt-1"
+                    value={field.value != null ? String(field.value) : ''}
+                    onKeyDown={(e) => {
+                      if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                        e.preventDefault()
+                      }
+                    }}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/[^0-9]/g, '')
+                      field.onChange(digits === '' ? '' : Number(digits))
+                    }}
+                    onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="weight_grams"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Weight (g)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    min={1}
+                    step={1}
+                    className="mt-1"
+                    value={field.value != null ? String(field.value) : ''}
+                    onKeyDown={(e) => {
+                      if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                        e.preventDefault()
+                      }
+                    }}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/[^0-9]/g, '')
+                      field.onChange(digits === '' ? '' : Number(digits))
+                    }}
+                    onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
@@ -189,5 +225,3 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
     </Form>
   );
 }
-
-

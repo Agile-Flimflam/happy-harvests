@@ -62,7 +62,11 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [createMode, setCreateMode] = useState<'nursery' | 'direct' | null>(null);
-  const [actionDialog, setActionDialog] = useState<{ type: 'transplant' | 'move' | 'harvest' | 'remove' | 'history'; plantingId: number } | null>(null);
+  const [actionDialog, setActionDialog] = useState<
+    | { type: 'transplant' | 'move' | 'remove' | 'history'; plantingId: number }
+    | { type: 'harvest'; plantingId: number; defaultQty?: number | null; defaultWeight?: number | null }
+    | null
+  >(null);
 
   const openNurserySow = () => { setCreateMode('nursery'); setIsDialogOpen(true); };
   const openDirectSeed = () => { setCreateMode('direct'); setIsDialogOpen(true); };
@@ -205,8 +209,8 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
           {actionDialog.type === 'move' && (
             <MoveForm plantingId={actionDialog.plantingId} beds={beds} closeDialog={closeActionDialog} formId="moveForm" />
           )}
-          {actionDialog.type === 'harvest' && (
-            <HarvestForm plantingId={actionDialog.plantingId} closeDialog={closeActionDialog} formId="harvestForm" />
+          {actionDialog && actionDialog.type === 'harvest' && (
+            <HarvestForm plantingId={actionDialog.plantingId} closeDialog={closeActionDialog} formId="harvestForm" defaultQty={(plantings.find(x => x.id === actionDialog.plantingId)?.qty_initial) ?? undefined} defaultWeight={undefined} />
           )}
           {actionDialog.type === 'history' && (
             <PlantingHistoryDialog
@@ -341,7 +345,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                               <>
                                 {p.propagation_method === 'Direct Seed' ? (
                                   <>
-                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
+                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id, defaultQty: p.qty_initial ?? null })}>
                                       <ShoppingBasket className="mr-2 h-4 w-4" />
                                       Harvest
                                     </DropdownMenuItem>
@@ -358,7 +362,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                                       Move
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
+                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id, defaultQty: p.qty_initial ?? null })}>
                                       <ShoppingBasket className="mr-2 h-4 w-4" />
                                       Harvest
                                     </DropdownMenuItem>
