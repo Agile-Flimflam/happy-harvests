@@ -143,7 +143,7 @@ export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId }: Pro
                   <SelectContent>
                     {beds.map((b) => (
                       <SelectItem key={b.id} value={String(b.id)}>
-                        Bed #{b.id} ({b.length_inches ?? '?'}x{b.width_inches ?? '?'}) @ {b.plots?.locations?.name ?? 'Unknown'}
+                        Bed #{b.id} @ {b.plots?.locations?.name ?? 'Unknown'}
                       </SelectItem>
                     ))}
                   </SelectContent>

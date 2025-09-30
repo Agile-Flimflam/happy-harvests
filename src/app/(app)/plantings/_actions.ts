@@ -70,6 +70,73 @@ export async function deletePlanting(id: number | string): Promise<{ message: st
   return { message: 'Planting removed successfully.' };
 }
 
+// Lifecycle server actions for RHF FormDialog flows
+export const actionTransplant = async (prev: PlantingFormState, formData: FormData): Promise<PlantingFormState> => {
+  const supabase = await createSupabaseServerClient();
+  const plantingId = formData.get('planting_id');
+  const bedId = formData.get('bed_id');
+  const eventDate = formData.get('event_date');
+  const { error } = await supabase.rpc('fn_transplant_planting', {
+    p_planting_id: Number(plantingId),
+    p_bed_id: Number(bedId),
+    p_event_date: String(eventDate),
+  });
+  if (error) return { message: `Database Error: ${error.message}` };
+  revalidatePath('/plantings');
+  return { message: 'Transplant recorded.' };
+}
+
+export const actionMove = async (prev: PlantingFormState, formData: FormData): Promise<PlantingFormState> => {
+  const supabase = await createSupabaseServerClient();
+  const plantingId = formData.get('planting_id');
+  const bedId = formData.get('bed_id');
+  const eventDate = formData.get('event_date');
+  const { error } = await supabase.rpc('fn_move_planting', {
+    p_planting_id: Number(plantingId),
+    p_bed_id: Number(bedId),
+    p_event_date: String(eventDate),
+  });
+  if (error) return { message: `Database Error: ${error.message}` };
+  revalidatePath('/plantings');
+  return { message: 'Move recorded.' };
+}
+
+export const actionHarvest = async (prev: PlantingFormState, formData: FormData): Promise<PlantingFormState> => {
+  const supabase = await createSupabaseServerClient();
+  const plantingId = formData.get('planting_id');
+  const eventDate = formData.get('event_date');
+  const qtyHarvestedRaw = formData.get('qty_harvested');
+  const weightGramsRaw = formData.get('weight_grams');
+  const quantityUnit = (formData.get('quantity_unit') as string) || undefined;
+  const qtyHarvested = qtyHarvestedRaw == null || String(qtyHarvestedRaw) === '' ? undefined : Number(qtyHarvestedRaw);
+  const weightGrams = weightGramsRaw == null || String(weightGramsRaw) === '' ? undefined : Number(weightGramsRaw);
+  const { error } = await supabase.rpc('fn_harvest_planting', {
+    p_planting_id: Number(plantingId),
+    p_event_date: String(eventDate),
+    p_qty_harvested: qtyHarvested,
+    p_weight_grams: weightGrams,
+    p_quantity_unit: quantityUnit,
+  });
+  if (error) return { message: `Database Error: ${error.message}` };
+  revalidatePath('/plantings');
+  return { message: 'Harvest recorded.' };
+}
+
+export const actionRemove = async (prev: PlantingFormState, formData: FormData): Promise<PlantingFormState> => {
+  const supabase = await createSupabaseServerClient();
+  const plantingId = formData.get('planting_id');
+  const eventDate = formData.get('event_date');
+  const reason = (formData.get('reason') as string) || undefined;
+  const { error } = await supabase.rpc('fn_remove_planting', {
+    p_planting_id: Number(plantingId),
+    p_event_date: String(eventDate),
+    p_reason: reason,
+  });
+  if (error) return { message: `Database Error: ${error.message}` };
+  revalidatePath('/plantings');
+  return { message: 'Planting removed.' };
+}
+
 type PlantingWithDetails = Planting & {
   crop_varieties: { name: string; latin_name: string; crops: { name: string } | null } | null;
   beds: {
@@ -97,6 +164,38 @@ export async function getPlantingsWithDetails(): Promise<{ plantings?: PlantingW
     return { error: `Database Error: ${error.message}` };
   }
   return { plantings: (data as PlantingWithDetails[]) || [] };
+}
+
+type PlantingEventWithJoins = {
+  id: number;
+  planting_id: number;
+  event_type: string;
+  event_date: string;
+  bed_id: number | null;
+  nursery_id: string | null;
+  qty_harvested: number | null;
+  weight_grams: number | null;
+  quantity_unit: string | null;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+  beds: { id: number; length_inches: number | null; width_inches: number | null; plots: { locations: { name: string } | null } | null } | null;
+  nurseries: { name: string } | null;
+};
+
+export async function getPlantingEvents(plantingId: number): Promise<{ events?: PlantingEventWithJoins[]; error?: string }> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('planting_events')
+    .select(`
+      *,
+      beds ( id, length_inches, width_inches, plots ( locations ( name ) ) ),
+      nurseries ( name )
+    `)
+    .eq('planting_id', plantingId)
+    .order('event_date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error) return { error: error.message };
+  return { events: (data as unknown as PlantingEventWithJoins[]) || [] };
 }
 
 type CropVarietyForSelect = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name'> & { crops?: { name: string } | null };

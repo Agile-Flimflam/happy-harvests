@@ -1,25 +1,28 @@
 'use client';
 
 import { useState } from 'react';
-import type { Tables, Enums } from '@/lib/supabase-server';
+import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import FormDialog from "@/components/dialogs/FormDialog";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-// import { PlantingForm } from './PlantingForm'; // legacy
+import { StatusBadge } from '@/components/labels/plantings-ui';
 import { deletePlanting } from '../_actions';
 import { NurserySowForm } from './NurserySowForm';
 import { DirectSeedForm } from './DirectSeedForm';
 import {
-  Pencil,
   Trash2,
   PlusCircle,
   Sprout,
   Leaf,
   ShoppingBasket,
-  TrendingUp
+  TrendingUp,
+  ArrowRightLeft,
+  Shovel,
+  Move,
+  History
 } from 'lucide-react';
 import { toast } from "sonner";
 import PageHeader from '@/components/page-header';
@@ -27,9 +30,15 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import PageContent from '@/components/page-content';
+import TransplantForm from './TransplantForm';
+import MoveForm from './MoveForm';
+import HarvestForm from './HarvestForm';
+import RemovePlantingForm from './RemovePlantingForm';
+import PlantingHistoryDialog from './PlantingHistoryDialog';
 
 type Planting = Tables<'plantings'>;
 type CropVariety = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name'> & { crops?: { name: string } | null };
@@ -53,16 +62,15 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [createMode, setCreateMode] = useState<'nursery' | 'direct' | null>(null);
+  const [actionDialog, setActionDialog] = useState<{ type: 'transplant' | 'move' | 'harvest' | 'remove' | 'history'; plantingId: number } | null>(null);
 
-  const handleEdit = () => {
-    toast.error('Edit not implemented yet');
-  };
   const openNurserySow = () => { setCreateMode('nursery'); setIsDialogOpen(true); };
   const openDirectSeed = () => { setCreateMode('direct'); setIsDialogOpen(true); };
   const closeDialog = () => {
     setIsDialogOpen(false);
     setCreateMode(null);
   };
+  const closeActionDialog = () => setActionDialog(null);
 
   const openDelete = (id: number) => setDeleteId(id);
   const confirmDelete = async () => {
@@ -81,15 +89,6 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     }
   };
 
-  const statusVariant = (status: Enums<'planting_status'> | null): "default" | "secondary" | "destructive" | "outline" | null | undefined => {
-    switch (status) {
-      case 'planted': return 'default';
-      case 'nursery': return 'secondary';
-      case 'harvested': return 'outline';
-      default: return 'secondary';
-    }
-  };
-
   const getStatusStats = () => {
     const nurseryCount = plantings.filter(p => p.status === 'nursery').length;
     const plantedCount = plantings.filter(p => p.status === 'planted').length;
@@ -104,8 +103,6 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
   };
 
   const stats = getStatusStats();
-
-
 
   const renderEmptyState = () => (
     <div className="text-center py-12">
@@ -164,6 +161,64 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
           )}
           {createMode === 'direct' && (
             <DirectSeedForm cropVarieties={cropVarieties} beds={beds} closeDialog={closeDialog} formId="directSeedForm" />
+          )}
+        </FormDialog>
+      )}
+
+      {actionDialog && (
+        <FormDialog
+          open={actionDialog != null}
+          onOpenChange={(open) => { if (!open) closeActionDialog(); }}
+          title={
+            actionDialog.type === 'transplant' ? 'Transplant' :
+            actionDialog.type === 'move' ? 'Move Planting' :
+            actionDialog.type === 'harvest' ? 'Harvest' :
+            actionDialog.type === 'history' ? 'Planting History' :
+            'Remove Planting'
+          }
+          description={
+            actionDialog.type === 'transplant' ? 'Move from nursery to field bed' :
+            actionDialog.type === 'move' ? 'Move between beds' :
+            actionDialog.type === 'harvest' ? 'Enter final harvest metrics' :
+            actionDialog.type === 'history' ? 'Event timeline and table' :
+            'Remove this planting (no harvest)'
+          }
+          submitLabel={
+            actionDialog.type === 'transplant' ? 'Transplant' :
+            actionDialog.type === 'move' ? 'Move' :
+            actionDialog.type === 'harvest' ? 'Harvest' :
+            actionDialog.type === 'history' ? undefined :
+            'Remove Planting'
+          }
+          formId={
+            actionDialog.type === 'transplant' ? 'transplantForm' :
+            actionDialog.type === 'move' ? 'moveForm' :
+            actionDialog.type === 'harvest' ? 'harvestForm' :
+            actionDialog.type === 'history' ? undefined :
+            'removeForm'
+          }
+          className={actionDialog.type === 'history' ? 'sm:max-w-2xl' : 'sm:max-w-md'}
+        >
+          {actionDialog.type === 'transplant' && (
+            <TransplantForm plantingId={actionDialog.plantingId} beds={beds} closeDialog={closeActionDialog} formId="transplantForm" />
+          )}
+          {actionDialog.type === 'move' && (
+            <MoveForm plantingId={actionDialog.plantingId} beds={beds} closeDialog={closeActionDialog} formId="moveForm" />
+          )}
+          {actionDialog.type === 'harvest' && (
+            <HarvestForm plantingId={actionDialog.plantingId} closeDialog={closeActionDialog} formId="harvestForm" />
+          )}
+          {actionDialog.type === 'history' && (
+            <PlantingHistoryDialog
+              plantingId={actionDialog.plantingId}
+              varietyName={plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.name}
+              cropName={plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.crops?.name ?? null}
+              status={plantings.find((x) => x.id === actionDialog.plantingId)?.status ?? null}
+              closeDialog={closeActionDialog}
+            />
+          )}
+          {actionDialog.type === 'remove' && (
+            <RemovePlantingForm plantingId={actionDialog.plantingId} closeDialog={closeActionDialog} formId="removeForm" />
           )}
         </FormDialog>
       )}
@@ -244,7 +299,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                     <TableHead>Qty</TableHead>
                     <TableHead>Planted</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -256,19 +311,76 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                         {p.status === 'nursery'
                           ? (p.nurseries?.name ?? 'Nursery')
                           : (
-                            <>Bed #{p.beds?.id} ({p.beds?.length_inches ?? '?'}x{p.beds?.width_inches ?? '?'}) @{p.beds?.plots?.locations?.name ?? 'N/A'}</>
+                            <>Bed #{p.beds?.id} @ {p.beds?.plots?.locations?.name ?? 'N/A'}</>
                           )}
                       </TableCell>
                       <TableCell>{p.propagation_method}</TableCell>
                       <TableCell>{p.qty_initial}</TableCell>
                       <TableCell>{p.planted_date ?? '-'}</TableCell>
                       <TableCell>
-                        <Badge variant={statusVariant(p.status)}>{p.status}</Badge>
+                        {p.status ? <StatusBadge status={p.status} /> : <Badge variant="secondary">Unknown</Badge>}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={handleEdit} className="mr-2" disabled>
-                          <Pencil className="h-4 w-4" />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="mr-2">
+                              <ArrowRightLeft className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {p.status === 'nursery' && (
+                              <>
+                                <DropdownMenuItem onClick={() => setActionDialog({ type: 'transplant', plantingId: p.id })}>
+                                  <Sprout className="mr-2 h-4 w-4" />
+                                  Transplant
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            {p.status === 'planted' && (
+                              <>
+                                {p.propagation_method === 'Direct Seed' ? (
+                                  <>
+                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
+                                      <ShoppingBasket className="mr-2 h-4 w-4" />
+                                      Harvest
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'move', plantingId: p.id })}>
+                                      <Move className="mr-2 h-4 w-4" />
+                                      Move
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                  </>
+                                ) : (
+                                  <>
+                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'move', plantingId: p.id })}>
+                                      <Move className="mr-2 h-4 w-4" />
+                                      Move
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
+                                      <ShoppingBasket className="mr-2 h-4 w-4" />
+                                      Harvest
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                  </>
+                                )}
+                              </>
+                            )}
+                            {p.status !== 'harvested' && p.status !== 'removed' && (
+                              <DropdownMenuItem onClick={() => setActionDialog({ type: 'remove', plantingId: p.id })}>
+                                <Shovel className="mr-2 h-4 w-4" />
+                                Remove
+                              </DropdownMenuItem>
+                            )}
+                            
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <Button variant="ghost" size="icon" onClick={() => setActionDialog({ type: 'history', plantingId: p.id })} className="mr-2">
+                          <History className="h-4 w-4" />
                         </Button>
+
                         <Button variant="ghost" size="icon" onClick={() => openDelete(p.id)} className="text-red-500 hover:text-red-700">
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -284,5 +396,3 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     </div>
   );
 }
-
-
