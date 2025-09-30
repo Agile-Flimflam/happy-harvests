@@ -7,10 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FlaskConical, Leaf, ArrowRightLeft, Move, ShoppingBasket, Shovel } from 'lucide-react';
-import { computePlantingSummary, formatPlantingEventType, type PlantingEventType } from '@/lib/labels/plantings';
+import { computePlantingSummary, formatPlantingEventType, type PlantingEventType } from '@/lib/plantings/utils';
 import type { Enums } from '@/lib/supabase-server';
-import { StatusBadge } from '@/components/labels/plantings-ui';
 import { Badge } from '@/components/ui/badge';
+import StatusBadge from '@/components/plantings/StatusBadge';
 import PlantingSummaryCard from '@/components/labels/PlantingSummaryCard';
 
 type EventItem = Awaited<ReturnType<typeof getPlantingEvents>>['events'] extends (infer U)[] | undefined ? U : never;

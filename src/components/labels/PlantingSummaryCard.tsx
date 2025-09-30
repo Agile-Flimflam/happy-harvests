@@ -2,7 +2,7 @@
 
 import { Card } from '@/components/ui/card';
 import { ShoppingBasket, Timer, Leaf, FlaskConical, Shovel } from 'lucide-react';
-import type { PlantingSummary } from '@/lib/labels/plantings';
+import type { PlantingSummary } from '@/lib/plantings/utils';
 
 function formatDateLocal(s?: string | null) {
   if (!s) return '—';
