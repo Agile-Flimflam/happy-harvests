@@ -1,9 +1,9 @@
 -- Add weight support to initial create functions
 begin;
 
--- Drop the exact current signatures before adding the weight parameter
-drop function if exists public.fn_create_nursery_planting(int, int, uuid, date, text);
-drop function if exists public.fn_create_direct_seed_planting(int, int, int, date, text);
+-- Drop all versions of these functions by name to avoid parameter name conflicts
+drop function if exists public.fn_create_nursery_planting;
+drop function if exists public.fn_create_direct_seed_planting;
 
 -- Nursery: p_qty and optional p_weight_grams
 create function public.fn_create_nursery_planting(
