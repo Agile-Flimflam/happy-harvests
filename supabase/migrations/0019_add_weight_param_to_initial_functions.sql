@@ -1,12 +1,12 @@
 -- Add weight support to initial create functions
 begin;
 
--- Drop all overloads of these functions before recreating with new signature
-drop function if exists public.fn_create_nursery_planting cascade;
-drop function if exists public.fn_create_direct_seed_planting cascade;
+-- Drop the exact current signatures before adding the weight parameter
+drop function if exists public.fn_create_nursery_planting(int, int, uuid, date, text);
+drop function if exists public.fn_create_direct_seed_planting(int, int, int, date, text);
 
 -- Nursery: p_qty and optional p_weight_grams
-create or replace function public.fn_create_nursery_planting(
+create function public.fn_create_nursery_planting(
   p_crop_variety_id int,
   p_qty int,
   p_nursery_id uuid,
@@ -49,7 +49,7 @@ begin
 end $$;
 
 -- Direct seed: p_qty and optional p_weight_grams
-create or replace function public.fn_create_direct_seed_planting(
+create function public.fn_create_direct_seed_planting(
   p_crop_variety_id int,
   p_qty int,
   p_bed_id int,
