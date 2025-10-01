@@ -1,12 +1,9 @@
 -- Add weight support to initial create functions
 begin;
 
--- Drop previous signatures to allow adding new parameter
-drop function if exists public.fn_create_nursery_planting(int, int, uuid, date, text);
-drop function if exists public.fn_create_direct_seed_planting(int, int, int, date, text);
--- Also drop prior 6-arg signatures to allow parameter name change
-drop function if exists public.fn_create_nursery_planting(int, int, uuid, date, text, int);
-drop function if exists public.fn_create_direct_seed_planting(int, int, int, date, text, int);
+-- Drop all overloads of these functions before recreating with new signature
+drop function if exists public.fn_create_nursery_planting cascade;
+drop function if exists public.fn_create_direct_seed_planting cascade;
 
 -- Nursery: p_qty and optional p_weight_grams
 create or replace function public.fn_create_nursery_planting(
