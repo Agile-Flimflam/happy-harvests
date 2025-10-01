@@ -42,8 +42,9 @@ end;
 $$;
 
 -- Drop create functions to allow parameter rename from p_qty_initial to p_qty
-drop function if exists public.fn_create_nursery_planting;
-drop function if exists public.fn_create_direct_seed_planting;
+-- Must drop exact signature from migration 0016
+drop function if exists public.fn_create_nursery_planting(int, int, uuid, date, text);
+drop function if exists public.fn_create_direct_seed_planting(int, int, int, date, text);
 
 -- Update create functions to accept p_qty and insert into event.qty
 create function public.fn_create_nursery_planting(
