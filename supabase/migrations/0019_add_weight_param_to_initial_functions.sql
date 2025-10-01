@@ -1,11 +1,20 @@
 -- Add weight support to initial create functions
 begin;
 
--- Drop all overloads created by migration 0018 (with default params creates multiple signatures)
-drop function if exists public.fn_create_nursery_planting(int, int, uuid, date, text);
-drop function if exists public.fn_create_nursery_planting(int, int, uuid, date);
-drop function if exists public.fn_create_direct_seed_planting(int, int, int, date, text);
-drop function if exists public.fn_create_direct_seed_planting(int, int, int, date);
+-- Drop all overloads of the create functions using DO block
+do $$
+declare
+  r record;
+begin
+  for r in (
+    select oid::regprocedure
+    from pg_proc
+    where proname in ('fn_create_nursery_planting', 'fn_create_direct_seed_planting')
+      and pronamespace = 'public'::regnamespace
+  ) loop
+    execute 'drop function ' || r.oid::regprocedure || ' cascade';
+  end loop;
+end $$;
 
 -- Nursery: p_qty and optional p_weight_grams
 create function public.fn_create_nursery_planting(
