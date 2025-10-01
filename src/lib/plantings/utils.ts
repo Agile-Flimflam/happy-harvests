@@ -52,7 +52,7 @@ export function computePlantingSummary(args: {
     event_date: string;
     beds?: { id: number; plots?: { locations?: { name?: string | null } | null } | null } | null;
     nurseries?: { name?: string | null } | null;
-    qty_harvested?: number | null;
+    qty?: number | null;
     weight_grams?: number | null;
     quantity_unit?: string | null;
   }>;
@@ -85,8 +85,8 @@ export function computePlantingSummary(args: {
     if (type === 'moved') movesCount += 1;
     if (type === 'harvested') {
       endedDate = ev.event_date;
-      if (ev.qty_harvested != null) {
-        harvestQuantity = { qty: ev.qty_harvested, unit: ev.quantity_unit ?? null };
+      if (ev.qty != null) {
+        harvestQuantity = { qty: ev.qty, unit: ev.quantity_unit ?? null };
       }
       if (ev.weight_grams != null) harvestWeightGrams = ev.weight_grams;
     }

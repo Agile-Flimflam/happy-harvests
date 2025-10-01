@@ -300,8 +300,7 @@ export type Database = {
           nursery_id: string | null
           payload: Json | null
           planting_id: number
-          qty_harvested: number | null
-          quantity_unit: string | null
+          qty: number | null
           weight_grams: number | null
         }
         Insert: {
@@ -314,8 +313,7 @@ export type Database = {
           nursery_id?: string | null
           payload?: Json | null
           planting_id: number
-          qty_harvested?: number | null
-          quantity_unit?: string | null
+          qty?: number | null
           weight_grams?: number | null
         }
         Update: {
@@ -328,8 +326,7 @@ export type Database = {
           nursery_id?: string | null
           payload?: Json | null
           planting_id?: number
-          qty_harvested?: number | null
-          quantity_unit?: string | null
+          qty?: number | null
           weight_grams?: number | null
         }
         Relationships: [
@@ -368,7 +365,6 @@ export type Database = {
           nursery_started_date: string | null
           planted_date: string | null
           propagation_method: string
-          qty_initial: number
           status: Database["public"]["Enums"]["planting_status"]
           updated_at: string
         }
@@ -383,7 +379,6 @@ export type Database = {
           nursery_started_date?: string | null
           planted_date?: string | null
           propagation_method: string
-          qty_initial: number
           status: Database["public"]["Enums"]["planting_status"]
           updated_at?: string
         }
@@ -398,7 +393,6 @@ export type Database = {
           nursery_started_date?: string | null
           planted_date?: string | null
           propagation_method?: string
-          qty_initial?: number
           status?: Database["public"]["Enums"]["planting_status"]
           updated_at?: string
         }
@@ -511,6 +505,31 @@ export type Database = {
         }
         Relationships: []
       }
+      ,
+      plantings_summary: {
+        Row: {
+          id: number | null
+          planted_qty: number | null
+          planted_weight_grams: number | null
+          harvest_qty: number | null
+          harvest_weight_grams: number | null
+        }
+        Insert: {
+          id?: never
+          planted_qty?: never
+          planted_weight_grams?: never
+          harvest_qty?: never
+          harvest_weight_grams?: never
+        }
+        Update: {
+          id?: never
+          planted_qty?: never
+          planted_weight_grams?: never
+          harvest_qty?: never
+          harvest_weight_grams?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
       _current_user_id: {
@@ -547,7 +566,8 @@ export type Database = {
           p_crop_variety_id: number
           p_event_date: string
           p_notes?: string
-          p_qty_initial: number
+          p_qty: number
+          p_weight_grams?: number
         }
         Returns: number
       }
@@ -557,7 +577,8 @@ export type Database = {
           p_event_date: string
           p_notes?: string
           p_nursery_id: string
-          p_qty_initial: number
+          p_qty: number
+          p_weight_grams?: number
         }
         Returns: number
       }
@@ -566,7 +587,6 @@ export type Database = {
           p_event_date: string
           p_planting_id: number
           p_qty_harvested?: number
-          p_quantity_unit?: string
           p_weight_grams?: number
         }
         Returns: undefined

@@ -38,7 +38,7 @@ import MoveForm from './MoveForm';
 import HarvestForm from './HarvestForm';
 import RemovePlantingForm from './RemovePlantingForm';
 import PlantingHistoryDialog from './PlantingHistoryDialog';
-import { PLANTING_STATUS, PROPAGATION_METHOD } from '@/lib/plantings/constants';
+import { PLANTING_STATUS } from '@/lib/plantings/constants';
 import StatusBadge from '@/components/plantings/StatusBadge';
 
 type Planting = Tables<'plantings'>;
@@ -49,6 +49,10 @@ type PlantingWithDetails = Planting & {
   crop_varieties: { name: string; latin_name: string; crops: { name: string } | null } | null;
   beds: { id: number; length_inches: number | null; width_inches: number | null; plots: { locations: { name: string } | null } | null } | null;
   nurseries: { name: string } | null;
+  planted_qty?: number | null;
+  planted_weight_grams?: number | null;
+  harvest_qty?: number | null;
+  harvest_weight_grams?: number | null;
 };
 
 interface PlantingsPageContentProps {
@@ -76,6 +80,9 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     setCreateMode(null);
   };
   const closeActionDialog = () => setActionDialog(null);
+
+  const canBeRemoved = (status: (typeof PLANTING_STATUS)[keyof typeof PLANTING_STATUS]) =>
+    status !== PLANTING_STATUS.harvested && status !== PLANTING_STATUS.removed;
 
   const openDelete = (id: number) => setDeleteId(id);
   const confirmDelete = async () => {
@@ -318,8 +325,8 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                             <>Bed #{p.beds?.id} @ {p.beds?.plots?.locations?.name ?? 'N/A'}</>
                           )}
                       </TableCell>
-                      <TableCell>{p.propagation_method}</TableCell>
-                      <TableCell>{p.qty_initial}</TableCell>
+                      <TableCell>{p.nursery_started_date ? 'Transplant' : 'Direct Seed'}</TableCell>
+                      <TableCell>{p.status === PLANTING_STATUS.harvested ? (p.harvest_qty ?? '-') : (p.planted_qty ?? '-')}</TableCell>
                       <TableCell>{p.planted_date ?? '-'}</TableCell>
                       <TableCell>
                         {p.status ? <StatusBadge status={p.status} /> : <Badge variant="secondary">Unknown</Badge>}
@@ -343,9 +350,9 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                             )}
                             {p.status === PLANTING_STATUS.planted && (
                               <>
-                                {p.propagation_method === PROPAGATION_METHOD.directSeed ? (
+                                {!p.nursery_started_date ? (
                                   <>
-                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id, defaultQty: p.qty_initial ?? null })}>
+                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
                                       <ShoppingBasket className="mr-2 h-4 w-4" />
                                       Harvest
                                     </DropdownMenuItem>
@@ -362,7 +369,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                                       Move
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id, defaultQty: p.qty_initial ?? null })}>
+                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
                                       <ShoppingBasket className="mr-2 h-4 w-4" />
                                       Harvest
                                     </DropdownMenuItem>
@@ -371,7 +378,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                                 )}
                               </>
                             )}
-                            {p.status !== PLANTING_STATUS.harvested && p.status !== PLANTING_STATUS.removed && (
+                            {canBeRemoved(p.status) && (
                               <DropdownMenuItem onClick={() => setActionDialog({ type: 'remove', plantingId: p.id })}>
                                 <Shovel className="mr-2 h-4 w-4" />
                                 Remove

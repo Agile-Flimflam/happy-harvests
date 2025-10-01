@@ -12,7 +12,9 @@ security definer
 as $$
 begin
   if coalesce(p_qty_harvested, 0) <= 0 and coalesce(p_weight_grams, 0) <= 0 then
-    raise exception 'harvest requires qty or weight';
+    raise exception using
+      message = 'At least one harvest metric (quantity or weight) is required.',
+      hint    = 'Provide qty_harvested > 0 and/or weight_grams > 0.';
   end if;
 
   insert into public.planting_events (

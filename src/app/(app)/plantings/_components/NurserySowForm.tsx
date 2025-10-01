@@ -39,7 +39,7 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
     mode: 'onSubmit',
     defaultValues: {
       crop_variety_id: undefined,
-      qty_initial: undefined,
+      qty: undefined,
       nursery_id: '',
       event_date: '',
       notes: '',
@@ -66,7 +66,7 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
     const parsed: NurserySowInput = NurserySowSchema.parse(values);
     const fd = new FormData();
     fd.append('crop_variety_id', String(parsed.crop_variety_id));
-    fd.append('qty_initial', String(parsed.qty_initial));
+    fd.append('qty', String(parsed.qty));
     fd.append('nursery_id', String(parsed.nursery_id));
     fd.append('event_date', parsed.event_date);
     if (parsed.notes) fd.append('notes', parsed.notes);
@@ -103,7 +103,7 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <FormField
             control={form.control}
-            name="qty_initial"
+            name="qty"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Quantity</FormLabel>

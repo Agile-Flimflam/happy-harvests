@@ -10,9 +10,4 @@ export const PLANTING_STATUS = {
   removed: 'removed',
 } as const;
 
-export const PROPAGATION_METHOD = {
-  directSeed: 'Direct Seed',
-  transplant: 'Transplant',
-} as const;
-
-export type PropagationMethod = typeof PROPAGATION_METHOD[keyof typeof PROPAGATION_METHOD];
+// Removed PROPAGATION_METHOD in favor of deriving from nursery_started_date

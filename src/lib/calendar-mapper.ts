@@ -11,8 +11,7 @@ export async function buildPlantingEvent(plantingId: number, siteUrl: string) {
     .select(`
       id,
       planted_date,
-      propagation_method,
-      qty_initial,
+      nursery_started_date,
       notes,
       status,
       beds:bed_id (
@@ -48,7 +47,7 @@ export async function buildPlantingEvent(plantingId: number, siteUrl: string) {
   const locationName = planting.beds?.plots?.locations?.name || '';
   const summary = `Planted — ${varietyName}`;
   const descriptionLines = [
-    `Method: ${planting.propagation_method} • Qty: ${planting.qty_initial}`,
+    `Method: ${planting.nursery_started_date ? 'Transplant' : 'Direct Seed'}`,
     plotName ? `Plot: ${plotName}` : '',
     planting.notes ? `Notes: ${planting.notes}` : '',
     `View: ${siteUrl.replace(/\/$/, '')}/plantings/${planting.id}`,

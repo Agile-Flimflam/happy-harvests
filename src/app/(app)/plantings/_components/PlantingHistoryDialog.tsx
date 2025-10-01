@@ -37,6 +37,19 @@ function formatDate(dateStr: string) {
   }
 }
 
+function formatLocationCell(ev: EventItem) {
+  switch (ev.event_type) {
+    case 'nursery_seeded':
+      return ev.nurseries?.name ?? 'Nursery';
+    case 'direct_seeded':
+    case 'transplanted':
+    case 'moved':
+      return formatBed(ev);
+    default:
+      return '-';
+  }
+}
+
 export default function PlantingHistoryDialog({ plantingId, varietyName, cropName, status }: Props) {
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -127,8 +140,8 @@ export default function PlantingHistoryDialog({ plantingId, varietyName, cropNam
                   case 'harvested':
                     icon = <ShoppingBasket className="h-4 w-4 text-orange-600" />;
                     title = 'Harvest';
-                    if (ev.qty_harvested != null && ev.quantity_unit) {
-                      details = `${ev.qty_harvested} ${ev.quantity_unit}`;
+                    if (ev.qty != null && ev.quantity_unit) {
+                      details = `${ev.qty} ${ev.quantity_unit}`;
                     } else if (ev.weight_grams != null) {
                       details = `${ev.weight_grams} g`;
                     } else {
@@ -184,8 +197,8 @@ export default function PlantingHistoryDialog({ plantingId, varietyName, cropNam
                           {formatPlantingEventType(ev.event_type as PlantingEventType)}
                         </Badge>
                       </TableCell>
-                      <TableCell>{ev.event_type === 'nursery_seeded' ? (ev.nurseries?.name ?? 'Nursery') : (ev.event_type === 'direct_seeded' || ev.event_type === 'transplanted' || ev.event_type === 'moved') ? formatBed(ev) : '-'}</TableCell>
-                      <TableCell>{ev.qty_harvested ?? '-'}</TableCell>
+                      <TableCell>{formatLocationCell(ev)}</TableCell>
+                      <TableCell>{ev.qty ?? '-'}</TableCell>
                       <TableCell>{ev.weight_grams ?? '-'}</TableCell>
                       <TableCell>{ev.quantity_unit ?? '-'}</TableCell>
                       <TableCell>{(ev.payload && (ev.payload as { reason?: string }).reason) ?? '-'}</TableCell>

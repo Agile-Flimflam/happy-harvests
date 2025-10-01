@@ -8,7 +8,7 @@ export const DirectSeedSchema = z.object({
       .regex(/^\d+$/, { message: 'Variety is required' })
       .transform((v) => parseInt(v, 10))
   ),
-  qty_initial: z.preprocess(
+  qty: z.preprocess(
     (v) => (typeof v === 'number' ? String(v) : v == null ? '' : v),
     z
       .string()
