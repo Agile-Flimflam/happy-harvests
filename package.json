@@ -9,7 +9,7 @@
     "lint": "next lint",
     "db:start": "supabase start",
     "db:reset": "supabase db reset --force",
-    "db:migrate": "supabase db migrate up"
+    "db:migrate": "supabase migration up"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
@@ -23,6 +23,7 @@
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.56.0",

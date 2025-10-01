@@ -32,5 +32,3 @@ alter table public.external_integrations
   drop column if exists credential_tag;
 
 commit;
-
-

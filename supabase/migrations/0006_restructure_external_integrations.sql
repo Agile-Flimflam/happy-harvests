@@ -29,5 +29,3 @@ alter table public.external_integrations
   drop column if exists api_key_tag;
 
 commit;
-
-

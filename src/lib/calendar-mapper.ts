@@ -7,12 +7,11 @@ export async function buildPlantingEvent(plantingId: number, siteUrl: string) {
   const supabase = createSupabaseAdminClient();
   // Fetch planting details with joins we need for title/description/timezone
   const { data, error } = await supabase
-    .from('bed_plantings')
+    .from('plantings')
     .select(`
       id,
-      date_planted,
-      planting_type,
-      qty_planting,
+      planted_date,
+      nursery_started_date,
       notes,
       status,
       beds:bed_id (
@@ -34,20 +33,21 @@ export async function buildPlantingEvent(plantingId: number, siteUrl: string) {
   if (error) throw new Error(`DB error loading planting ${plantingId}: ${error.message}`);
   if (!data) throw new Error(`Planting ${plantingId} not found`);
 
-  const planting = data as unknown as Tables<'bed_plantings'> & {
+  const planting = data as unknown as Tables<'plantings'> & {
     beds: { id: number; plots: { name: string; locations: { name: string | null; timezone: string | null } | null } | null } | null;
     crop_varieties: { name: string } | null;
   };
 
   const tz = planting.beds?.plots?.locations?.timezone || undefined;
-  const date = planting.date_planted; // yyyy-mm-dd
+  const date = planting.planted_date;
+  if (!date) throw new Error(`Planting ${plantingId} has no planted_date`);
   const endDate = addOneDay(date);
   const varietyName = planting.crop_varieties?.name || 'Planting';
   const plotName = planting.beds?.plots?.name || '';
   const locationName = planting.beds?.plots?.locations?.name || '';
   const summary = `Planted — ${varietyName}`;
   const descriptionLines = [
-    `Type: ${planting.planting_type} • Qty: ${planting.qty_planting}`,
+    `Method: ${planting.nursery_started_date ? 'Transplant' : 'Direct Seed'}`,
     plotName ? `Plot: ${plotName}` : '',
     planting.notes ? `Notes: ${planting.notes}` : '',
     `View: ${siteUrl.replace(/\/$/, '')}/plantings/${planting.id}`,
