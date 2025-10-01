@@ -41,8 +41,12 @@ begin
 end;
 $$;
 
+-- Drop create functions to allow parameter rename from p_qty_initial to p_qty
+drop function if exists public.fn_create_nursery_planting;
+drop function if exists public.fn_create_direct_seed_planting;
+
 -- Update create functions to accept p_qty and insert into event.qty
-create or replace function public.fn_create_nursery_planting(
+create function public.fn_create_nursery_planting(
   p_crop_variety_id int,
   p_qty int,
   p_nursery_id uuid,
@@ -83,7 +87,7 @@ begin
   return v_planting_id;
 end $$;
 
-create or replace function public.fn_create_direct_seed_planting(
+create function public.fn_create_direct_seed_planting(
   p_crop_variety_id int,
   p_qty int,
   p_bed_id int,
