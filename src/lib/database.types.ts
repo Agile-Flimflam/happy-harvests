@@ -291,6 +291,119 @@ export type Database = {
         }
         Relationships: []
       }
+      customers: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          name: string
+          email: string | null
+          phone: string | null
+          fax: string | null
+          website: string | null
+          billing_street: string | null
+          billing_city: string | null
+          billing_state: string | null
+          billing_zip: string | null
+          shipping_street: string | null
+          shipping_city: string | null
+          shipping_state: string | null
+          shipping_zip: string | null
+          notes: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          name: string
+          email?: string | null
+          phone?: string | null
+          fax?: string | null
+          website?: string | null
+          billing_street?: string | null
+          billing_city?: string | null
+          billing_state?: string | null
+          billing_zip?: string | null
+          shipping_street?: string | null
+          shipping_city?: string | null
+          shipping_state?: string | null
+          shipping_zip?: string | null
+          notes?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          name?: string
+          email?: string | null
+          phone?: string | null
+          fax?: string | null
+          website?: string | null
+          billing_street?: string | null
+          billing_city?: string | null
+          billing_state?: string | null
+          billing_zip?: string | null
+          shipping_street?: string | null
+          shipping_city?: string | null
+          shipping_state?: string | null
+          shipping_zip?: string | null
+          notes?: string | null
+        }
+        Relationships: []
+      }
+      seeds: {
+        Row: {
+          id: number
+          created_at: string
+          updated_at: string
+          crop_variety_id: number
+          crop_name: string
+          variety_name: string
+          vendor: string | null
+          lot_number: string | null
+          date_received: string | null
+          quantity: number | null
+          quantity_units: string | null
+          notes: string | null
+        }
+        Insert: {
+          id?: number
+          created_at?: string
+          updated_at?: string
+          crop_variety_id: number
+          crop_name: string
+          variety_name: string
+          vendor?: string | null
+          lot_number?: string | null
+          date_received?: string | null
+          quantity?: number | null
+          quantity_units?: string | null
+          notes?: string | null
+        }
+        Update: {
+          id?: number
+          created_at?: string
+          updated_at?: string
+          crop_variety_id?: number
+          crop_name?: string
+          variety_name?: string
+          vendor?: string | null
+          lot_number?: string | null
+          date_received?: string | null
+          quantity?: number | null
+          quantity_units?: string | null
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seeds_crop_variety_id_fkey"
+            columns: ["crop_variety_id"]
+            isOneToOne: false
+            referencedRelation: "crop_varieties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_events: {
         Row: {
           calendar_id: string
@@ -485,6 +598,111 @@ export type Database = {
           },
           {
             foreignKeyName: "planting_events_planting_id_fkey"
+            columns: ["planting_id"]
+            isOneToOne: false
+            referencedRelation: "plantings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deliveries: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          customer_id: string | null
+          delivery_date: string
+          status: string | null
+          payment_terms: string | null
+          payment_status: string | null
+          notes: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          customer_id?: string | null
+          delivery_date: string
+          status?: string | null
+          payment_terms?: string | null
+          payment_status?: string | null
+          notes?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          customer_id?: string | null
+          delivery_date?: string
+          status?: string | null
+          payment_terms?: string | null
+          payment_status?: string | null
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliveries_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_items: {
+        Row: {
+          id: number
+          created_at: string
+          delivery_id: string
+          crop_variety_id: number | null
+          planting_id: number | null
+          qty: number | null
+          unit: string | null
+          price_per: number | null
+          total_price: number | null
+          notes: string | null
+        }
+        Insert: {
+          id?: number
+          created_at?: string
+          delivery_id: string
+          crop_variety_id?: number | null
+          planting_id?: number | null
+          qty?: number | null
+          unit?: string | null
+          price_per?: number | null
+          total_price?: number | null
+          notes?: string | null
+        }
+        Update: {
+          id?: number
+          created_at?: string
+          delivery_id?: string
+          crop_variety_id?: number | null
+          planting_id?: number | null
+          qty?: number | null
+          unit?: string | null
+          price_per?: number | null
+          total_price?: number | null
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_items_delivery_id_fkey"
+            columns: ["delivery_id"]
+            isOneToOne: false
+            referencedRelation: "deliveries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_items_crop_variety_id_fkey"
+            columns: ["crop_variety_id"]
+            isOneToOne: false
+            referencedRelation: "crop_varieties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_items_planting_id_fkey"
             columns: ["planting_id"]
             isOneToOne: false
             referencedRelation: "plantings"

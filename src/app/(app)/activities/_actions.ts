@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { ActivitySchema } from '@/lib/validation/activities'
-import { fetchWeatherByCoords } from '@/lib/openweather'
+import { fetchWeatherByCoords } from '@/lib/openweather.server'
 
 export type ActivityFormState = {
   message: string

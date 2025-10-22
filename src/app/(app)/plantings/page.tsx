@@ -1,38 +1,32 @@
-import { PlantingsPageContent } from './_components/PlantingsPageContent';
-import { getPlantingsWithDetails, getCropVarietiesForSelect, getBedsForSelect, getNurseriesForSelect } from './_actions';
+import { PlantingsPageContent } from './_components/PlantingsPageContent'
+import { getPlantingsWithDetails, getCropVarietiesForSelect, getBedsForSelect, getNurseriesForSelect } from './_actions'
 
 export default async function PlantingsPage({ searchParams }: { searchParams?: { schedule?: string; mode?: 'nursery' | 'direct' } }) {
-  const [plantingsResult, varietiesResult, bedsResult, nurseriesResult] = await Promise.all([
+  const [plantingsRes, varietiesRes, bedsRes, nurseriesRes] = await Promise.all([
     getPlantingsWithDetails(),
     getCropVarietiesForSelect(),
     getBedsForSelect(),
     getNurseriesForSelect(),
-  ]);
+  ])
 
-  const plantings = plantingsResult.plantings;
-  const plantingsError = plantingsResult.error;
-  const cropVarieties = varietiesResult.varieties;
-  const varietiesError = varietiesResult.error;
-  const beds = bedsResult.beds;
-  const bedsError = bedsResult.error;
-  const nurseries = nurseriesResult.nurseries;
-  const nurseriesError = nurseriesResult.error;
+  const plantings = plantingsRes.plantings || []
+  const cropVarieties = varietiesRes.varieties || []
+  const beds = bedsRes.beds || []
+  const nurseries = nurseriesRes.nurseries || []
 
-  if (plantingsError || varietiesError || bedsError || nurseriesError) {
-    const errorMessage = [plantingsError, varietiesError, bedsError, nurseriesError].filter(Boolean).join('; ');
-    return <div className="text-red-500">Error loading page data: {errorMessage || 'Unknown error'}</div>;
-  }
+  const scheduleDate = typeof searchParams?.schedule === 'string' ? searchParams!.schedule : undefined
+  const defaultCreateMode = searchParams?.mode === 'nursery' || searchParams?.mode === 'direct' ? searchParams.mode : null
 
   return (
     <PlantingsPageContent
-      plantings={plantings || []}
-      cropVarieties={cropVarieties || []}
-      beds={beds || []}
-      nurseries={nurseries || []}
-      scheduleDate={searchParams?.schedule}
-      defaultCreateMode={searchParams?.mode}
+      plantings={plantings as any}
+      cropVarieties={cropVarieties as any}
+      beds={beds as any}
+      nurseries={nurseries as any}
+      scheduleDate={scheduleDate}
+      defaultCreateMode={defaultCreateMode}
     />
-  );
+  )
 }
 
 

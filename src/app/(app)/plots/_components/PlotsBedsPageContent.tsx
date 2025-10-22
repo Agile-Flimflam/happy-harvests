@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlotForm } from '../_components/PlotForm';
 import { BedForm } from '../_components/BedForm';
 import { deletePlot, deleteBed } from '../_actions';
-import { Pencil, Trash2, PlusCircle, MapPin, Sunrise, Sunset, Moon, Droplet } from 'lucide-react';
+import { Pencil, Trash2, PlusCircle, MapPin, Sunrise, Sunset, Droplet } from 'lucide-react';
 import { toast } from "sonner";
 import PageHeader from '@/components/page-header';
 import PageContent from '@/components/page-content';
@@ -449,7 +449,7 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
         tempF={tempF}
         description={current.weather?.description || null}
         inlineDescription={false}
-        hawaiianMoon={(state.status === 'ready' ? (state.data as any).hawaiianMoonPhaseLabel : undefined) as any}
+        hawaiianMoon={(state.status === 'ready' ? (state.data as any).moonPhaseLabel : undefined) as any}
         size="sm"
       />
       {typeof current.sunrise === 'number' && (
@@ -462,11 +462,7 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
           <Sunset className="h-3 w-3" /> {formatUnixToLocalTime(current.sunset)}
         </span>
       )}
-      {(state.data as any).hawaiianMoonPhaseLabel && (
-        <span className="inline-flex items-center gap-1 text-muted-foreground">
-          <Moon className="h-3 w-3" /> {(state.data as any).hawaiianMoonPhaseLabel}
-        </span>
-      )}
+      {/* Moon phase is now shown inline via WeatherBadge */}
       {typeof current.humidity === 'number' && (
         <span className="inline-flex items-center gap-1 text-muted-foreground">
           <Droplet className="h-3 w-3" /> {current.humidity}%

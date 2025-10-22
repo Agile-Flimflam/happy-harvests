@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import CalendarClient, { type CalendarEvent } from './CalendarClient'
+import CalendarHeaderWeather from './CalendarHeaderWeather'
 import Link from 'next/link'
 
 async function getCalendarEvents(): Promise<CalendarEvent[]> {
@@ -39,7 +40,17 @@ async function getCalendarEvents(): Promise<CalendarEvent[]> {
 }
 
 export default async function CalendarPage() {
+  const supabase = await createSupabaseServerClient()
   const events = await getCalendarEvents()
+  // Find the first location with coordinates for weather display
+  const { data: locations } = await supabase
+    .from('locations')
+    .select('id, latitude, longitude')
+    .order('created_at', { ascending: true })
+    .limit(10)
+  const primary = (locations || []).find((l) => l.latitude != null && l.longitude != null) as
+    | { id: string; latitude: number | null; longitude: number | null }
+    | undefined
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -48,6 +59,9 @@ export default async function CalendarPage() {
           <Link className="border px-3 py-2 rounded" href="/activities/new">Schedule Activity</Link>
           <Link className="border px-3 py-2 rounded" href="/plantings">Manage Plantings</Link>
         </div>
+      </div>
+      <div>
+        <CalendarHeaderWeather id={primary?.id ?? null} latitude={primary?.latitude ?? null} longitude={primary?.longitude ?? null} />
       </div>
       <CalendarClient events={events} />
     </div>

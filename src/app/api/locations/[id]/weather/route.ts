@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { fetchWeatherByCoords } from '@/lib/openweather'
+import { fetchWeatherByCoords } from '@/lib/openweather.server'
 
-export const revalidate = 600
+export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   try {

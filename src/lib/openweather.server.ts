@@ -1,5 +1,5 @@
 import { getOpenWeatherIntegration } from './integrations'
-import { hawaiianMoonPhaseLabel } from './hawaiian-moon'
+import { hawaiianMoonPhaseLabel, lunarPhaseFraction } from './hawaiian-moon'
 
 export type FetchWeatherOptions = {
   units?: 'imperial' | 'metric'
@@ -56,7 +56,16 @@ export async function fetchWeatherByCoords(
   const json = (await res.json()) as OpenWeatherOneCall
 
   const currentWeather = (json.current.weather && json.current.weather[0]) || null
-  const moonPhase = json.daily && json.daily[0] ? json.daily[0].moon_phase : undefined
+  let moonPhase = json.daily && json.daily[0] ? json.daily[0].moon_phase : undefined
+  // Fallback: compute from current date when API omits moon phase
+  if (moonPhase == null) {
+    try {
+      const approx = lunarPhaseFraction(new Date((json.current.dt || 0) * 1000))
+      moonPhase = approx
+    } catch {
+      // ignore
+    }
+  }
   const moonPhaseLabel = moonPhase != null ? hawaiianMoonPhaseLabel(moonPhase) ?? undefined : undefined
 
   return {

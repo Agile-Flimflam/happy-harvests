@@ -245,7 +245,9 @@ export async function getCropVarietiesForSelect(): Promise<{ varieties?: CropVar
     .select('id, name, latin_name, crops(name)')
     .order('name', { ascending: true });
   if (error) return { error: error.message };
-  return { varieties: (data as unknown as CropVarietyForSelect[]) || [] };
+  const rows = (data as unknown as CropVarietyForSelect[]) || [];
+  // Ensure newly created varieties from seeds are included immediately (no filter)
+  return { varieties: rows };
 }
 
 // Lifecycle actions (RPC)

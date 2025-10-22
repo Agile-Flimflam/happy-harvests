@@ -77,4 +77,16 @@ export function hawaiianMoonInfoForISO(iso: string | null | undefined): { name: 
   return hawaiianMoonForDate(d)
 }
 
+// Lookup helpers by moon name for tooltips
+export function hawaiianMoonInfoByName(name: string | null | undefined): MoonInfo | null {
+  if (!name) return null
+  const found = MOON_TABLE.find((m) => m.name === name)
+  return found ?? null
+}
+
+export function hawaiianMoonRecommendationByName(name: string | null | undefined): string | null {
+  const info = hawaiianMoonInfoByName(name)
+  return info?.recommendation ?? null
+}
+
 
