@@ -6,7 +6,7 @@ import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DirectSeedSchema, type DirectSeedInput } from '@/lib/validation/plantings/direct-seed';
 import { z } from 'zod';
-import { hawaiianMoonForISO } from '@/lib/hawaiian-moon'
+import { hawaiianMoonForISO, hawaiianMoonInfoForISO } from '@/lib/hawaiian-moon'
 import { actionDirectSeed, type PlantingFormState } from '../_actions';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -207,7 +207,7 @@ export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId, defau
                 />
               </FormControl>
               {typeof field.value === 'string' && field.value ? (
-                <div className="text-xs text-muted-foreground">Hawaiian moon: <span className="font-medium">{hawaiianMoonForISO(field.value) ?? '—'}</span></div>
+                <div className="text-xs text-muted-foreground">Hawaiian moon: <span className="font-medium">{hawaiianMoonForISO(field.value) ?? '—'}</span> {(() => { const info = hawaiianMoonInfoForISO(field.value); return info ? `· ${info.recommendation}` : '' })()}</div>
               ) : null}
               <FormMessage />
             </FormItem>

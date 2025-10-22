@@ -8,7 +8,7 @@ import { NurserySowSchema, type NurserySowInput } from '@/lib/validation/plantin
 import { actionNurserySow, type PlantingFormState } from '../_actions';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { hawaiianMoonForISO } from '@/lib/hawaiian-moon'
+import { hawaiianMoonForISO, hawaiianMoonInfoForISO } from '@/lib/hawaiian-moon'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -206,7 +206,7 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId, 
                 />
               </FormControl>
               {typeof field.value === 'string' && field.value ? (
-                <div className="text-xs text-muted-foreground">Hawaiian moon: <span className="font-medium">{hawaiianMoonForISO(field.value) ?? '—'}</span></div>
+                <div className="text-xs text-muted-foreground">Hawaiian moon: <span className="font-medium">{hawaiianMoonForISO(field.value) ?? '—'}</span> {(() => { const info = hawaiianMoonInfoForISO(field.value); return info ? `· ${info.recommendation}` : '' })()}</div>
               ) : null}
               <FormMessage />
             </FormItem>
