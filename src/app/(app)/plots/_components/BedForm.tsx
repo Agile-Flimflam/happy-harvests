@@ -50,6 +50,7 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
       plot_id: bed?.plot_id ?? (initialPlotId ?? ('' as unknown as number)),
       length_inches: bed?.length_inches ?? ('' as unknown as number | null),
       width_inches: bed?.width_inches ?? ('' as unknown as number | null),
+      name: bed?.name ?? null,
     },
   });
 
@@ -83,6 +84,7 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
     fd.append('plot_id', String(values.plot_id));
     fd.append('length_inches', values.length_inches != null ? String(values.length_inches) : '');
     fd.append('width_inches', values.width_inches != null ? String(values.width_inches) : '');
+    if (values.name != null) fd.append('name', values.name);
     startTransition(() => {
       dispatch(fd);
     });
@@ -130,7 +132,20 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
           )}
         />
 
-        {/* No bed name field in new schema */}
+        {/* Bed Name */}
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Bed Name (optional)</FormLabel>
+              <FormControl>
+                <Input type="text" className="mt-1" value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value || null)} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         {/* Dimensions Section using Fieldset */}
         <fieldset className="border p-4 rounded-md space-y-4">

@@ -34,11 +34,148 @@ export type Database = {
   }
   public: {
     Tables: {
+      activities_soil_amendments: {
+        Row: {
+          id: number
+          activity_id: number
+          name: string
+          quantity: number | null
+          unit: string | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          activity_id: number
+          name: string
+          quantity?: number | null
+          unit?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          activity_id?: number
+          name?: string
+          quantity?: number | null
+          unit?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_soil_amendments_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activities: {
+        Row: {
+          id: number
+          activity_type: Database["public"]["Enums"]["activity_type"]
+          started_at: string
+          ended_at: string | null
+          duration_minutes: number | null
+          labor_hours: number | null
+          location_id: string | null
+          plot_id: number | null
+          bed_id: number | null
+          nursery_id: string | null
+          crop: string | null
+          asset_id: string | null
+          asset_name: string | null
+          quantity: number | null
+          unit: string | null
+          cost: number | null
+          notes: string | null
+          weather: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          activity_type: Database["public"]["Enums"]["activity_type"]
+          started_at: string
+          ended_at?: string | null
+          duration_minutes?: number | null
+          labor_hours?: number | null
+          location_id?: string | null
+          plot_id?: number | null
+          bed_id?: number | null
+          nursery_id?: string | null
+          crop?: string | null
+          asset_id?: string | null
+          asset_name?: string | null
+          quantity?: number | null
+          unit?: string | null
+          cost?: number | null
+          notes?: string | null
+          weather?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          activity_type?: Database["public"]["Enums"]["activity_type"]
+          started_at?: string
+          ended_at?: string | null
+          duration_minutes?: number | null
+          labor_hours?: number | null
+          location_id?: string | null
+          plot_id?: number | null
+          bed_id?: number | null
+          nursery_id?: string | null
+          crop?: string | null
+          asset_id?: string | null
+          asset_name?: string | null
+          quantity?: number | null
+          unit?: string | null
+          cost?: number | null
+          notes?: string | null
+          weather?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_plot_id_fkey"
+            columns: ["plot_id"]
+            isOneToOne: false
+            referencedRelation: "plots"
+            referencedColumns: ["plot_id"]
+          },
+          {
+            foreignKeyName: "activities_bed_id_fkey"
+            columns: ["bed_id"]
+            isOneToOne: false
+            referencedRelation: "beds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_nursery_id_fkey"
+            columns: ["nursery_id"]
+            isOneToOne: false
+            referencedRelation: "nurseries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       beds: {
         Row: {
           created_at: string
           id: number
           length_inches: number | null
+          name: string | null
           plot_id: number
           width_inches: number | null
         }
@@ -46,6 +183,7 @@ export type Database = {
           created_at?: string
           id?: number
           length_inches?: number | null
+          name?: string | null
           plot_id: number
           width_inches?: number | null
         }
@@ -53,6 +191,7 @@ export type Database = {
           created_at?: string
           id?: number
           length_inches?: number | null
+          name?: string | null
           plot_id?: number
           width_inches?: number | null
         }
@@ -605,6 +744,7 @@ export type Database = {
       }
     }
     Enums: {
+      activity_type: "irrigation" | "soil_amendment" | "pest_management" | "asset_maintenance"
       bed_planting_status: "Planted" | "Harvested" | "Nursery"
       crop_type: "Vegetable" | "Fruit" | "Windbreak" | "Covercrop"
       planting_event_type:

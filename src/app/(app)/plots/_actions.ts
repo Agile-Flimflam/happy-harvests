@@ -211,6 +211,7 @@ export async function createBed(
     plot_id: validatedFields.data.plot_id,
     length_inches: validatedFields.data.length_inches ?? null,
     width_inches: validatedFields.data.width_inches ?? null,
+    name: (formData.get('name') as string | null) ?? null,
   };
   try {
     const { error } = await supabase.from('beds').insert(bedData);
@@ -257,6 +258,7 @@ export async function updateBed(
     plot_id: validatedFields.data.plot_id,
     length_inches: validatedFields.data.length_inches ?? null,
     width_inches: validatedFields.data.width_inches ?? null,
+    name: (formData.get('name') as string | null) ?? undefined,
   };
   try {
     const { error } = await supabase

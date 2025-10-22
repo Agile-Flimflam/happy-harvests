@@ -184,7 +184,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
                     const acresTooltip = acresRaw != null ? formatAcres(acresRaw, { variant: 'tooltip' }) : null;
                     return (
                       <TableRow key={bed.id} className="hover:bg-muted/30">
-                        <TableCell className="font-medium">#{bed.id}</TableCell>
+                        <TableCell className="font-medium">{bed.name ? bed.name : `#${bed.id}`}</TableCell>
                         <TableCell className="font-mono text-sm">
                           {bed.length_inches && bed.width_inches 
                             ? `${bed.length_inches}" × ${bed.width_inches}`
@@ -449,6 +449,7 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
         tempF={tempF}
         description={current.weather?.description || null}
         inlineDescription={false}
+        hawaiianMoon={(state.status === 'ready' ? (state.data as any).hawaiianMoonPhaseLabel : undefined) as any}
         size="sm"
       />
       {typeof current.sunrise === 'number' && (
@@ -461,9 +462,9 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
           <Sunset className="h-3 w-3" /> {formatUnixToLocalTime(current.sunset)}
         </span>
       )}
-      {state.data.moonPhaseLabel && (
+      {(state.data as any).hawaiianMoonPhaseLabel && (
         <span className="inline-flex items-center gap-1 text-muted-foreground">
-          <Moon className="h-3 w-3" /> {state.data.moonPhaseLabel}
+          <Moon className="h-3 w-3" /> {(state.data as any).hawaiianMoonPhaseLabel}
         </span>
       )}
       {typeof current.humidity === 'number' && (

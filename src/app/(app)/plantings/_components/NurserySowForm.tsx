@@ -8,6 +8,7 @@ import { NurserySowSchema, type NurserySowInput } from '@/lib/validation/plantin
 import { actionNurserySow, type PlantingFormState } from '../_actions';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { hawaiianMoonForISO } from '@/lib/hawaiian-moon'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,9 +29,10 @@ interface Props {
   nurseries: Nursery[];
   closeDialog: () => void;
   formId?: string;
+  defaultDate?: string | null;
 }
 
-export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }: Props) {
+export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId, defaultDate = null }: Props) {
   const initial: PlantingFormState = { message: '', errors: {}, planting: null };
   const [state, formAction] = useActionState(actionNurserySow, initial);
 
@@ -41,7 +43,7 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
       crop_variety_id: undefined,
       qty: undefined,
       nursery_id: '',
-      event_date: '',
+      event_date: defaultDate || '',
       notes: '',
       weight_grams: undefined,
     },
@@ -203,6 +205,9 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId }
                   onChange={(e) => field.onChange(e.target.value)}
                 />
               </FormControl>
+              {typeof field.value === 'string' && field.value ? (
+                <div className="text-xs text-muted-foreground">Hawaiian moon: <span className="font-medium">{hawaiianMoonForISO(field.value) ?? '—'}</span></div>
+              ) : null}
               <FormMessage />
             </FormItem>
           )}

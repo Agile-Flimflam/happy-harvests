@@ -1,5 +1,7 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import { Leaf, Sprout, Tractor } from 'lucide-react';
 
 export default async function DashboardPage() {
@@ -54,6 +56,21 @@ export default async function DashboardPage() {
           <CardContent>
             <div className="text-2xl font-bold">{cropCount ?? 'N/A'}</div>
              {cropError && <p className="text-xs text-red-500">Error loading</p>}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              <Button asChild>
+                <Link href="/activities/new">Track an Activity</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/activities">View Activities</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -9,9 +9,10 @@ type WeatherBadgeProps = {
   description?: string | null
   inlineDescription?: boolean
   size?: 'sm' | 'md'
+  hawaiianMoon?: string | null
 }
 
-export function WeatherBadge({ icon, tempF, description, inlineDescription = false, size = 'md' }: WeatherBadgeProps) {
+export function WeatherBadge({ icon, tempF, description, inlineDescription = false, size = 'md', hawaiianMoon = null }: WeatherBadgeProps) {
   const iconSize = size === 'sm' ? 24 : 32
   const tipIconSize = size === 'sm' ? 22 : 28
   const temperature = typeof tempF === 'number' ? `${Math.round(tempF)}°F` : '—'
@@ -50,6 +51,9 @@ export function WeatherBadge({ icon, tempF, description, inlineDescription = fal
             </div>
             {description ? (
               <div className="mt-1 text-sm capitalize">{description}</div>
+            ) : null}
+            {hawaiianMoon ? (
+              <div className="mt-1 text-xs">Hawaiian Moon: <span className="font-medium">{hawaiianMoon}</span></div>
             ) : null}
           </TooltipContent>
         </Tooltip>

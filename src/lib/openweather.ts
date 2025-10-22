@@ -1,5 +1,6 @@
 import 'server-only'
 import { getOpenWeatherIntegration } from '@/lib/integrations'
+import { hawaiianMoonPhaseLabel } from '@/lib/hawaiian-moon'
 
 const OPENWEATHER_BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall'
 
@@ -43,6 +44,7 @@ export type WeatherResult = {
   }
   moonPhase?: number
   moonPhaseLabel?: string
+  hawaiianMoonPhaseLabel?: string
 }
 
 export async function fetchWeatherByCoords(
@@ -106,6 +108,7 @@ export async function fetchWeatherByCoords(
     },
     moonPhase: data.daily?.[0]?.moon_phase,
     moonPhaseLabel: data.daily?.[0]?.moon_phase != null ? formatMoonPhase(data.daily?.[0]?.moon_phase) : undefined,
+    hawaiianMoonPhaseLabel: data.daily?.[0]?.moon_phase != null ? (hawaiianMoonPhaseLabel(data.daily?.[0]?.moon_phase) || undefined) : undefined,
   }
 }
 

@@ -6,6 +6,7 @@ import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DirectSeedSchema, type DirectSeedInput } from '@/lib/validation/plantings/direct-seed';
 import { z } from 'zod';
+import { hawaiianMoonForISO } from '@/lib/hawaiian-moon'
 import { actionDirectSeed, type PlantingFormState } from '../_actions';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -28,9 +29,10 @@ interface Props {
   beds: Bed[];
   closeDialog: () => void;
   formId?: string;
+  defaultDate?: string | null;
 }
 
-export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId }: Props) {
+export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId, defaultDate = null }: Props) {
   const initial: PlantingFormState = { message: '', errors: {}, planting: null };
   const [state, formAction] = useActionState(actionDirectSeed, initial);
 
@@ -41,7 +43,7 @@ export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId }: Pro
       crop_variety_id: undefined,
       qty: undefined,
       bed_id: undefined,
-      event_date: '',
+      event_date: defaultDate || '',
       notes: '',
       weight_grams: undefined,
     },
@@ -204,6 +206,9 @@ export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId }: Pro
                   onChange={(e) => field.onChange(e.target.value)}
                 />
               </FormControl>
+              {typeof field.value === 'string' && field.value ? (
+                <div className="text-xs text-muted-foreground">Hawaiian moon: <span className="font-medium">{hawaiianMoonForISO(field.value) ?? '—'}</span></div>
+              ) : null}
               <FormMessage />
             </FormItem>
           )}
