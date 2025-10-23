@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlotForm } from '../_components/PlotForm';
 import { BedForm } from '../_components/BedForm';
 import { deletePlot, deleteBed } from '../_actions';
-import { Pencil, Trash2, PlusCircle, MapPin, Sunrise, Sunset, Moon, Droplet } from 'lucide-react';
+import { Pencil, Trash2, PlusCircle, MapPin, Sunrise, Sunset, Droplet } from 'lucide-react';
 import { toast } from "sonner";
 import PageHeader from '@/components/page-header';
 import PageContent from '@/components/page-content';
@@ -184,7 +184,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
                     const acresTooltip = acresRaw != null ? formatAcres(acresRaw, { variant: 'tooltip' }) : null;
                     return (
                       <TableRow key={bed.id} className="hover:bg-muted/30">
-                        <TableCell className="font-medium">#{bed.id}</TableCell>
+                        <TableCell className="font-medium">{bed.name ? bed.name : `#${bed.id}`}</TableCell>
                         <TableCell className="font-mono text-sm">
                           {bed.length_inches && bed.width_inches 
                             ? `${bed.length_inches}" × ${bed.width_inches}`
@@ -449,6 +449,7 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
         tempF={tempF}
         description={current.weather?.description || null}
         inlineDescription={false}
+        hawaiianMoon={state.status === 'ready' ? state.data.moonPhaseLabel ?? undefined : undefined}
         size="sm"
       />
       {typeof current.sunrise === 'number' && (
@@ -461,11 +462,7 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
           <Sunset className="h-3 w-3" /> {formatUnixToLocalTime(current.sunset)}
         </span>
       )}
-      {state.data.moonPhaseLabel && (
-        <span className="inline-flex items-center gap-1 text-muted-foreground">
-          <Moon className="h-3 w-3" /> {state.data.moonPhaseLabel}
-        </span>
-      )}
+      {/* Moon phase is now shown inline via WeatherBadge */}
       {typeof current.humidity === 'number' && (
         <span className="inline-flex items-center gap-1 text-muted-foreground">
           <Droplet className="h-3 w-3" /> {current.humidity}%

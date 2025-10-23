@@ -60,13 +60,15 @@ interface PlantingsPageContentProps {
   cropVarieties: CropVariety[];
   beds: Bed[];
   nurseries: { id: string; name: string }[];
+  scheduleDate?: string;
+  defaultCreateMode?: 'nursery' | 'direct' | null;
 }
 
-export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries: _nurseries }: PlantingsPageContentProps) {
+export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries: _nurseries, scheduleDate, defaultCreateMode = null }: PlantingsPageContentProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [createMode, setCreateMode] = useState<'nursery' | 'direct' | null>(null);
+  const [createMode, setCreateMode] = useState<'nursery' | 'direct' | null>(defaultCreateMode);
   const [actionDialog, setActionDialog] = useState<
     | { type: 'transplant' | 'move' | 'remove' | 'history'; plantingId: number }
     | { type: 'harvest'; plantingId: number; defaultQty?: number | null; defaultWeight?: number | null }
@@ -169,10 +171,10 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
           className="sm:max-w-md"
         >
           {createMode === 'nursery' && (
-            <NurserySowForm cropVarieties={cropVarieties} nurseries={_nurseries} closeDialog={closeDialog} formId="nurserySowForm" />
+            <NurserySowForm cropVarieties={cropVarieties} nurseries={_nurseries} closeDialog={closeDialog} formId="nurserySowForm" defaultDate={scheduleDate} />
           )}
           {createMode === 'direct' && (
-            <DirectSeedForm cropVarieties={cropVarieties} beds={beds} closeDialog={closeDialog} formId="directSeedForm" />
+            <DirectSeedForm cropVarieties={cropVarieties} beds={beds} closeDialog={closeDialog} formId="directSeedForm" defaultDate={scheduleDate} />
           )}
         </FormDialog>
       )}

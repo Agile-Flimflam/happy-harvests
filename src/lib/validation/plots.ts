@@ -15,6 +15,7 @@ export const BedSchema = z.object({
   plot_id: z.coerce.number().int({ message: 'Plot selection is required' }),
   length_inches: z.coerce.number().int().positive().optional().nullable(),
   width_inches: z.coerce.number().int().positive().optional().nullable(),
+  name: z.string().max(120).optional().nullable(),
 });
 
 export type BedFormValues = z.infer<typeof BedSchema>;

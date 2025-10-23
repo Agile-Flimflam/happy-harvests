@@ -13,7 +13,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { LocationForm } from './LocationForm';
 import { deleteLocation } from '../_actions';
 import { toast } from 'sonner';
-import { Pencil, Trash2, PlusCircle, Sunrise, Sunset, Moon, Droplet } from 'lucide-react';
+import { Pencil, Trash2, PlusCircle, Sunrise, Sunset, Droplet } from 'lucide-react';
 
 type Location = Tables<'locations'>;
 
@@ -218,6 +218,7 @@ function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number
         description={current.weather?.description || null}
         inlineDescription
         size="sm"
+        hawaiianMoon={state.data.moonPhaseLabel}
       />
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
         {typeof current.sunrise === 'number' && (
@@ -230,11 +231,7 @@ function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number
             <Sunset className="h-3 w-3" /> {formatUnixToLocalTime(current.sunset)}
           </span>
         )}
-        {state.data.moonPhaseLabel && (
-          <span className="inline-flex items-center gap-1">
-            <Moon className="h-3 w-3" /> {state.data.moonPhaseLabel}
-          </span>
-        )}
+        {/* Moon phase shown inline via WeatherBadge tooltip */}
         {typeof current.humidity === 'number' && (
           <span className="inline-flex items-center gap-1">
             <Droplet className="h-3 w-3" /> {current.humidity}%

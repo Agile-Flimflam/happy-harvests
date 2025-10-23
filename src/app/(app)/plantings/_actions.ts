@@ -1,6 +1,8 @@
 "use server";
 
 import { createSupabaseServerClient, type Tables } from "@/lib/supabase-server";
+import type { Database } from '@/lib/database.types'
+import type { PlantingWithDetails } from '@/lib/types'
 import { revalidatePath } from "next/cache";
 
 type Planting = Tables<'plantings'>;
@@ -21,14 +23,17 @@ export async function actionNurserySow(prev: PlantingFormState, formData: FormDa
   const notes = (formData.get('notes') as string) || undefined;
   const weightGramsRaw = formData.get('weight_grams');
   const weightGrams = weightGramsRaw == null || String(weightGramsRaw) === '' ? undefined : Number(weightGramsRaw);
-  const { error } = await supabase.rpc('fn_create_nursery_planting', {
-    p_crop_variety_id: Number(cropVarietyId),
-    p_qty: Number(qty),
-    p_nursery_id: String(nurseryId),
-    p_event_date: String(eventDate),
-    p_notes: notes ?? undefined,
-    p_weight_grams: weightGrams,
-  });
+  const { error } = await supabase.rpc(
+    'fn_create_nursery_planting',
+    ({
+      p_crop_variety_id: Number(cropVarietyId),
+      p_qty_initial: Number(qty),
+      p_nursery_id: String(nurseryId),
+      p_event_date: String(eventDate),
+      p_notes: notes ?? undefined,
+      p_weight_grams: weightGrams,
+    } as unknown) as Database['public']['Functions']['fn_create_nursery_planting']['Args']
+  );
   if (error) return { message: `Database Error: ${error.message}` };
   revalidatePath('/plantings');
   return { message: 'Nursery planting created.' };
@@ -43,14 +48,17 @@ export async function actionDirectSeed(prev: PlantingFormState, formData: FormDa
   const notes = (formData.get('notes') as string) || undefined;
   const weightGramsRaw = formData.get('weight_grams');
   const weightGrams = weightGramsRaw == null || String(weightGramsRaw) === '' ? undefined : Number(weightGramsRaw);
-  const { error } = await supabase.rpc('fn_create_direct_seed_planting', {
-    p_crop_variety_id: Number(cropVarietyId),
-    p_qty: Number(qty),
-    p_bed_id: Number(bedId),
-    p_event_date: String(eventDate),
-    p_notes: notes ?? undefined,
-    p_weight_grams: weightGrams,
-  });
+  const { error } = await supabase.rpc(
+    'fn_create_direct_seed_planting',
+    ({
+      p_crop_variety_id: Number(cropVarietyId),
+      p_qty_initial: Number(qty),
+      p_bed_id: Number(bedId),
+      p_event_date: String(eventDate),
+      p_notes: notes ?? undefined,
+      p_weight_grams: weightGrams,
+    } as unknown) as Database['public']['Functions']['fn_create_direct_seed_planting']['Args']
+  );
   if (error) return { message: `Database Error: ${error.message}` };
   revalidatePath('/plantings');
   return { message: 'Direct-seeded planting created.' };
@@ -141,21 +149,7 @@ export const actionRemove = async (prev: PlantingFormState, formData: FormData):
   return { message: 'Planting removed.' };
 }
 
-type PlantingWithDetails = Planting & {
-  crop_varieties: { name: string; latin_name: string; crops: { name: string } | null } | null;
-  beds: {
-    id: number;
-    length_inches: number | null;
-    width_inches: number | null;
-    plots: { locations: { name: string } | null } | null;
-  } | null;
-  nurseries: { name: string } | null;
-  // merged metrics from view
-  planted_qty?: number | null;
-  planted_weight_grams?: number | null;
-  harvest_qty?: number | null;
-  harvest_weight_grams?: number | null;
-};
+// Using shared type from src/lib/types
 
 export async function getPlantingsWithDetails(): Promise<{ plantings?: PlantingWithDetails[]; error?: string }> {
   const supabase = await createSupabaseServerClient();
@@ -245,19 +239,24 @@ export async function getCropVarietiesForSelect(): Promise<{ varieties?: CropVar
     .select('id, name, latin_name, crops(name)')
     .order('name', { ascending: true });
   if (error) return { error: error.message };
-  return { varieties: (data as unknown as CropVarietyForSelect[]) || [] };
+  const rows = (data as unknown as CropVarietyForSelect[]) || [];
+  // Ensure newly created varieties from seeds are included immediately (no filter)
+  return { varieties: rows };
 }
 
 // Lifecycle actions (RPC)
 export async function createNurseryPlanting(input: { crop_variety_id: number; qty: number; nursery_id: string; event_date: string; notes?: string }) {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc('fn_create_nursery_planting', {
-    p_crop_variety_id: input.crop_variety_id,
-    p_qty: input.qty,
-    p_nursery_id: input.nursery_id,
-    p_event_date: input.event_date,
-    p_notes: input.notes ?? undefined,
-  });
+  const { error } = await supabase.rpc(
+    'fn_create_nursery_planting',
+    ({
+      p_crop_variety_id: input.crop_variety_id,
+      p_qty_initial: input.qty,
+      p_nursery_id: input.nursery_id,
+      p_event_date: input.event_date,
+      p_notes: input.notes ?? undefined,
+    } as unknown) as Database['public']['Functions']['fn_create_nursery_planting']['Args']
+  );
   if (error) return { error: error.message };
   revalidatePath('/plantings');
   return { ok: true };
@@ -265,13 +264,16 @@ export async function createNurseryPlanting(input: { crop_variety_id: number; qt
 
 export async function createDirectSeedPlanting(input: { crop_variety_id: number; qty: number; bed_id: number; event_date: string; notes?: string }) {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc('fn_create_direct_seed_planting', {
-    p_crop_variety_id: input.crop_variety_id,
-    p_qty: input.qty,
-    p_bed_id: input.bed_id,
-    p_event_date: input.event_date,
-    p_notes: input.notes ?? undefined,
-  });
+  const { error } = await supabase.rpc(
+    'fn_create_direct_seed_planting',
+    ({
+      p_crop_variety_id: input.crop_variety_id,
+      p_qty_initial: input.qty,
+      p_bed_id: input.bed_id,
+      p_event_date: input.event_date,
+      p_notes: input.notes ?? undefined,
+    } as unknown) as Database['public']['Functions']['fn_create_direct_seed_planting']['Args']
+  );
   if (error) return { error: error.message };
   revalidatePath('/plantings');
   return { ok: true };

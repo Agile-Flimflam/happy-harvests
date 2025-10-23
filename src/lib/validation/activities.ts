@@ -1,0 +1,32 @@
+import { z } from 'zod'
+
+export const ActivitySchema = z.object({
+  activity_type: z.enum(['irrigation','soil_amendment','pest_management','asset_maintenance']),
+  started_at: z.string().min(1, { message: 'Start time is required' }).transform((s) => s.replace(' ', 'T')),
+  ended_at: z
+    .string()
+    .transform((s) => (s ? s.replace(' ', 'T') : s))
+    .optional()
+    .nullable(),
+  duration_minutes: z.coerce.number().int().min(0).optional().nullable(),
+  labor_hours: z.coerce.number().min(0).optional().nullable(),
+  location_id: z.string().uuid().optional().nullable(),
+  plot_id: z.coerce.number().int().optional().nullable(),
+  bed_id: z.coerce.number().int().optional().nullable(),
+  nursery_id: z.string().uuid().optional().nullable(),
+  crop: z.string().optional().nullable(),
+  asset_id: z.string().optional().nullable(),
+  asset_name: z.string().optional().nullable(),
+  quantity: z.coerce.number().min(0).optional().nullable(),
+  unit: z.string().optional().nullable(),
+  cost: z.coerce.number().min(0).optional().nullable(),
+  notes: z.string().optional().nullable(),
+  amendments: z
+    .array(z.object({ name: z.string().min(1), quantity: z.coerce.number().optional().nullable(), unit: z.string().optional().nullable(), notes: z.string().optional().nullable() }))
+    .optional()
+    .nullable(),
+})
+
+export type ActivityFormValues = z.infer<typeof ActivitySchema>
+
+

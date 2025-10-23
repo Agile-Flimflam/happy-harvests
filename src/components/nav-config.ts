@@ -1,4 +1,4 @@
-import { Home, Leaf, Fence, Sprout, MapPin, Users, Blocks, FlaskConical } from "lucide-react"
+import { Home, Leaf, Fence, Sprout, MapPin, Users, Blocks, FlaskConical, Droplets, Calendar, Package, Contact } from "lucide-react"
 
 export type NavItem = {
   label: string
@@ -22,6 +22,12 @@ export const WORK_GROUP: NavGroup = {
   label: "Work",
   items: [
     { label: "Plantings", href: "/plantings", icon: Sprout },
+    { label: "Activities", href: "/activities", icon: Droplets },
+    { label: "Activities (Table)", href: "/activities/table", icon: Droplets },
+    { label: "Calendar", href: "/calendar", icon: Calendar },
+    { label: "Seeds", href: "/seeds", icon: Package },
+    { label: "Customers", href: "/customers", icon: Contact },
+    { label: "Deliveries", href: "/deliveries", icon: Package },
   ],
 }
 
