@@ -116,6 +116,7 @@ export async function upsertSeed(prev: SeedFormState, formData: FormData): Promi
   if (!cropName) {
     return { message: 'Validation failed', errors: { crop_name: ['Crop is required'] } }
   }
+  // variety_name is optional per schema and DB; allow empty here
   const toISODate = (v: string | null): string | null => {
     if (!v) return null
     const s = v.trim()

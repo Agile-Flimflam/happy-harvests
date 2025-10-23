@@ -1,4 +1,7 @@
 -- Extend initial create RPCs to optionally capture seed weight in initial events
+-- NOTE (breaking change): This migration also renames the quantity parameter
+-- from p_qty → p_qty_initial for both functions below. Call sites must pass
+-- p_qty_initial going forward. The application code has been updated to do so.
 begin;
 
   -- Nursery sow: add p_weight_grams and write to planting_events.weight_grams

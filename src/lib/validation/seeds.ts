@@ -4,7 +4,8 @@ export const SeedSchema = z.object({
   id: z.number().int().optional(),
   crop_variety_id: z.union([z.coerce.number().int(), z.literal(''), z.null()]).optional(),
   crop_name: z.string().min(1, { message: 'Crop name is required' }),
-  variety_name: z.string().min(1, { message: 'Variety is required' }),
+  // Optional to allow logging seeds without a specific variety yet
+  variety_name: z.string().optional().nullable(),
   vendor: z.string().optional().nullable(),
   lot_number: z.string().optional().nullable(),
   date_received: z.string().optional().nullable(),

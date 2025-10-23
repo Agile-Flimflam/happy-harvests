@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { ActivityFormState } from '@/app/(app)/activities/_actions'
+import { renameBed } from '@/app/(app)/activities/_actions'
 function AmendmentsEditor() {
   const [items, setItems] = React.useState<Array<{ name: string; quantity?: string; unit?: string; notes?: string }>>([
     { name: '' },
@@ -77,6 +78,7 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
   const [plotId, setPlotId] = React.useState<string>('')
   const [bedId, setBedId] = React.useState<string>('')
   const [nurseryId, setNurseryId] = React.useState<string>('')
+  const [bedsLocal, setBedsLocal] = React.useState(beds)
   type TemplatePayload = {
     activity_type?: string
     location_id?: string
@@ -131,6 +133,11 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
       setLocationId(locations[0].id)
     }
   }, [locations, locationId])
+
+  // Keep local beds list in sync with props
+  React.useEffect(() => {
+    setBedsLocal(beds)
+  }, [beds])
 
   // Type-based duration presets
   function getPresetsForType(t: string) {
@@ -305,7 +312,7 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
               <label className="text-sm font-medium">Bed</label>
               <select name="bed_id" className="w-full h-9 border rounded px-2" value={bedId} onChange={(e) => setBedId(e.currentTarget.value)} disabled={!locationId}>
                 <option value="">—</option>
-                {beds.filter((b) => (plotId ? String(b.plot_id) === plotId : true)).map((b) => (
+                {bedsLocal.filter((b) => (plotId ? String(b.plot_id) === plotId : true)).map((b) => (
                   <option key={b.id} value={b.id}>{b.name ? b.name : `Bed #${b.id}`}</option>
                 ))}
               </select>
@@ -317,17 +324,17 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
                   const name = nameEl?.value.trim() || ''
                   if (!name) return
                   try {
-                    const res = await fetch('/api/beds/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bed_id: Number(bedId), name }) })
-                    if (!res.ok) {
-                      const data = await res.json().catch(() => ({}))
-                      throw new Error(data?.error || 'Rename failed')
-                    }
-                    // Optimistic UI: replace label in select option
+                    const fd = new FormData()
+                    fd.append('bed_id', String(bedId))
+                    fd.append('name', name)
+                  const res = await renameBed(fd)
+                  // Optimistic UI: replace label in select option immutably
                     nameEl!.value = ''
-                    const idx = beds.findIndex((b) => String(b.id) === String(bedId))
-                    if (idx >= 0) beds[idx].name = name
-                    toast.success('Bed renamed')
-                  } catch {}
+                  setBedsLocal((prev) => prev.map((b) => (String(b.id) === String(bedId) ? { ...b, name } : b)))
+                    toast.success(res?.message || 'Bed renamed')
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : 'Rename failed')
+                  }
                 }}>Rename</Button>
               </div>
             ) : null}
