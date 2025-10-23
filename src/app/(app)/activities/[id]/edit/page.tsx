@@ -92,8 +92,3 @@ export default async function EditActivityPage({ params }: { params: Promise<{ i
     </div>
   )
 }
-
-
-
-
-
