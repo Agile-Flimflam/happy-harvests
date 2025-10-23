@@ -34,14 +34,21 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline">{cancelText}</Button>
-          </DialogClose>
-          <Button variant={confirmVariant} onClick={onConfirm} disabled={confirming} aria-disabled={confirming}>
-            {confirming ? 'Please wait…' : confirmText}
-          </Button>
-        </DialogFooter>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            onConfirm()
+          }}
+        >
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">{cancelText}</Button>
+            </DialogClose>
+            <Button type="submit" variant={confirmVariant} disabled={confirming} aria-disabled={confirming} autoFocus>
+              {confirming ? 'Please wait…' : confirmText}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

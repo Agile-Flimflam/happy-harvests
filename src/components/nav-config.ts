@@ -1,4 +1,4 @@
-import { Home, Leaf, Fence, Sprout, MapPin, Users, Blocks } from "lucide-react"
+import { Home, Leaf, Fence, Sprout, MapPin, Users, Blocks, FlaskConical } from "lucide-react"
 
 export type NavItem = {
   label: string
@@ -30,6 +30,7 @@ export const SETUP_GROUP: NavGroup = {
   items: [
     { label: "Locations", href: "/locations", icon: MapPin },
     { label: "Plots & Beds", href: "/plots", icon: Fence },
+    { label: "Nurseries", href: "/nurseries", icon: FlaskConical },
     { label: "Crop Varieties", href: "/crop-varieties", icon: Leaf },
   ],
 }

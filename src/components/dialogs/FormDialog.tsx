@@ -10,9 +10,9 @@ type FormDialogProps = {
   onOpenChange: (open: boolean) => void
   title: React.ReactNode
   description?: React.ReactNode
-  submitLabel: string
+  submitLabel?: string
   cancelLabel?: string
-  formId: string
+  formId?: string
   children: React.ReactNode
   className?: string
 }
@@ -44,10 +44,18 @@ export default function FormDialog({
           </div>
         </div>
         <DialogFooter className="shrink-0 px-6">
-          <DialogClose asChild>
-            <Button variant="outline">{cancelLabel}</Button>
-          </DialogClose>
-          <Button type="submit" form={formId}>{submitLabel}</Button>
+          {submitLabel && formId ? (
+            <>
+              <DialogClose asChild>
+                <Button variant="outline">{cancelLabel}</Button>
+              </DialogClose>
+              <Button type="submit" form={formId}>{submitLabel}</Button>
+            </>
+          ) : (
+            <DialogClose asChild>
+              <Button type="button" variant="outline">Close</Button>
+            </DialogClose>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

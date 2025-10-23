@@ -7,67 +7,33 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
-      bed_plantings: {
-        Row: {
-          bed_id: number
-          created_at: string
-          crop_variety_id: number
-          date_planted: string
-          harvested_date: string | null
-          id: number
-          notes: string | null
-          planting_type: Database["public"]["Enums"]["planting_type"]
-          qty_planting: number
-          status: Database["public"]["Enums"]["bed_planting_status"]
-        }
-        Insert: {
-          bed_id: number
-          created_at?: string
-          crop_variety_id: number
-          date_planted: string
-          harvested_date?: string | null
-          id?: number
-          notes?: string | null
-          planting_type: Database["public"]["Enums"]["planting_type"]
-          qty_planting: number
-          status: Database["public"]["Enums"]["bed_planting_status"]
-        }
-        Update: {
-          bed_id?: number
-          created_at?: string
-          crop_variety_id?: number
-          date_planted?: string
-          harvested_date?: string | null
-          id?: number
-          notes?: string | null
-          planting_type?: Database["public"]["Enums"]["planting_type"]
-          qty_planting?: number
-          status?: Database["public"]["Enums"]["bed_planting_status"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "Bed Plantings_bed_id_fkey"
-            columns: ["bed_id"]
-            isOneToOne: false
-            referencedRelation: "beds"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "Bed Plantings_crop_variety_id_fkey"
-            columns: ["crop_variety_id"]
-            isOneToOne: false
-            referencedRelation: "crop_varieties"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       beds: {
         Row: {
           created_at: string
@@ -291,6 +257,169 @@ export type Database = {
         }
         Relationships: []
       }
+      nurseries: {
+        Row: {
+          created_at: string
+          id: string
+          location_id: string
+          name: string
+          notes: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          location_id: string
+          name: string
+          notes?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          location_id?: string
+          name?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nurseries_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planting_events: {
+        Row: {
+          bed_id: number | null
+          created_at: string
+          created_by: string | null
+          event_date: string
+          event_type: Database["public"]["Enums"]["planting_event_type"]
+          id: number
+          nursery_id: string | null
+          payload: Json | null
+          planting_id: number
+          qty: number | null
+          weight_grams: number | null
+        }
+        Insert: {
+          bed_id?: number | null
+          created_at?: string
+          created_by?: string | null
+          event_date: string
+          event_type: Database["public"]["Enums"]["planting_event_type"]
+          id?: number
+          nursery_id?: string | null
+          payload?: Json | null
+          planting_id: number
+          qty?: number | null
+          weight_grams?: number | null
+        }
+        Update: {
+          bed_id?: number | null
+          created_at?: string
+          created_by?: string | null
+          event_date?: string
+          event_type?: Database["public"]["Enums"]["planting_event_type"]
+          id?: number
+          nursery_id?: string | null
+          payload?: Json | null
+          planting_id?: number
+          qty?: number | null
+          weight_grams?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planting_events_bed_id_fkey"
+            columns: ["bed_id"]
+            isOneToOne: false
+            referencedRelation: "beds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planting_events_nursery_id_fkey"
+            columns: ["nursery_id"]
+            isOneToOne: false
+            referencedRelation: "nurseries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planting_events_planting_id_fkey"
+            columns: ["planting_id"]
+            isOneToOne: false
+            referencedRelation: "plantings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plantings: {
+        Row: {
+          bed_id: number | null
+          created_at: string
+          crop_variety_id: number
+          ended_date: string | null
+          id: number
+          notes: string | null
+          nursery_id: string | null
+          nursery_started_date: string | null
+          planted_date: string | null
+          propagation_method: string
+          status: Database["public"]["Enums"]["planting_status"]
+          updated_at: string
+        }
+        Insert: {
+          bed_id?: number | null
+          created_at?: string
+          crop_variety_id: number
+          ended_date?: string | null
+          id?: number
+          notes?: string | null
+          nursery_id?: string | null
+          nursery_started_date?: string | null
+          planted_date?: string | null
+          propagation_method: string
+          status: Database["public"]["Enums"]["planting_status"]
+          updated_at?: string
+        }
+        Update: {
+          bed_id?: number | null
+          created_at?: string
+          crop_variety_id?: number
+          ended_date?: string | null
+          id?: number
+          notes?: string | null
+          nursery_id?: string | null
+          nursery_started_date?: string | null
+          planted_date?: string | null
+          propagation_method?: string
+          status?: Database["public"]["Enums"]["planting_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plantings_bed_id_fkey"
+            columns: ["bed_id"]
+            isOneToOne: false
+            referencedRelation: "beds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plantings_crop_variety_id_fkey"
+            columns: ["crop_variety_id"]
+            isOneToOne: false
+            referencedRelation: "crop_varieties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plantings_nursery_id_fkey"
+            columns: ["nursery_id"]
+            isOneToOne: false
+            referencedRelation: "nurseries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plots: {
         Row: {
           created_at: string
@@ -376,8 +505,37 @@ export type Database = {
         }
         Relationships: []
       }
+      ,
+      plantings_summary: {
+        Row: {
+          id: number | null
+          planted_qty: number | null
+          planted_weight_grams: number | null
+          harvest_qty: number | null
+          harvest_weight_grams: number | null
+        }
+        Insert: {
+          id?: never
+          planted_qty?: never
+          planted_weight_grams?: never
+          harvest_qty?: never
+          harvest_weight_grams?: never
+        }
+        Update: {
+          id?: never
+          planted_qty?: never
+          planted_weight_grams?: never
+          harvest_qty?: never
+          harvest_weight_grams?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      _current_user_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       citext: {
         Args: { "": boolean } | { "": string } | { "": unknown }
         Returns: string
@@ -402,10 +560,61 @@ export type Database = {
         Args: { "": string }
         Returns: string
       }
+      fn_create_direct_seed_planting: {
+        Args: {
+          p_bed_id: number
+          p_crop_variety_id: number
+          p_event_date: string
+          p_notes?: string
+          p_qty: number
+          p_weight_grams?: number
+        }
+        Returns: number
+      }
+      fn_create_nursery_planting: {
+        Args: {
+          p_crop_variety_id: number
+          p_event_date: string
+          p_notes?: string
+          p_nursery_id: string
+          p_qty: number
+          p_weight_grams?: number
+        }
+        Returns: number
+      }
+      fn_harvest_planting: {
+        Args: {
+          p_event_date: string
+          p_planting_id: number
+          p_qty_harvested?: number
+          p_weight_grams?: number
+        }
+        Returns: undefined
+      }
+      fn_move_planting: {
+        Args: { p_bed_id: number; p_event_date: string; p_planting_id: number }
+        Returns: undefined
+      }
+      fn_remove_planting: {
+        Args: { p_event_date: string; p_planting_id: number; p_reason?: string }
+        Returns: undefined
+      }
+      fn_transplant_planting: {
+        Args: { p_bed_id: number; p_event_date: string; p_planting_id: number }
+        Returns: undefined
+      }
     }
     Enums: {
       bed_planting_status: "Planted" | "Harvested" | "Nursery"
       crop_type: "Vegetable" | "Fruit" | "Windbreak" | "Covercrop"
+      planting_event_type:
+        | "nursery_seeded"
+        | "direct_seeded"
+        | "transplanted"
+        | "moved"
+        | "harvested"
+        | "removed"
+      planting_status: "nursery" | "planted" | "harvested" | "removed"
       planting_type: "Direct Seed" | "Transplant"
       user_role: "admin" | "member"
     }
@@ -533,12 +742,25 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       bed_planting_status: ["Planted", "Harvested", "Nursery"],
       crop_type: ["Vegetable", "Fruit", "Windbreak", "Covercrop"],
+      planting_event_type: [
+        "nursery_seeded",
+        "direct_seeded",
+        "transplanted",
+        "moved",
+        "harvested",
+        "removed",
+      ],
+      planting_status: ["nursery", "planted", "harvested", "removed"],
       planting_type: ["Direct Seed", "Transplant"],
       user_role: ["admin", "member"],
     },
   },
 } as const
+
