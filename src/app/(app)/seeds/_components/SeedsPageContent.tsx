@@ -87,7 +87,7 @@ export function SeedsPageContent({ seeds, varieties }: { seeds: Seed[]; varietie
             </div>
             <div>
               <Label htmlFor="variety_name">Variety</Label>
-              <Input name="variety_name" id="variety_name" defaultValue={editing?.variety_name || ''} required />
+              <Input name="variety_name" id="variety_name" defaultValue={editing?.variety_name || ''} />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

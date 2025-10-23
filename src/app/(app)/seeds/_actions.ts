@@ -1,40 +1,25 @@
 "use server";
 
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-// Validation is kept simple here to avoid UX friction; we only require crop & variety names
+// Policy: seeds are link-only. Names are inferred from crop_variety_id.
 import { revalidatePath } from 'next/cache'
 import type { Tables, TablesInsert, Enums } from '@/lib/database.types'
 
 export async function getSeeds(): Promise<{ seeds?: Tables<'seeds'>[]; error?: string }> {
   const supabase = await createSupabaseServerClient()
-  // Self-heal: ensure seeds without a variety create one so they appear elsewhere
+  // Link-only self-heal: attempt to link seeds that have names but no crop_variety_id.
   try {
     const { data: loose } = await supabase.from('seeds').select('id, crop_name, variety_name, crop_variety_id').is('crop_variety_id', null)
     for (const s of (loose || [])) {
       const cropName = String(s.crop_name || '').trim()
-      const varietyName = String((s.variety_name || s.crop_name || '')).trim()
-      if (!cropName) continue
-      let cropId: number | null = null
+      const varietyName = String(s.variety_name || '').trim()
+      if (!cropName || !varietyName) continue
       const { data: crop } = await supabase.from('crops').select('id').ilike('name', cropName).maybeSingle()
-      if (crop?.id) {
-        cropId = crop.id as number
-      } else {
-        const { data: inserted } = await supabase.from('crops').insert({ name: cropName, crop_type: 'Vegetable' as Enums<'crop_type'> }).select('id').single()
-        if (inserted?.id) cropId = inserted.id as number
-      }
-      if (cropId != null && varietyName) {
-        const { data: v } = await supabase.from('crop_varieties').select('id').eq('name', varietyName).eq('crop_id', cropId).maybeSingle()
-        let vId = v?.id as number | undefined
-        if (!vId) {
-          const { data: inserted } = await supabase.from('crop_varieties').insert({
-            name: varietyName, crop_id: cropId, latin_name: '', dtm_direct_seed_min: 0, dtm_direct_seed_max: 0, dtm_transplant_min: 0, dtm_transplant_max: 0, is_organic: false,
-          }).select('id').single()
-          vId = inserted?.id as number | undefined
-        }
-        if (vId) {
-          await supabase.from('seeds').update({ crop_variety_id: vId }).eq('id', s.id)
-        }
-      }
+      const cropId = crop?.id as number | undefined
+      if (!cropId) continue
+      const { data: v } = await supabase.from('crop_varieties').select('id').eq('crop_id', cropId).ilike('name', varietyName).maybeSingle()
+      const vId = v?.id as number | undefined
+      if (vId) await supabase.from('seeds').update({ crop_variety_id: vId }).eq('id', s.id)
     }
   } catch {}
 
@@ -111,10 +96,9 @@ export async function upsertSeed(prev: SeedFormState, formData: FormData): Promi
   const supabase = await createSupabaseServerClient()
   const idRaw = formData.get('id')
   const cropVarietyIdRaw = formData.get('crop_variety_id')
-  const cropName = String(formData.get('crop_name') || '').trim()
-  const varietyName = String(formData.get('variety_name') || '').trim()
-  if (!cropName) {
-    return { message: 'Validation failed', errors: { crop_name: ['Crop is required'] } }
+  const cropVarietyId = typeof cropVarietyIdRaw === 'string' && cropVarietyIdRaw ? Number(cropVarietyIdRaw) : NaN
+  if (!Number.isFinite(cropVarietyId)) {
+    return { message: 'Validation failed', errors: { crop_variety_id: ['Crop variety is required'] } }
   }
   // variety_name is optional per schema and DB; allow empty here
   const toISODate = (v: string | null): string | null => {
@@ -132,11 +116,21 @@ export async function upsertSeed(prev: SeedFormState, formData: FormData): Promi
     return s
   }
 
+  // Infer names from crop_variety_id (do not accept free-text names)
+  const { data: varietyRow, error: vErr } = await supabase
+    .from('crop_varieties')
+    .select('name, crops(name)')
+    .eq('id', cropVarietyId)
+    .single()
+  if (vErr) return { message: `Database Error: ${vErr.message}` }
+  const inferredCropName = ((varietyRow as unknown as { crops?: { name?: string | null } | null })?.crops?.name ?? '')
+  const inferredVarietyName = ((varietyRow as unknown as { name?: string | null })?.name ?? '')
+
   const payload = {
     id: typeof idRaw === 'string' && idRaw ? Number(idRaw) : undefined,
-    crop_variety_id: typeof cropVarietyIdRaw === 'string' && cropVarietyIdRaw ? Number(cropVarietyIdRaw) : undefined,
-    crop_name: cropName,
-    variety_name: varietyName,
+    crop_variety_id: cropVarietyId,
+    crop_name: inferredCropName,
+    variety_name: inferredVarietyName,
     vendor: (formData.get('vendor') as string) || null,
     lot_number: (formData.get('lot_number') as string) || null,
     date_received: toISODate((formData.get('date_received') as string) || null),
@@ -145,54 +139,7 @@ export async function upsertSeed(prev: SeedFormState, formData: FormData): Promi
     notes: (formData.get('notes') as string) || null,
   }
 
-  // If crop_variety_id not provided, ensure crop + variety exist (create if missing) and fill ids/names
-  if (!payload.crop_variety_id || String(payload.crop_variety_id).trim() === '') {
-    // Find or create crop
-    const cropName = String(payload.crop_name).trim()
-    // If user didn't provide a variety, use crop name as variety for availability in plantings
-    const varietyName = String(payload.variety_name || payload.crop_name || '').trim()
-    let cropId: number | null = null
-    {
-      const { data: crop } = await supabase.from('crops').select('id').eq('name', cropName).maybeSingle()
-      if (crop?.id) {
-        cropId = crop.id as number
-      } else {
-        const { data: inserted, error: ciErr } = await supabase.from('crops').insert({ name: cropName, crop_type: 'Vegetable' as Enums<'crop_type'> }).select('id').single()
-        if (ciErr) {
-          return { message: `Database Error: ${ciErr.message}` }
-        }
-        if (inserted?.id) cropId = inserted.id as number
-      }
-    }
-    // Find or create crop variety
-    if (cropId != null && varietyName) {
-      const { data: variety } = await supabase
-        .from('crop_varieties')
-        .select('id')
-        .eq('crop_id', cropId)
-        .ilike('name', varietyName)
-        .maybeSingle()
-      if (variety?.id) {
-        payload.crop_variety_id = variety.id
-      } else {
-        // Minimal defaults for required fields
-        const { data: inserted, error: vErr } = await supabase.from('crop_varieties').insert({
-          name: varietyName,
-          crop_id: cropId,
-          latin_name: '',
-          dtm_direct_seed_min: 0,
-          dtm_direct_seed_max: 0,
-          dtm_transplant_min: 0,
-          dtm_transplant_max: 0,
-          is_organic: false,
-        }).select('id').single()
-        if (vErr) {
-          return { message: `Database Error: ${vErr.message}` }
-        }
-        if (inserted?.id) payload.crop_variety_id = inserted.id
-      }
-    }
-  }
+  // Do not create crops/varieties here; caller must provide crop_variety_id
 
   const { error } = await supabase.from('seeds').upsert(payload as unknown as TablesInsert<'seeds'>)
   if (error) return { message: `Database Error: ${error.message}` }

@@ -18,7 +18,7 @@ export function WeatherBadge({ icon, tempF, description, inlineDescription = fal
     <div className="inline-flex items-center gap-2">
       {icon ? (
         <Image
-          src={`https://openweathermap.org/img/wn/@{icon}@2x.png`}
+          src={`https://openweathermap.org/img/wn/${icon}.png`}
           alt={description || 'Weather'}
           width={px}
           height={px}
