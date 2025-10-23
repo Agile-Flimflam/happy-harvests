@@ -92,7 +92,7 @@ export function NurserySowForm({ cropVarieties, nurseries, closeDialog, formId, 
                   </SelectTrigger>
                   <SelectContent>
                     {cropVarieties.map((v) => (
-                      <SelectItem key={v.id} value={String(v.id)}>{v.name}</SelectItem>
+                      <SelectItem key={v.id} value={String(v.id)}>{v.crops?.name ? `${v.crops.name} - ${v.name}` : v.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

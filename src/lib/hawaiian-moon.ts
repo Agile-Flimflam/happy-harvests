@@ -43,8 +43,9 @@ export function hawaiianMoonPhaseLabel(phase0to1: number | null | undefined): st
 export function hawaiianMoonInfo(phase0to1: number | null | undefined): MoonInfo | null {
   if (phase0to1 == null) return null
   const p = ((phase0to1 % 1) + 1) % 1
-  // Map 0..1 to 0..29
-  const idx = Math.min(29, Math.max(0, Math.floor(p * 30)))
+  // Map 0..1 to 0..29 using nearest-night rounding to reduce boundary mislabels
+  let idx = Math.round(p * 30)
+  if (idx > 29) idx = 29
   return MOON_TABLE[idx]
 }
 
@@ -56,6 +57,65 @@ export function lunarPhaseFraction(date: Date): number {
   const now = date.getTime() / 1000
   const phase = ((now - ref) % synodic + synodic) % synodic
   return phase / synodic
+}
+
+// Compute the lunar phase fraction using the date at local noon for the supplied IANA time zone.
+// This avoids day-boundary drift from UTC vs local day.
+export function lunarPhaseFractionAtLocalNoon(baseDateUtc: Date, timeZone: string): number {
+  try {
+    const noonLocal = dateAtLocalNoon(baseDateUtc, timeZone)
+    return lunarPhaseFraction(noonLocal)
+  } catch {
+    return lunarPhaseFraction(baseDateUtc)
+  }
+}
+
+function timeZoneOffsetMs(dateUtc: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+  const parts = dtf.formatToParts(dateUtc)
+  const map: Record<string, string> = {}
+  for (const p of parts) {
+    if (p.type !== 'literal') map[p.type] = p.value
+  }
+  const asLocalEpochMs = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(map.hour),
+    Number(map.minute),
+    Number(map.second)
+  )
+  return asLocalEpochMs - dateUtc.getTime()
+}
+
+function dateAtLocalNoon(baseDateUtc: Date, timeZone: string): Date {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const parts = dtf.formatToParts(baseDateUtc)
+  const map: Record<string, string> = {}
+  for (const p of parts) {
+    if (p.type !== 'literal') map[p.type] = p.value
+  }
+  const noonLocalAsUtcMs = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    12, 0, 0
+  ) - timeZoneOffsetMs(new Date(Date.UTC(Number(map.year), Number(map.month) - 1, Number(map.day), 12, 0, 0)), timeZone)
+  return new Date(noonLocalAsUtcMs)
 }
 
 export function hawaiianMoonForDate(date: Date): { name: string; recommendation: string } | null {

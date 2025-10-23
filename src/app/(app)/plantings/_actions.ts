@@ -316,6 +316,15 @@ export async function harvestPlanting(input: { planting_id: number; event_date: 
   return { ok: true };
 }
 
+// Allow correcting status if harvested was selected incorrectly
+export async function markPlantingAsPlanted(formData: FormData): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const plantingId = Number(formData.get('planting_id'));
+  if (!Number.isFinite(plantingId)) return;
+  await supabase.from('plantings').update({ status: 'planted', ended_date: null }).eq('id', plantingId);
+  revalidatePath('/plantings');
+}
+
 type BedForSelect = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { locations: { name: string } | null } | null };
 
 export async function getBedsForSelect(): Promise<{ beds?: BedForSelect[]; error?: string }> {

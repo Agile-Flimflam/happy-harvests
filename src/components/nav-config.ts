@@ -23,7 +23,6 @@ export const WORK_GROUP: NavGroup = {
   items: [
     { label: "Plantings", href: "/plantings", icon: Sprout },
     { label: "Activities", href: "/activities", icon: Droplets },
-    { label: "Activities (Table)", href: "/activities/table", icon: Droplets },
     { label: "Calendar", href: "/calendar", icon: Calendar },
     { label: "Seeds", href: "/seeds", icon: Package },
     { label: "Customers", href: "/customers", icon: Contact },
