@@ -81,13 +81,13 @@ export default function CalendarClient({ events }: { events: CalendarEvent[] }) 
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem asChild>
-                      <Link href={{ pathname: '/activities/new', query: { start: key + 'T09:00' } }}>Schedule Activity</Link>
+                      <Link href={{ pathname: '/activities/new', searchParams: { start: key + 'T09:00' } }}>Schedule Activity</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href={{ pathname: '/plantings', query: { schedule: key, mode: 'nursery' } }}>Nursery sow</Link>
+                      <Link href={{ pathname: '/plantings', searchParams: { schedule: key, mode: 'nursery' } }}>Nursery sow</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href={{ pathname: '/plantings', query: { schedule: key, mode: 'direct' } }}>Direct seed</Link>
+                      <Link href={{ pathname: '/plantings', searchParams: { schedule: key, mode: 'direct' } }}>Direct seed</Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
