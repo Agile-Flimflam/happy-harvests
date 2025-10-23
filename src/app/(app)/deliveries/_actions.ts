@@ -3,15 +3,18 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 import { DeliverySchema, type DeliveryFormValues } from '@/lib/validation/deliveries'
+import type { Tables, TablesInsert, TablesUpdate } from '@/lib/database.types'
 
-export async function listDeliveries(): Promise<{ deliveries?: any[]; error?: string }> {
+type DeliveryWithCustomer = Tables<'deliveries'> & { customers?: { name?: string | null } | null }
+
+export async function listDeliveries(): Promise<{ deliveries?: DeliveryWithCustomer[]; error?: string }> {
   const supabase = await createSupabaseServerClient()
   const { data, error } = await supabase
     .from('deliveries')
     .select('*, customers(name)')
     .order('delivery_date', { ascending: false })
   if (error) return { error: error.message }
-  return { deliveries: (data as any[]) || [] }
+  return { deliveries: (data as DeliveryWithCustomer[]) || [] }
 }
 
 export type DeliveryFormState = { message: string; errors?: Record<string, string[] | undefined> }
@@ -20,7 +23,7 @@ export async function createDelivery(prev: DeliveryFormState, formData: FormData
   const supabase = await createSupabaseServerClient()
 
   const itemsRaw = formData.get('items_json') as string
-  let items: any[] = []
+  let items: DeliveryFormValues['items'] = []
   try { items = JSON.parse(itemsRaw || '[]') } catch { items = [] }
 
   const parsed = DeliverySchema.safeParse({
@@ -61,7 +64,7 @@ export async function createDelivery(prev: DeliveryFormState, formData: FormData
     notes: it.notes ?? null,
   }))
   if (lines.length) {
-    const { error: liErr } = await supabase.from('delivery_items').insert(lines as any)
+    const { error: liErr } = await supabase.from('delivery_items').insert(lines as TablesInsert<'delivery_items'>[])
     if (liErr) return { message: `Database Error: ${liErr.message}` }
   }
 
@@ -79,7 +82,7 @@ export async function updateDelivery(formData: FormData): Promise<void> {
     payment_status: (formData.get('payment_status') as string) || null,
     notes: (formData.get('notes') as string) || null,
   }
-  const { error } = await supabase.from('deliveries').update(updates as any).eq('id', id)
+  const { error } = await supabase.from('deliveries').update(updates as TablesUpdate<'deliveries'>).eq('id', id)
   if (error) return
   revalidatePath('/deliveries')
 }

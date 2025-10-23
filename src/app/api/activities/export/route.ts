@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import type { Tables } from '@/lib/database.types'
 
 export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient()
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
     'id','activity_type','started_at','ended_at','duration_minutes','labor_hours','location_id','crop','asset_id','asset_name','quantity','unit','cost','notes'
   ]
   const rows = (data || []).map((r) => headers.map((h) => {
-    const v = (r as any)[h]
+    const v = (r as Tables<'activities'>)[h as keyof Tables<'activities'>]
     if (v == null) return ''
     return String(v).replaceAll('"', '""')
   }).join(','))

@@ -13,7 +13,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { LocationForm } from './LocationForm';
 import { deleteLocation } from '../_actions';
 import { toast } from 'sonner';
-import { Pencil, Trash2, PlusCircle, Sunrise, Sunset, Moon, Droplet } from 'lucide-react';
+import { Pencil, Trash2, PlusCircle, Sunrise, Sunset, Droplet } from 'lucide-react';
 
 type Location = Tables<'locations'>;
 

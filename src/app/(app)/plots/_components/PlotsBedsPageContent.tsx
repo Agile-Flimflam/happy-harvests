@@ -449,7 +449,7 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
         tempF={tempF}
         description={current.weather?.description || null}
         inlineDescription={false}
-        hawaiianMoon={(state.status === 'ready' ? (state.data as any).moonPhaseLabel : undefined) as any}
+        hawaiianMoon={state.status === 'ready' ? state.data.moonPhaseLabel ?? undefined : undefined}
         size="sm"
       />
       {typeof current.sunrise === 'number' && (

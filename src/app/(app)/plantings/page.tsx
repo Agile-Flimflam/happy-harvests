@@ -1,7 +1,22 @@
 import { PlantingsPageContent } from './_components/PlantingsPageContent'
 import { getPlantingsWithDetails, getCropVarietiesForSelect, getBedsForSelect, getNurseriesForSelect } from './_actions'
+import type { Tables } from '@/lib/supabase-server'
 
-export default async function PlantingsPage({ searchParams }: { searchParams?: { schedule?: string; mode?: 'nursery' | 'direct' } }) {
+type Planting = Tables<'plantings'>
+type PlantingWithDetails = Planting & {
+  crop_varieties: { name: string; latin_name: string; crops: { name: string } | null } | null
+  beds: { id: number; length_inches: number | null; width_inches: number | null; plots: { locations: { name: string } | null } | null } | null
+  nurseries: { name: string } | null
+  planted_qty?: number | null
+  planted_weight_grams?: number | null
+  harvest_qty?: number | null
+  harvest_weight_grams?: number | null
+}
+type CropVariety = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name'> & { crops?: { name: string } | null }
+type Bed = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { locations: { name: string } | null } | null }
+type Nursery = { id: string; name: string }
+
+export default async function PlantingsPage({ searchParams }: { searchParams?: Promise<{ schedule?: string; mode?: 'nursery' | 'direct' }> }) {
   const [plantingsRes, varietiesRes, bedsRes, nurseriesRes] = await Promise.all([
     getPlantingsWithDetails(),
     getCropVarietiesForSelect(),
@@ -14,15 +29,16 @@ export default async function PlantingsPage({ searchParams }: { searchParams?: {
   const beds = bedsRes.beds || []
   const nurseries = nurseriesRes.nurseries || []
 
-  const scheduleDate = typeof searchParams?.schedule === 'string' ? searchParams!.schedule : undefined
-  const defaultCreateMode = searchParams?.mode === 'nursery' || searchParams?.mode === 'direct' ? searchParams.mode : null
+  const sp = searchParams ? await searchParams : undefined
+  const scheduleDate = typeof sp?.schedule === 'string' ? sp.schedule : undefined
+  const defaultCreateMode = sp?.mode === 'nursery' || sp?.mode === 'direct' ? sp.mode : null
 
   return (
     <PlantingsPageContent
-      plantings={plantings as any}
-      cropVarieties={cropVarieties as any}
-      beds={beds as any}
-      nurseries={nurseries as any}
+      plantings={plantings as PlantingWithDetails[]}
+      cropVarieties={cropVarieties as CropVariety[]}
+      beds={beds as Bed[]}
+      nurseries={nurseries as Nursery[]}
       scheduleDate={scheduleDate}
       defaultCreateMode={defaultCreateMode}
     />

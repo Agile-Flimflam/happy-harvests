@@ -10,17 +10,19 @@ import { upsertSeed, deleteSeed, type SeedFormState } from '../_actions'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import type { Tables } from '@/lib/database.types'
 
 type Variety = { id: number; name: string; latin_name: string; crops?: { name: string } | null }
+type Seed = Tables<'seeds'>
 
-export function SeedsPageContent({ seeds, varieties }: { seeds: any[]; varieties: Variety[] }) {
+export function SeedsPageContent({ seeds, varieties }: { seeds: Seed[]; varieties: Variety[] }) {
   const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState<any | null>(null)
+  const [editing, setEditing] = useState<Seed | null>(null)
   const initial: SeedFormState = { message: '' }
   const [state, formAction] = useActionState(upsertSeed, initial)
 
   const startCreate = () => { setEditing(null); setOpen(true) }
-  const startEdit = (seed: any) => { setEditing(seed); setOpen(true) }
+  const startEdit = (seed: Seed) => { setEditing(seed); setOpen(true) }
 
   return (
     <div>

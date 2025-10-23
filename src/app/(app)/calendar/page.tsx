@@ -18,7 +18,7 @@ async function getCalendarEvents(): Promise<CalendarEvent[]> {
       title: `${a.activity_type.replace('_',' ')}` + (a.crop ? ` · ${a.crop}` : '') + (a.asset_name ? ` · ${a.asset_name}` : ''),
       start: a.started_at,
       end: a.ended_at,
-      meta: a as any,
+      meta: a as Record<string, unknown>,
     })
   }
   // Plantings (use planted_date or nursery_started_date as events)

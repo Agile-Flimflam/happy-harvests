@@ -9,10 +9,11 @@ import FormDialog from '@/components/dialogs/FormDialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { upsertCustomer, deleteCustomer, type CustomerFormState } from '../_actions'
+import type { Tables } from '@/lib/database.types'
 
-export function CustomersPageContent({ customers }: { customers: any[] }) {
+export function CustomersPageContent({ customers }: { customers: Tables<'customers'>[] }) {
   const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState<any | null>(null)
+  const [editing, setEditing] = useState<Tables<'customers'> | null>(null)
   const initial: CustomerFormState = { message: '' }
   const [state, formAction] = useActionState(upsertCustomer, initial)
 

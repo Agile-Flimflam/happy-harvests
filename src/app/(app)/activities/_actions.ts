@@ -4,15 +4,26 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { ActivitySchema } from '@/lib/validation/activities'
 import { fetchWeatherByCoords } from '@/lib/openweather.server'
+import type { Json, Tables } from '@/lib/database.types'
 
 export type ActivityFormState = {
   message: string
   errors?: Record<string, string[] | undefined>
 }
 
+type ErrorLike = {
+  message?: string
+  details?: string
+  hint?: string
+  code?: string
+  status?: string
+  error_description?: string
+  error?: string
+} & Record<string, unknown>
+
 function errorToMessage(err: unknown): string {
   try {
-    const e = err as any
+    const e = err as ErrorLike
     const parts = [e?.message, e?.details, e?.hint, e?.code, e?.status, e?.error_description, e?.error]
       .filter((v) => typeof v === 'string' && v.trim().length > 0)
     if (parts.length > 0) return parts.join(' | ')
@@ -60,14 +71,14 @@ export async function createActivity(prev: ActivityFormState, formData: FormData
   }
 
   // Fetch weather if location has coordinates
-  let weather: any = null
+  let weather: Json | null = null
   const locId = validated.data.location_id
   if (locId) {
     const { data: loc, error: locErr } = await supabase.from('locations').select('latitude, longitude').eq('id', locId).single()
     if (!locErr && loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number') {
       try {
         const w = await fetchWeatherByCoords(loc.latitude, loc.longitude, { units: 'imperial' })
-        weather = w
+        weather = w as unknown as Json
       } catch (e) {
         console.error('Weather fetch failed:', e)
       }
@@ -101,8 +112,8 @@ export async function createActivity(prev: ActivityFormState, formData: FormData
   // Insert soil amendments if provided and type matches
   if (validated.data.activity_type === 'soil_amendment' && Array.isArray(validated.data.amendments) && inserted?.id) {
     const rows = validated.data.amendments
-      .filter((a: any) => a && typeof a.name === 'string' && a.name.trim().length > 0)
-      .map((a: any) => ({ activity_id: inserted.id as number, name: a.name, quantity: a.quantity ?? null, unit: a.unit ?? null, notes: a.notes ?? null }))
+      .filter((a) => a && typeof a.name === 'string' && a.name.trim().length > 0)
+      .map((a) => ({ activity_id: inserted.id as number, name: a.name, quantity: a.quantity ?? null, unit: a.unit ?? null, notes: a.notes ?? null }))
     if (rows.length) {
       const { error: aerr } = await supabase.from('activities_soil_amendments').insert(rows)
       if (aerr) console.error('Insert amendments error:', aerr)
@@ -139,14 +150,14 @@ export async function updateActivity(formData: FormData): Promise<void> {
   if (!validated.success) return
 
   // Weather recompute if location changed
-  let weather: any = null
+  let weather: Json | null = null
   const locId = validated.data.location_id
   if (locId) {
     const { data: loc, error: locErr } = await supabase.from('locations').select('latitude, longitude').eq('id', locId).single()
     if (!locErr && loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number') {
       try {
         const w = await fetchWeatherByCoords(loc.latitude, loc.longitude, { units: 'imperial' })
-        weather = w
+        weather = w as unknown as Json
       } catch (e) {
         console.error('Weather fetch failed:', e)
       }
@@ -204,7 +215,7 @@ export async function getActivitiesGrouped(filters?: { type?: 'irrigation' | 'so
   }
   const { data, error } = await query
   if (error) return { error: `Database Error: ${error.message}` }
-  const grouped: Record<string, any[]> = {}
+  const grouped: Record<string, Tables<'activities'>[]> = {}
   for (const row of data || []) {
     const k = row.activity_type as string
     grouped[k] ||= []

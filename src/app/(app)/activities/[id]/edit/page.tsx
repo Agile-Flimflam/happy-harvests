@@ -1,11 +1,11 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ActivityForm } from '@/components/activities/ActivityForm'
 import { updateActivity } from '../../_actions'
 
-export default async function EditActivityPage({ params }: { params: { id: string } }) {
+export default async function EditActivityPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createSupabaseServerClient()
-  const id = Number(params.id)
+  const { id: idParam } = await params
+  const id = Number(idParam)
   const { data: activity } = await supabase.from('activities').select('*').eq('id', id).single()
   const { data: locations } = await supabase.from('locations').select('id,name').order('name', { ascending: true })
   return (

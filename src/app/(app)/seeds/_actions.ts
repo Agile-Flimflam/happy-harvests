@@ -3,8 +3,9 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 // Validation is kept simple here to avoid UX friction; we only require crop & variety names
 import { revalidatePath } from 'next/cache'
+import type { Tables, TablesInsert, Enums } from '@/lib/database.types'
 
-export async function getSeeds(): Promise<{ seeds?: any[]; error?: string }> {
+export async function getSeeds(): Promise<{ seeds?: Tables<'seeds'>[]; error?: string }> {
   const supabase = await createSupabaseServerClient()
   // Self-heal: ensure seeds without a variety create one so they appear elsewhere
   try {
@@ -18,7 +19,7 @@ export async function getSeeds(): Promise<{ seeds?: any[]; error?: string }> {
       if (crop?.id) {
         cropId = crop.id as number
       } else {
-        const { data: inserted } = await supabase.from('crops').insert({ name: cropName, crop_type: 'Vegetable' as any }).select('id').single()
+        const { data: inserted } = await supabase.from('crops').insert({ name: cropName, crop_type: 'Vegetable' as Enums<'crop_type'> }).select('id').single()
         if (inserted?.id) cropId = inserted.id as number
       }
       if (cropId != null && varietyName) {
@@ -42,7 +43,7 @@ export async function getSeeds(): Promise<{ seeds?: any[]; error?: string }> {
     .select('*')
     .order('created_at', { ascending: false })
   if (error) return { error: error.message }
-  return { seeds: (data as any[]) || [] }
+  return { seeds: (data ?? []) as Tables<'seeds'>[] }
 }
 
 export async function syncSeedsToVarieties(): Promise<{ ok: boolean; created: number; linked: number; error?: string }> {
@@ -60,7 +61,7 @@ export async function syncSeedsToVarieties(): Promise<{ ok: boolean; created: nu
       const { data: crop } = await supabase.from('crops').select('id').ilike('name', cropName).maybeSingle()
       if (crop?.id) cropId = crop.id as number
       else {
-        const { data: inserted } = await supabase.from('crops').insert({ name: cropName, crop_type: 'Vegetable' as any }).select('id').single()
+        const { data: inserted } = await supabase.from('crops').insert({ name: cropName, crop_type: 'Vegetable' as Enums<'crop_type'> }).select('id').single()
         if (inserted?.id) { cropId = inserted.id as number; created++ }
       }
       if (cropId != null) {
@@ -101,7 +102,7 @@ export async function getCropVarietiesForSelect(): Promise<{ varieties?: { id: n
     .select('id, name, latin_name, crops(name)')
     .order('name', { ascending: true })
   if (error) return { error: error.message }
-  return { varieties: (data as any[]) || [] }
+  return { varieties: (data ?? []) as { id: number; name: string; latin_name: string; crops?: { name: string } | null }[] }
 }
 
 export type SeedFormState = { message: string; errors?: Record<string, string[] | undefined> }
@@ -122,7 +123,7 @@ export async function upsertSeed(prev: SeedFormState, formData: FormData): Promi
     // Normalize MM/DD/YYYY → YYYY-MM-DD
     const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
     if (m) {
-      const [_, mm, dd, yyyy] = m
+      const [, mm, dd, yyyy] = m
       const m2 = mm.padStart(2, '0')
       const d2 = dd.padStart(2, '0')
       return `${yyyy}-${m2}-${d2}`
@@ -130,7 +131,7 @@ export async function upsertSeed(prev: SeedFormState, formData: FormData): Promi
     return s
   }
 
-  const payload: any = {
+  const payload = {
     id: typeof idRaw === 'string' && idRaw ? Number(idRaw) : undefined,
     crop_variety_id: typeof cropVarietyIdRaw === 'string' && cropVarietyIdRaw ? Number(cropVarietyIdRaw) : undefined,
     crop_name: cropName,
@@ -155,7 +156,7 @@ export async function upsertSeed(prev: SeedFormState, formData: FormData): Promi
       if (crop?.id) {
         cropId = crop.id as number
       } else {
-        const { data: inserted, error: ciErr } = await supabase.from('crops').insert({ name: cropName, crop_type: 'Vegetable' as any }).select('id').single()
+        const { data: inserted, error: ciErr } = await supabase.from('crops').insert({ name: cropName, crop_type: 'Vegetable' as Enums<'crop_type'> }).select('id').single()
         if (ciErr) {
           return { message: `Database Error: ${ciErr.message}` }
         }
@@ -192,7 +193,7 @@ export async function upsertSeed(prev: SeedFormState, formData: FormData): Promi
     }
   }
 
-  const { error } = await supabase.from('seeds').upsert(payload as any)
+  const { error } = await supabase.from('seeds').upsert(payload as unknown as TablesInsert<'seeds'>)
   if (error) return { message: `Database Error: ${error.message}` }
   revalidatePath('/seeds')
   // Make the new variety immediately available across the app

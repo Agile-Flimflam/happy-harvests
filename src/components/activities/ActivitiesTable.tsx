@@ -2,11 +2,11 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import type { Tables } from '@/lib/database.types'
 
-type Row = any
+type Row = Tables<'activities'> & { locations?: { name?: string | null } | null }
 
 type ActivitiesTableProps = {
   rows: Row[]
@@ -15,8 +15,6 @@ type ActivitiesTableProps = {
 
 export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps) {
   const [selected, setSelected] = React.useState<Record<number, boolean>>({})
-  const router = useRouter()
-  const searchParams = useSearchParams()
 
   function toggleAll(checked: boolean) {
     const next: Record<number, boolean> = {}

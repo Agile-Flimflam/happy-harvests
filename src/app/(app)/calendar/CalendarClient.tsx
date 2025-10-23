@@ -10,16 +10,17 @@ export type CalendarEvent = {
   title: string
   start: string
   end?: string | null
-  meta?: Record<string, any>
+  meta?: Record<string, unknown>
 }
+
+type CalendarFilter = 'all' | 'activity' | 'planting'
 
 export default function CalendarClient({ events }: { events: CalendarEvent[] }) {
   const today = new Date()
   const [current, setCurrent] = React.useState<{ y: number; m: number }>({ y: today.getFullYear(), m: today.getMonth() })
-  const [filter, setFilter] = React.useState<'all' | 'activity' | 'planting'>('all')
+  const [filter, setFilter] = React.useState<CalendarFilter>('all')
 
   function startOfMonth(y: number, m: number) { return new Date(y, m, 1) }
-  function endOfMonth(y: number, m: number) { return new Date(y, m + 1, 0) }
 
   const first = startOfMonth(current.y, current.m)
   const firstDay = new Date(first)
@@ -55,7 +56,7 @@ export default function CalendarClient({ events }: { events: CalendarEvent[] }) 
         </div>
         <div className="flex items-center gap-2">
           <label className="text-sm">Filter</label>
-          <select className="border rounded px-2 py-1" value={filter} onChange={(e) => setFilter(e.currentTarget.value as any)}>
+          <select className="border rounded px-2 py-1" value={filter} onChange={(e) => { const v = e.currentTarget.value; if (v === 'all' || v === 'activity' || v === 'planting') setFilter(v) }}>
             <option value="all">All</option>
             <option value="activity">Activities</option>
             <option value="planting">Plantings</option>

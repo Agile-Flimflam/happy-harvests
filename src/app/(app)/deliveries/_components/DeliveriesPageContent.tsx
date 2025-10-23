@@ -10,11 +10,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createDelivery, updateDelivery, type DeliveryFormState } from '../_actions'
+import type { Tables } from '@/lib/database.types'
 
 type Customer = { id: string; name: string }
 type Variety = { id: number; name: string; crops?: { name: string } | null }
+type DeliveryWithCustomer = Tables<'deliveries'> & { customers?: { name?: string | null } | null }
 
-export function DeliveriesPageContent({ deliveries, customers, varieties }: { deliveries: any[]; customers: Customer[]; varieties: Variety[] }) {
+export function DeliveriesPageContent({ deliveries, customers, varieties }: { deliveries: DeliveryWithCustomer[]; customers: Customer[]; varieties: Variety[] }) {
   const [open, setOpen] = useState(false)
   const initial: DeliveryFormState = { message: '' }
   const [state, formAction] = useActionState(createDelivery, initial)
@@ -23,7 +25,19 @@ export function DeliveriesPageContent({ deliveries, customers, varieties }: { de
   const addLine = () => setItems((prev) => [...prev, { id: crypto.randomUUID(), unit: 'lbs' }])
   const removeLine = (id: string) => setItems((prev) => prev.filter((l) => l.id !== id))
 
-  const itemsJson = useMemo(() => JSON.stringify(items.map(({ id, ...rest }) => rest)), [items])
+  const itemsJson = useMemo(
+    () =>
+      JSON.stringify(
+        items.map((ln) => ({
+          crop_variety_id: ln.crop_variety_id,
+          qty: ln.qty,
+          unit: ln.unit,
+          price_per: ln.price_per,
+          total_price: ln.total_price,
+        }))
+      ),
+    [items]
+  )
 
   return (
     <div>
@@ -48,8 +62,30 @@ export function DeliveriesPageContent({ deliveries, customers, varieties }: { de
                   <TableCell>
                     <form action={updateDelivery} className="inline-flex items-center gap-2">
                       <input type="hidden" name="id" value={d.id} />
-                      <Input name="payment_status" defaultValue={d.payment_status ?? ''} className="h-8 w-28" />
-                      <Input name="status" defaultValue={d.status ?? ''} className="h-8 w-28" />
+                      <Select name="payment_status" defaultValue={d.payment_status ?? ''}>
+                        <SelectTrigger className="h-8 w-40">
+                          <SelectValue placeholder="Payment" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="open">Open</SelectItem>
+                          <SelectItem value="sent">Sent</SelectItem>
+                          <SelectItem value="partially_paid">Partially Paid</SelectItem>
+                          <SelectItem value="paid">Paid</SelectItem>
+                          <SelectItem value="deposited">Deposited</SelectItem>
+                          <SelectItem value="not_deposited">Not Deposited</SelectItem>
+                          <SelectItem value="voided">Voided</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select name="status" defaultValue={d.status ?? ''}>
+                        <SelectTrigger className="h-8 w-36">
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="scheduled">Scheduled</SelectItem>
+                          <SelectItem value="delivered">Delivered</SelectItem>
+                          <SelectItem value="canceled">Canceled</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <Input name="payment_terms" defaultValue={d.payment_terms ?? ''} className="h-8 w-24" />
                       <Button type="submit" size="sm" variant="outline">Update</Button>
                     </form>
@@ -82,7 +118,16 @@ export function DeliveriesPageContent({ deliveries, customers, varieties }: { de
             </div>
             <div>
               <Label>Status</Label>
-              <Input name="status" placeholder="scheduled" />
+              <Select name="status" defaultValue="">
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="delivered">Delivered</SelectItem>
+                  <SelectItem value="canceled">Canceled</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -92,7 +137,20 @@ export function DeliveriesPageContent({ deliveries, customers, varieties }: { de
             </div>
             <div>
               <Label>Payment Status</Label>
-              <Input name="payment_status" placeholder="invoiced" />
+              <Select name="payment_status" defaultValue="">
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="sent">Sent</SelectItem>
+                  <SelectItem value="partially_paid">Partially Paid</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="deposited">Deposited</SelectItem>
+                  <SelectItem value="not_deposited">Not Deposited</SelectItem>
+                  <SelectItem value="voided">Voided</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Notes</Label>
@@ -106,7 +164,7 @@ export function DeliveriesPageContent({ deliveries, customers, varieties }: { de
               <Button type="button" size="sm" onClick={addLine}>Add Item</Button>
             </div>
             <div className="space-y-2">
-              {items.map((ln, idx) => (
+              {items.map((ln) => (
                 <div key={ln.id} className="grid grid-cols-1 sm:grid-cols-6 gap-2">
                   <div className="sm:col-span-2">
                     <Select value={ln.crop_variety_id ? String(ln.crop_variety_id) : ''} onValueChange={(v) => setItems((prev) => prev.map((x) => x.id === ln.id ? { ...x, crop_variety_id: parseInt(v, 10) } : x))}>

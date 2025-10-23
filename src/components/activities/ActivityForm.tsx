@@ -2,13 +2,13 @@
 
 import * as React from 'react'
 import { useActionState } from 'react'
-import { ActivitySchema, type ActivityFormValues } from '@/lib/validation/activities'
 import { hawaiianMoonForISO } from '@/lib/hawaiian-moon'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import type { ActivityFormState } from '@/app/(app)/activities/_actions'
 function AmendmentsEditor() {
   const [items, setItems] = React.useState<Array<{ name: string; quantity?: string; unit?: string; notes?: string }>>([
     { name: '' },
@@ -57,7 +57,7 @@ function AmendmentsEditor() {
 }
 
 type ActivityFormProps = {
-  action: (prevState: any, formData: FormData) => Promise<any>
+  action: (prevState: ActivityFormState, formData: FormData) => Promise<ActivityFormState>
   locations: Array<{ id: string; name: string }>
   plots?: Array<{ plot_id: number; name: string; location_id: string }>
   beds?: Array<{ id: number; plot_id: number; name?: string | null }>
@@ -66,7 +66,8 @@ type ActivityFormProps = {
 }
 
 export function ActivityForm({ action, locations, plots = [], beds = [], nurseries = [], defaultStart = null }: ActivityFormProps) {
-  const [state, formAction] = useActionState(action as any, { message: '', errors: {} })
+  const initialState: ActivityFormState = { message: '', errors: {} }
+  const [state, formAction] = useActionState(action, initialState)
   const [activityType, setActivityType] = React.useState<string>('')
   const [locationId, setLocationId] = React.useState<string>('')
   const [startValue, setStartValue] = React.useState<string>(defaultStart || '')
@@ -76,7 +77,15 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
   const [plotId, setPlotId] = React.useState<string>('')
   const [bedId, setBedId] = React.useState<string>('')
   const [nurseryId, setNurseryId] = React.useState<string>('')
-  const [templates, setTemplates] = React.useState<Array<{ name: string; payload: any }>>([])
+  type TemplatePayload = {
+    activity_type?: string
+    location_id?: string
+    plot_id?: string
+    bed_id?: string
+    nursery_id?: string
+    duration_minutes?: string | number
+  }
+  const [templates, setTemplates] = React.useState<Array<{ name: string; payload: TemplatePayload }>>([])
 
   function formatNowLocal() {
     const d = new Date()
