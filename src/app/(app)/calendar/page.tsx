@@ -2,6 +2,8 @@ import CalendarClient, { type CalendarEvent } from './CalendarClient'
 import CalendarHeaderWeather from './CalendarHeaderWeather'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { CalendarPlus, Sprout } from 'lucide-react'
 import { getCalendarEvents, getCalendarLocations } from './_actions'
 
 export default async function CalendarPage() {
@@ -14,8 +16,16 @@ export default async function CalendarPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Calendar</h1>
         <div className="flex gap-2">
-          <Link className="border px-3 py-2 rounded transition-colors active:scale-95 hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40" href="/activities/new">Schedule Activity</Link>
-          <Link className="border px-3 py-2 rounded transition-colors active:scale-95 hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40" href="/plantings">Manage Plantings</Link>
+          <Button asChild>
+            <Link href="/activities/new" aria-label="Schedule Activity">
+              <CalendarPlus className="mr-2 h-4 w-4" /> Schedule Activity
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/plantings" aria-label="Manage Plantings">
+              <Sprout className="mr-2 h-4 w-4" /> Manage Plantings
+            </Link>
+          </Button>
         </div>
       </div>
       <div>

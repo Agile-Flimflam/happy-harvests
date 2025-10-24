@@ -3,7 +3,8 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
-import { Droplet, Sprout, Wrench, Bug, FlaskConical } from 'lucide-react'
+import { Droplet, Sprout, Wrench, Bug, FlaskConical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CalendarDays } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { hawaiianMoonForDate, lunarPhaseFraction, hawaiianMoonRecommendationByName } from '@/lib/hawaiian-moon'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -141,30 +142,53 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <button className="border rounded px-2 py-1 transition-colors active:scale-95 hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40" onClick={() => setCurrent(({ y, m }) => (m === 0 ? { y: y-1, m: 11 } : { y, m: m-1 }))}>Prev</button>
-          <div className="font-semibold">{new Date(current.y, current.m, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' })}</div>
-          <button className="border rounded px-2 py-1 transition-colors active:scale-95 hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40" onClick={() => setCurrent(({ y, m }) => (m === 11 ? { y: y+1, m: 0 } : { y, m: m+1 }))}>Next</button>
-          <button className="ml-2 border rounded px-2 py-1 transition-colors active:scale-95 hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40" onClick={() => setCurrent({ y: today.getFullYear(), m: today.getMonth() })}>Today</button>
+          <Button variant="outline" size="sm" onClick={() => setCurrent(({ y, m }) => ({ y: y-1, m }))} aria-label="Previous year">
+            <ChevronsLeft className="mr-1 h-4 w-4" /> Year
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setCurrent(({ y, m }) => (m === 0 ? { y: y-1, m: 11 } : { y, m: m-1 }))} aria-label="Previous month">
+            <ChevronLeft className="mr-1 h-4 w-4" /> Prev
+          </Button>
+          <div className="font-semibold text-lg">
+            {new Date(current.y, current.m, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' })}
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setCurrent(({ y, m }) => (m === 11 ? { y: y+1, m: 0 } : { y, m: m+1 }))} aria-label="Next month">
+            Next <ChevronRight className="ml-1 h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setCurrent(({ y, m }) => ({ y: y+1, m }))} aria-label="Next year">
+            Year <ChevronsRight className="ml-1 h-4 w-4" />
+          </Button>
+          <Button variant="secondary" size="sm" className="ml-2" onClick={() => setCurrent({ y: today.getFullYear(), m: today.getMonth() })}>
+            <CalendarDays className="mr-1 h-4 w-4" /> Today
+          </Button>
         </div>
-        <div className="flex items-center gap-1 sm:gap-2" role="tablist" aria-label="Filter">
-          {(['all','activity','planting'] as const).map((v) => (
-            <button key={v} role="tab" aria-selected={filter===v} className={`rounded px-2 py-1 text-xs sm:text-sm border transition-colors active:scale-95 ${filter===v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`} onClick={() => setFilter(v)}>
-              {v === 'all' ? 'All' : v === 'activity' ? 'Activities' : 'Plantings'}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2" role="tablist" aria-label="Filter">
+            {(['all','activity','planting'] as const).map((v) => (
+              <button key={v} role="tab" aria-selected={filter===v} className={`rounded px-2 py-1 text-xs sm:text-sm border transition-colors active:scale-95 ${filter===v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`} onClick={() => setFilter(v)}>
+                {v === 'all' ? 'All' : v === 'activity' ? 'Activities' : 'Plantings'}
+              </button>
+            ))}
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="border rounded px-2 py-1 text-xs sm:text-sm hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40">Legend</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 p-2">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-foreground">
+                <div className="inline-flex items-center gap-2"><Droplet className="size-3 text-blue-600" /> Irrigation</div>
+                <div className="inline-flex items-center gap-2"><FlaskConical className="size-3 text-amber-700" /> Soil amend.</div>
+                <div className="inline-flex items-center gap-2"><Bug className="size-3 text-rose-700" /> Pest mgmt.</div>
+                <div className="inline-flex items-center gap-2"><Wrench className="size-3 text-violet-700" /> Maintenance</div>
+                <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-yellow-500" /> Nursery</div>
+                <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-green-600" /> Planted</div>
+                <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-emerald-600" /> Harvested</div>
+                <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-slate-500" /> Removed</div>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <span className="font-medium mr-1">Legend</span>
-        <div className="inline-flex items-center gap-1"><Droplet className="size-3 text-blue-600" aria-hidden="true" /> Irrigation</div>
-        <div className="inline-flex items-center gap-1"><FlaskConical className="size-3 text-amber-700" aria-hidden="true" /> Soil amend.</div>
-        <div className="inline-flex items-center gap-1"><Bug className="size-3 text-rose-700" aria-hidden="true" /> Pest mgmt.</div>
-        <div className="inline-flex items-center gap-1"><Wrench className="size-3 text-violet-700" aria-hidden="true" /> Maintenance</div>
-        <div className="inline-flex items-center gap-1"><span className="inline-block size-2 rounded-full bg-yellow-500" /> Nursery</div>
-        <div className="inline-flex items-center gap-1"><span className="inline-block size-2 rounded-full bg-green-600" /> Planted</div>
-        <div className="inline-flex items-center gap-1"><span className="inline-block size-2 rounded-full bg-emerald-600" /> Harvested</div>
-        <div className="inline-flex items-center gap-1"><span className="inline-block size-2 rounded-full bg-slate-500" /> Removed</div>
-      </div>
+      {/* Legend now in dropdown to reduce visual noise */}
       <div className="grid grid-cols-7 gap-2">
         {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
           <div key={d} className="text-xs text-muted-foreground px-1">{d}</div>
@@ -223,13 +247,29 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
         })}
       </div>
       <Dialog open={detail.open} onOpenChange={(open) => setDetail((d) => ({ open, date: open ? d.date : null }))}>
-        <DayDetailDialog dateISO={detail.date ?? ''} events={detail.date ? byDay.get(detail.date) || [] : []} locations={locations.filter((l) => l.latitude != null && l.longitude != null)} />
+        <DayDetailDialog
+          dateISO={detail.date ?? ''}
+          events={detail.date ? byDay.get(detail.date) || [] : []}
+          locations={locations.filter((l) => l.latitude != null && l.longitude != null)}
+          onPrev={() => {
+            if (!detail.date) return
+            const dd = new Date(detail.date + 'T00:00:00')
+            dd.setDate(dd.getDate() - 1)
+            setDetail({ open: true, date: fmt(dd) })
+          }}
+          onNext={() => {
+            if (!detail.date) return
+            const dd = new Date(detail.date + 'T00:00:00')
+            dd.setDate(dd.getDate() + 1)
+            setDetail({ open: true, date: fmt(dd) })
+          }}
+        />
       </Dialog>
     </div>
   )
 }
 
-function DayDetailDialog({ dateISO, events, locations }: { dateISO: string; events: CalendarEvent[]; locations: Array<{ id: string; name: string; latitude: number | null; longitude: number | null }> }) {
+function DayDetailDialog({ dateISO, events, locations, onPrev, onNext }: { dateISO: string; events: CalendarEvent[]; locations: Array<{ id: string; name: string; latitude: number | null; longitude: number | null }>; onPrev: () => void; onNext: () => void }) {
   const [state, setState] = React.useState<
     | { status: 'idle' }
     | { status: 'loading' }
@@ -275,7 +315,13 @@ function DayDetailDialog({ dateISO, events, locations }: { dateISO: string; even
   return (
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>{d.toLocaleDateString()}</DialogTitle>
+        <div className="flex items-center justify-between gap-2 pr-12 sm:pr-16">
+          <DialogTitle>{d.toLocaleDateString()}</DialogTitle>
+          <div className="flex items-center gap-2">
+            <button className="border rounded px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground" onClick={onPrev} aria-label="Previous day">Prev</button>
+            <button className="border rounded px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground" onClick={onNext} aria-label="Next day">Next</button>
+          </div>
+        </div>
         <DialogDescription>Day overview with events, weather, and Hawaiian moon</DialogDescription>
       </DialogHeader>
       {locations.length > 1 ? (
