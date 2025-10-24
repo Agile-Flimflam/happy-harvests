@@ -150,7 +150,7 @@ export async function createDelivery(prev: DeliveryFormState, formData: FormData
       }
       {
         for (const r of deliveryItemsRows) {
-          if (typeof r.crop_variety_id === 'number' && typeof r.qty === 'number') {
+          if (typeof r.crop_variety_id === 'number' && typeof r.qty === 'number' && isWeightUnit(r.unit)) {
             deliveredGramsByVariety.set(r.crop_variety_id, (deliveredGramsByVariety.get(r.crop_variety_id) || 0) + toGrams(r.qty, r.unit))
           }
         }
