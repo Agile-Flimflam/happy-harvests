@@ -17,8 +17,8 @@ export default async function DashboardPage() {
     .from('plots')
     .select('*', { count: 'exact', head: true });
 
-  const { count: cropCount, error: cropError } = await supabase
-    .from('crops')
+  const { count: plantingCount, error: plantingError } = await supabase
+    .from('plantings')
     .select('*', { count: 'exact', head: true });
 
   // Find a primary location for weather/moon display
@@ -31,8 +31,8 @@ export default async function DashboardPage() {
     | { id: string; latitude: number | null; longitude: number | null }
     | undefined
 
-  if (cropVarietyError || plotError || cropError) {
-      console.error('Error fetching counts:', { cropVarietyError, plotError, cropError });
+  if (cropVarietyError || plotError || plantingError) {
+      console.error('Error fetching counts:', { cropVarietyError, plotError, plantingError });
   }
 
   return (
@@ -75,8 +75,8 @@ export default async function DashboardPage() {
             <Sprout className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{cropCount ?? 'N/A'}</div>
-             {cropError && <p className="text-xs text-red-500">Error loading</p>}
+            <div className="text-2xl font-bold">{plantingCount ?? 'N/A'}</div>
+             {plantingError && <p className="text-xs text-red-500">Error loading</p>}
           </CardContent>
           </Card>
         </Link>
