@@ -43,8 +43,9 @@ export function hawaiianMoonPhaseLabel(phase0to1: number | null | undefined): st
 export function hawaiianMoonInfo(phase0to1: number | null | undefined): MoonInfo | null {
   if (phase0to1 == null) return null
   const p = ((phase0to1 % 1) + 1) % 1
-  // Map 0..1 to 0..29
-  const idx = Math.min(29, Math.max(0, Math.floor(p * 30)))
+  // Map 0..1 to 0..29 using nearest-night rounding with proper wrap-around
+  // The +0.5 and floor implements rounding; modulo 30 wraps 30 -> 0 to avoid overweighting the last bin
+  const idx = Math.floor(p * 30 + 0.5) % 30
   return MOON_TABLE[idx]
 }
 
@@ -56,6 +57,92 @@ export function lunarPhaseFraction(date: Date): number {
   const now = date.getTime() / 1000
   const phase = ((now - ref) % synodic + synodic) % synodic
   return phase / synodic
+}
+
+// Compute the lunar phase fraction using the date at local noon for the supplied IANA time zone.
+// This avoids day-boundary drift from UTC vs local day.
+export function lunarPhaseFractionAtLocalNoon(baseDateUtc: Date, timeZone: string): number {
+  try {
+    const noonLocal = dateAtLocalNoon(baseDateUtc, timeZone)
+    return lunarPhaseFraction(noonLocal)
+  } catch {
+    return lunarPhaseFraction(baseDateUtc)
+  }
+}
+
+/**
+ * Computes the offset, in milliseconds, between UTC and the specified IANA
+ * time zone for the given UTC date. A positive value indicates the local time
+ * zone is ahead of UTC at that instant; negative indicates it is behind.
+ *
+ * @param dateUtc - A Date representing an instant in UTC.
+ * @param timeZone - IANA time zone identifier (e.g., 'Pacific/Honolulu').
+ * @returns The millisecond offset to add to UTC to obtain local wall-clock time.
+ */
+function timeZoneOffsetMs(dateUtc: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+  const parts = dtf.formatToParts(dateUtc)
+  const map: Record<string, string> = {}
+  for (const p of parts) {
+    if (p.type !== 'literal') map[p.type] = p.value
+  }
+  const asLocalEpochMs = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(map.hour),
+    Number(map.minute),
+    Number(map.second)
+  )
+  return asLocalEpochMs - dateUtc.getTime()
+}
+
+/**
+ * Returns a Date representing local noon (12:00) in the specified IANA time zone
+ * for the same calendar day as the provided baseDateUtc. The returned Date is
+ * constructed in UTC milliseconds corresponding to that local-noon instant.
+ *
+ * Example: If baseDateUtc is 2025-10-24T03:15Z and timeZone is 'Pacific/Honolulu',
+ * this function returns the UTC instant that corresponds to 12:00 on 2025-10-23 in Honolulu.
+ *
+ * @param baseDateUtc - A Date (UTC) whose calendar day is used to determine local noon.
+ * @param timeZone - IANA time zone identifier (e.g., 'Pacific/Honolulu').
+ * @returns Date at local noon for the given time zone and calendar day of baseDateUtc.
+ */
+function dateAtLocalNoon(baseDateUtc: Date, timeZone: string): Date {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const parts = dtf.formatToParts(baseDateUtc)
+  const map: Record<string, string> = {}
+  for (const p of parts) {
+    if (p.type !== 'literal') map[p.type] = p.value
+  }
+  const noonUtcDate = new Date(Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    12, 0, 0
+  ))
+  const noonLocalAsUtcMs = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    12, 0, 0
+  ) - timeZoneOffsetMs(noonUtcDate, timeZone)
+  return new Date(noonLocalAsUtcMs)
 }
 
 export function hawaiianMoonForDate(date: Date): { name: string; recommendation: string } | null {

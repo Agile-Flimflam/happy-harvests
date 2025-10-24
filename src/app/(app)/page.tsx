@@ -17,8 +17,8 @@ export default async function DashboardPage() {
     .from('plots')
     .select('*', { count: 'exact', head: true });
 
-  const { count: cropCount, error: cropError } = await supabase
-    .from('crops')
+  const { count: plantingCount, error: plantingError } = await supabase
+    .from('plantings')
     .select('*', { count: 'exact', head: true });
 
   // Find a primary location for weather/moon display
@@ -31,8 +31,8 @@ export default async function DashboardPage() {
     | { id: string; latitude: number | null; longitude: number | null }
     | undefined
 
-  if (cropVarietyError || plotError || cropError) {
-      console.error('Error fetching counts:', { cropVarietyError, plotError, cropError });
+  if (cropVarietyError || plotError || plantingError) {
+      console.error('Error fetching counts:', { cropVarietyError, plotError, plantingError });
   }
 
   return (
@@ -44,7 +44,8 @@ export default async function DashboardPage() {
         </div>
       ) : null}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
+        <Link href="/crop-varieties" className="block">
+          <Card className="cursor-pointer transition hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Crop Varieties</CardTitle>
             <Leaf className="h-4 w-4 text-muted-foreground" />
@@ -53,8 +54,10 @@ export default async function DashboardPage() {
             <div className="text-2xl font-bold">{cropVarietyCount ?? 'N/A'}</div>
             {cropVarietyError && <p className="text-xs text-red-500">Error loading</p>}
           </CardContent>
-        </Card>
-        <Card>
+          </Card>
+        </Link>
+        <Link href="/plots" className="block">
+          <Card className="cursor-pointer transition hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Plots</CardTitle>
             <Tractor className="h-4 w-4 text-muted-foreground" />
@@ -63,23 +66,26 @@ export default async function DashboardPage() {
             <div className="text-2xl font-bold">{plotCount ?? 'N/A'}</div>
              {plotError && <p className="text-xs text-red-500">Error loading</p>}
           </CardContent>
-        </Card>
-        <Card>
+          </Card>
+        </Link>
+        <Link href="/plantings" className="block">
+          <Card className="cursor-pointer transition hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Crops</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Plantings</CardTitle>
             <Sprout className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{cropCount ?? 'N/A'}</div>
-             {cropError && <p className="text-xs text-red-500">Error loading</p>}
+            <div className="text-2xl font-bold">{plantingCount ?? 'N/A'}</div>
+             {plantingError && <p className="text-xs text-red-500">Error loading</p>}
           </CardContent>
-        </Card>
+          </Card>
+        </Link>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button asChild>
                 <Link href="/activities/new">Track an Activity</Link>
               </Button>

@@ -8,9 +8,10 @@ import FormDialog from "@/components/dialogs/FormDialog";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { deletePlanting } from '../_actions';
+import { deletePlanting, markPlantingAsPlanted } from '../_actions';
 import { NurserySowForm } from './NurserySowForm';
 import { DirectSeedForm } from './DirectSeedForm';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Trash2,
   PlusCircle,
@@ -69,6 +70,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [createMode, setCreateMode] = useState<'nursery' | 'direct' | null>(defaultCreateMode);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'nursery' | 'planted' | 'harvested'>('all');
   const [actionDialog, setActionDialog] = useState<
     | { type: 'transplant' | 'move' | 'remove' | 'history'; plantingId: number }
     | { type: 'harvest'; plantingId: number; defaultQty?: number | null; defaultWeight?: number | null }
@@ -83,8 +85,9 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
   };
   const closeActionDialog = () => setActionDialog(null);
 
+  // Allow removal even if mistakenly marked as harvested; only block when already removed
   const canBeRemoved = (status: (typeof PLANTING_STATUS)[keyof typeof PLANTING_STATUS]) =>
-    status !== PLANTING_STATUS.harvested && status !== PLANTING_STATUS.removed;
+    status !== PLANTING_STATUS.removed;
 
   const openDelete = (id: number) => setDeleteId(id);
   const confirmDelete = async () => {
@@ -118,6 +121,11 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
 
   const stats = getStatusStats();
 
+  const filteredPlantings = (() => {
+    if (statusFilter === 'all') return plantings;
+    return plantings.filter((p) => p.status === PLANTING_STATUS[statusFilter]);
+  })();
+
   const renderEmptyState = () => (
     <div className="text-center py-12">
       <div className="mx-auto w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
@@ -145,39 +153,39 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
       <PageHeader
         title="Plantings"
         action={(
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" className="w-full sm:w-auto">
-                <PlusCircle className="h-4 w-4 mr-2" />
-                Add Planting
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={openNurserySow}>Nursery sow</DropdownMenuItem>
-              <DropdownMenuItem onClick={openDirectSeed}>Direct seed</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            size="sm"
+            className="w-full sm:w-auto"
+            onClick={() => { setCreateMode('nursery'); setIsDialogOpen(true); }}
+          >
+            <PlusCircle className="h-4 w-4 mr-2" />
+            Add Planting
+          </Button>
         )}
       />
 
-      {createMode && (
-        <FormDialog
-          open={isDialogOpen}
-          onOpenChange={setIsDialogOpen}
-          title={createMode === 'nursery' ? 'Nursery sow' : 'Direct seed'}
-          description={createMode === 'nursery' ? 'Start in nursery' : 'Seed directly in field'}
-          submitLabel={createMode === 'nursery' ? 'Create Nursery Planting' : 'Create Direct Seed Planting'}
-          formId={createMode === 'nursery' ? 'nurserySowForm' : 'directSeedForm'}
-          className="sm:max-w-md"
-        >
-          {createMode === 'nursery' && (
+      <FormDialog
+        open={isDialogOpen}
+        onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setCreateMode(null) }}
+        title={createMode === 'direct' ? 'Direct seed' : 'Nursery sow'}
+        description={createMode === 'direct' ? 'Seed directly in field' : 'Start in nursery'}
+        submitLabel={createMode === 'direct' ? 'Create Direct Seed Planting' : 'Create Nursery Planting'}
+        formId={createMode === 'direct' ? 'directSeedForm' : 'nurserySowForm'}
+        className="sm:max-w-md"
+      >
+        <Tabs value={createMode ?? 'nursery'} onValueChange={(v) => setCreateMode(v as 'nursery' | 'direct')}>
+          <TabsList>
+            <TabsTrigger value="nursery">Nursery Sow</TabsTrigger>
+            <TabsTrigger value="direct">Direct Seed</TabsTrigger>
+          </TabsList>
+          <TabsContent value="nursery">
             <NurserySowForm cropVarieties={cropVarieties} nurseries={_nurseries} closeDialog={closeDialog} formId="nurserySowForm" defaultDate={scheduleDate} />
-          )}
-          {createMode === 'direct' && (
+          </TabsContent>
+          <TabsContent value="direct">
             <DirectSeedForm cropVarieties={cropVarieties} beds={beds} closeDialog={closeDialog} formId="directSeedForm" defaultDate={scheduleDate} />
-          )}
-        </FormDialog>
-      )}
+          </TabsContent>
+        </Tabs>
+      </FormDialog>
 
       {actionDialog && (
         <FormDialog
@@ -254,7 +262,13 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
           <div className="space-y-6">
             {/* Summary Stats */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Card className="p-4">
+              <Card
+                className={`p-4 cursor-pointer transition ${statusFilter === 'nursery' ? 'ring-2 ring-blue-500' : 'hover:shadow-sm'}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setStatusFilter('nursery')}
+                aria-pressed={statusFilter === 'nursery'}
+              >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950">
                     <Leaf className="h-5 w-5 text-blue-600" />
@@ -265,7 +279,13 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                   </div>
                 </div>
               </Card>
-              <Card className="p-4">
+              <Card
+                className={`p-4 cursor-pointer transition ${statusFilter === 'planted' ? 'ring-2 ring-green-500' : 'hover:shadow-sm'}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setStatusFilter('planted')}
+                aria-pressed={statusFilter === 'planted'}
+              >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-green-50 dark:bg-green-950">
                     <Sprout className="h-5 w-5 text-green-600" />
@@ -276,7 +296,13 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                   </div>
                 </div>
               </Card>
-              <Card className="p-4">
+              <Card
+                className={`p-4 cursor-pointer transition ${statusFilter === 'harvested' ? 'ring-2 ring-orange-500' : 'hover:shadow-sm'}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setStatusFilter('harvested')}
+                aria-pressed={statusFilter === 'harvested'}
+              >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-950">
                     <ShoppingBasket className="h-5 w-5 text-orange-600" />
@@ -287,7 +313,13 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                   </div>
                 </div>
               </Card>
-              <Card className="p-4">
+              <Card
+                className={`p-4 cursor-pointer transition ${statusFilter === 'all' ? 'ring-2 ring-gray-400' : 'hover:shadow-sm'}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => setStatusFilter('all')}
+                aria-pressed={statusFilter === 'all'}
+              >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-gray-50 dark:bg-gray-950">
                     <TrendingUp className="h-5 w-5 text-gray-600" />
@@ -316,7 +348,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {plantings.map((p) => (
+                  {filteredPlantings.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell className="font-medium">{p.crop_varieties?.name ?? 'N/A'}</TableCell>
                       <TableCell>{p.crop_varieties?.crops?.name ?? 'N/A'}</TableCell>
@@ -350,7 +382,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                                 <DropdownMenuSeparator />
                               </>
                             )}
-                            {p.status === PLANTING_STATUS.planted && (
+                            {(p.status === PLANTING_STATUS.planted || p.status === PLANTING_STATUS.harvested) && (
                               <>
                                 {!p.nursery_started_date ? (
                                   <>
@@ -374,6 +406,26 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                                     <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
                                       <ShoppingBasket className="mr-2 h-4 w-4" />
                                       Harvest
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                  </>
+                                )}
+                                {p.status === PLANTING_STATUS.harvested && (
+                                  <>
+                                    <DropdownMenuItem onClick={async () => {
+                                      const fd = new FormData();
+                                      fd.append('planting_id', String(p.id));
+                                      const result = await markPlantingAsPlanted(fd);
+                                      if ('ok' in result && result.ok === true) {
+                                        toast.success('Status changed to Planted');
+                                      } else if ('error' in result) {
+                                        toast.error(result.error);
+                                      } else {
+                                        toast.error('Unknown error updating status.');
+                                      }
+                                    }}>
+                                      <Sprout className="mr-2 h-4 w-4" />
+                                      Mark as Planted
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                   </>

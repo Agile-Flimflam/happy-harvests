@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useMemo, useState } from 'react'
+import { useActionState, useEffect, useMemo, useState } from 'react'
 import PageHeader from '@/components/page-header'
 import PageContent from '@/components/page-content'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -21,6 +21,7 @@ export function DeliveriesPageContent({ deliveries, customers, varieties }: { de
   const initial: DeliveryFormState = { message: '' }
   const [state, formAction] = useActionState(createDelivery, initial)
   const [items, setItems] = useState<{ id: string; crop_variety_id?: number; qty?: number; unit?: string; price_per?: number; total_price?: number }[]>([])
+  const [availability, setAvailability] = useState<Record<number, { count_available: number; grams_available: number }>>({})
 
   const addLine = () => setItems((prev) => [...prev, { id: crypto.randomUUID(), unit: 'lbs' }])
   const removeLine = (id: string) => setItems((prev) => prev.filter((l) => l.id !== id))
@@ -38,6 +39,25 @@ export function DeliveriesPageContent({ deliveries, customers, varieties }: { de
       ),
     [items]
   )
+
+  // Fetch availability for selected varieties
+  useEffect(() => {
+    const ids = Array.from(new Set(items.map((i) => i.crop_variety_id).filter((v): v is number => typeof v === 'number')))
+    if (!ids.length) { setAvailability({}); return }
+    const controller = new AbortController()
+    const url = `/api/inventory/availability?ids=${ids.join(',')}`
+    fetch(url, { cache: 'no-store', signal: controller.signal })
+      .then((r) => r.json())
+      .then((json) => {
+        const map: Record<number, { count_available: number; grams_available: number }> = {}
+        for (const row of json.availability || []) {
+          map[row.crop_variety_id] = { count_available: row.count_available || 0, grams_available: row.grams_available || 0 }
+        }
+        setAvailability(map)
+      })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [items])
 
   return (
     <div>
@@ -165,7 +185,7 @@ export function DeliveriesPageContent({ deliveries, customers, varieties }: { de
             </div>
             <div className="space-y-2">
               {items.map((ln) => (
-                <div key={ln.id} className="grid grid-cols-1 sm:grid-cols-6 gap-2">
+                <div key={ln.id} className="grid grid-cols-1 sm:grid-cols-7 gap-2">
                   <div className="sm:col-span-2">
                     <Select value={ln.crop_variety_id ? String(ln.crop_variety_id) : ''} onValueChange={(v) => setItems((prev) => prev.map((x) => x.id === ln.id ? { ...x, crop_variety_id: parseInt(v, 10) } : x))}>
                       <SelectTrigger>
@@ -177,9 +197,34 @@ export function DeliveriesPageContent({ deliveries, customers, varieties }: { de
                     </Select>
                   </div>
                   <Input placeholder="Qty" value={ln.qty ?? ''} onChange={(e) => setItems((prev) => prev.map((x) => x.id === ln.id ? { ...x, qty: Number(e.target.value || 0) } : x))} />
-                  <Input placeholder="Unit" value={ln.unit ?? ''} onChange={(e) => setItems((prev) => prev.map((x) => x.id === ln.id ? { ...x, unit: e.target.value } : x))} />
+                  <Select value={ln.unit ?? ''} onValueChange={(v) => setItems((prev) => prev.map((x) => x.id === ln.id ? { ...x, unit: v } : x))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="count">Count</SelectItem>
+                      <SelectItem value="g">g</SelectItem>
+                      <SelectItem value="kg">kg</SelectItem>
+                      <SelectItem value="oz">oz</SelectItem>
+                      <SelectItem value="lb">lb</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Input placeholder="Price per" value={ln.price_per ?? ''} onChange={(e) => setItems((prev) => prev.map((x) => x.id === ln.id ? { ...x, price_per: Number(e.target.value || 0) } : x))} />
                   <Input placeholder="Total" value={ln.total_price ?? ''} onChange={(e) => setItems((prev) => prev.map((x) => x.id === ln.id ? { ...x, total_price: Number(e.target.value || 0) } : x))} />
+                  <div className="text-xs text-muted-foreground self-center">
+                    {ln.crop_variety_id ? (
+                      (() => {
+                        const avail = availability[ln.crop_variety_id!]
+                        if (!avail) return null
+                        const kg = (avail.grams_available / 1000).toFixed(2)
+                        return (
+                          <span aria-label={`Available inventory: ${avail.count_available} count and ${kg} kilograms`}>
+                            Avail: {avail.count_available} ct / {kg} kg
+                          </span>
+                        )
+                      })()
+                    ) : null}
+                  </div>
                   <Button type="button" variant="destructive" onClick={() => removeLine(ln.id)}>Remove</Button>
                 </div>
               ))}
