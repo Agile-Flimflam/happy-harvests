@@ -43,9 +43,9 @@ export function hawaiianMoonPhaseLabel(phase0to1: number | null | undefined): st
 export function hawaiianMoonInfo(phase0to1: number | null | undefined): MoonInfo | null {
   if (phase0to1 == null) return null
   const p = ((phase0to1 % 1) + 1) % 1
-  // Map 0..1 to 0..29 using nearest-night rounding to reduce boundary mislabels
-  let idx = Math.round(p * 30)
-  if (idx > 29) idx = 29
+  // Map 0..1 to 0..29 using nearest-night rounding with proper wrap-around
+  // The +0.5 and floor implements rounding; modulo 30 wraps 30 -> 0 to avoid overweighting the last bin
+  const idx = Math.floor(p * 30 + 0.5) % 30
   return MOON_TABLE[idx]
 }
 
