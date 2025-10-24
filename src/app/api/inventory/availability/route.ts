@@ -1,21 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-
-function isWeightUnit(u: string | null | undefined): boolean {
-  if (!u) return false
-  const s = u.toLowerCase()
-  return s === 'g' || s === 'gram' || s === 'grams' || s === 'kg' || s === 'kilogram' || s === 'kilograms' || s === 'lb' || s === 'lbs' || s === 'pound' || s === 'pounds' || s === 'oz' || s === 'ounce' || s === 'ounces'
-}
-
-function toGrams(qty: number, unit: string | null | undefined): number {
-  if (!unit) return qty
-  const s = unit.toLowerCase()
-  if (s === 'g' || s === 'gram' || s === 'grams') return qty
-  if (s === 'kg' || s === 'kilogram' || s === 'kilograms') return qty * 1000
-  if (s === 'lb' || s === 'lbs' || s === 'pound' || s === 'pounds') return qty * 453.59237
-  if (s === 'oz' || s === 'ounce' || s === 'ounces') return qty * 28.349523125
-  return qty
-}
+import { isWeightUnit, toGrams } from '@/lib/units'
 
 export async function GET(req: Request) {
   const url = new URL(req.url)

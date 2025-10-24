@@ -135,18 +135,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     )
   }
 
-  function moonEmojiForDate(d: Date): string {
-    const f = lunarPhaseFraction(d)
-    // 8-phase approximation
-    if (f < 0.0625 || f >= 0.9375) return '🌑' // new
-    if (f < 0.1875) return '🌒'
-    if (f < 0.3125) return '🌓'
-    if (f < 0.4375) return '🌔'
-    if (f < 0.5625) return '🌕' // full
-    if (f < 0.6875) return '🌖'
-    if (f < 0.8125) return '🌗'
-    return '🌘'
-  }
+
 
   return (
     <div className="space-y-3">
@@ -257,7 +246,18 @@ function DayDetailDialog({ dateISO, events, locations }: { dateISO: string; even
         let data = {}
         if (selectedLocationId) {
           const res = await fetch('/api/locations/' + encodeURIComponent(selectedLocationId) + '/weather', { cache: 'no-store' })
-          data = res.ok ? await res.json().catch(() => ({})) : {}
+          if (res.ok) {
+            try {
+              data = await res.json()
+            } catch (e) {
+              if (!cancelled) {
+                setState({ status: 'error', message: e instanceof Error ? e.message : 'Failed to parse weather response' })
+              }
+              return
+            }
+          } else {
+            data = {}
+          }
         }
         if (!cancelled) setState({ status: 'ready', data })
       } catch (e) {

@@ -109,12 +109,18 @@ function dateAtLocalNoon(baseDateUtc: Date, timeZone: string): Date {
   for (const p of parts) {
     if (p.type !== 'literal') map[p.type] = p.value
   }
+  const noonUtcDate = new Date(Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    12, 0, 0
+  ))
   const noonLocalAsUtcMs = Date.UTC(
     Number(map.year),
     Number(map.month) - 1,
     Number(map.day),
     12, 0, 0
-  ) - timeZoneOffsetMs(new Date(Date.UTC(Number(map.year), Number(map.month) - 1, Number(map.day), 12, 0, 0)), timeZone)
+  ) - timeZoneOffsetMs(noonUtcDate, timeZone)
   return new Date(noonLocalAsUtcMs)
 }
 

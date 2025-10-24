@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "moon:print": "ts-node scripts/moon-validate.ts",
     "dev": "next dev --turbopack -p 4000",
     "build": "next build",
     "start": "next start",

@@ -415,8 +415,14 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                                     <DropdownMenuItem onClick={async () => {
                                       const fd = new FormData();
                                       fd.append('planting_id', String(p.id));
-                                      await markPlantingAsPlanted(fd);
-                                      toast.success('Status changed to Planted');
+                                      const result = await markPlantingAsPlanted(fd);
+                                      if ('ok' in result && result.ok === true) {
+                                        toast.success('Status changed to Planted');
+                                      } else if ('error' in result) {
+                                        toast.error(result.error);
+                                      } else {
+                                        toast.error('Unknown error updating status.');
+                                      }
                                     }}>
                                       <Sprout className="mr-2 h-4 w-4" />
                                       Mark as Planted
