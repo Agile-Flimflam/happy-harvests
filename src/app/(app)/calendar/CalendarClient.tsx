@@ -177,7 +177,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
           const isWeekend = d.getDay() === 0 || d.getDay() === 6
           const moon = hawaiianMoonForDate(d)
           return (
-            <div key={key} className={`min-h-28 rounded-lg p-1 border border-border/30 transition-colors transition-shadow hover:border-border/70 hover:shadow-md active:shadow-lg active:bg-accent/10 focus-within:ring-2 focus-within:ring-ring/40 ${isOtherMonth ? 'bg-muted/30 text-muted-foreground' : 'bg-background'} ${isWeekend && !isOtherMonth ? 'bg-muted/20' : ''} ${isToday ? 'ring-2 ring-primary/50' : ''}`} onClick={() => setDetail({ open: true, date: key })} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setDetail({ open: true, date: key }) }}>
+				<div key={key} className={`min-h-28 rounded-lg p-1 border border-border/30 transition-colors transition-shadow hover:border-border/70 hover:shadow-md active:shadow-lg active:bg-accent/10 focus-within:ring-2 focus-within:ring-ring/40 ${isOtherMonth ? 'bg-muted/30 text-muted-foreground' : 'bg-background'} ${isWeekend && !isOtherMonth ? 'bg-muted/20' : ''} ${isToday ? 'ring-2 ring-primary/50' : ''}`} onClick={() => setDetail({ open: true, date: key })} role="button" tabIndex={0} aria-label={d.toLocaleDateString()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setDetail({ open: true, date: key }) }}>
               <div className="flex items-center justify-between text-xs mb-1">
                 <div className={`font-semibold flex items-center gap-2 ${isToday ? 'text-primary' : ''}`}>
                   {d.getDate()}

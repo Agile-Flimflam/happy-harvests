@@ -216,7 +216,12 @@ export function DeliveriesPageContent({ deliveries, customers, varieties }: { de
                       (() => {
                         const avail = availability[ln.crop_variety_id!]
                         if (!avail) return null
-                        return <span>Avail: {avail.count_available} ct / {(avail.grams_available/1000).toFixed(2)} kg</span>
+                        const kg = (avail.grams_available / 1000).toFixed(2)
+                        return (
+                          <span aria-label={`Available inventory: ${avail.count_available} count and ${kg} kilograms`}>
+                            Avail: {avail.count_available} ct / {kg} kg
+                          </span>
+                        )
                       })()
                     ) : null}
                   </div>

@@ -70,6 +70,15 @@ export function lunarPhaseFractionAtLocalNoon(baseDateUtc: Date, timeZone: strin
   }
 }
 
+/**
+ * Computes the offset, in milliseconds, between UTC and the specified IANA
+ * time zone for the given UTC date. A positive value indicates the local time
+ * zone is ahead of UTC at that instant; negative indicates it is behind.
+ *
+ * @param dateUtc - A Date representing an instant in UTC.
+ * @param timeZone - IANA time zone identifier (e.g., 'Pacific/Honolulu').
+ * @returns The millisecond offset to add to UTC to obtain local wall-clock time.
+ */
 function timeZoneOffsetMs(dateUtc: Date, timeZone: string): number {
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -97,6 +106,18 @@ function timeZoneOffsetMs(dateUtc: Date, timeZone: string): number {
   return asLocalEpochMs - dateUtc.getTime()
 }
 
+/**
+ * Returns a Date representing local noon (12:00) in the specified IANA time zone
+ * for the same calendar day as the provided baseDateUtc. The returned Date is
+ * constructed in UTC milliseconds corresponding to that local-noon instant.
+ *
+ * Example: If baseDateUtc is 2025-10-24T03:15Z and timeZone is 'Pacific/Honolulu',
+ * this function returns the UTC instant that corresponds to 12:00 on 2025-10-23 in Honolulu.
+ *
+ * @param baseDateUtc - A Date (UTC) whose calendar day is used to determine local noon.
+ * @param timeZone - IANA time zone identifier (e.g., 'Pacific/Honolulu').
+ * @returns Date at local noon for the given time zone and calendar day of baseDateUtc.
+ */
 function dateAtLocalNoon(baseDateUtc: Date, timeZone: string): Date {
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone,
