@@ -5,7 +5,7 @@ import type { Enums } from '@/lib/database.types'
 
 export type CalendarEvent = {
   id: string
-  type: 'activity' | 'planting'
+  type: 'activity' | 'planting' | 'harvest'
   title: string
   start: string
   end?: string | null
@@ -75,6 +75,78 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
         planting_id: pe.planting_id,
       },
     })
+  }
+  // Harvests: use actual harvested event date if present; else predict from planted/nursery dates and DTM
+  function addDays(dateISO: string, days: number): string {
+    const dt = new Date(dateISO + 'T00:00:00Z')
+    dt.setUTCDate(dt.getUTCDate() + days)
+    return dt.toISOString().slice(0, 10)
+  }
+  type HarvestEventRow = { planting_id: number; event_date: string }
+  const { data: harvestedRows } = await supabase
+    .from('planting_events')
+    .select('planting_id, event_date')
+    .eq('event_type', 'harvested')
+  const actualHarvestMap = new Map<number, string>()
+  for (const hr of ((harvestedRows as HarvestEventRow[]) || [])) {
+    if (!actualHarvestMap.has(hr.planting_id)) actualHarvestMap.set(hr.planting_id, hr.event_date)
+  }
+  type PlantingRow = {
+    id: number
+    status: string | null
+    nursery_started_date: string | null
+    planted_date: string | null
+    propagation_method: string
+    crop_varieties: {
+      name: string | null
+      crops: { name: string | null } | null
+      dtm_direct_seed_min: number
+      dtm_transplant_min: number
+    } | null
+  }
+  const { data: plantings } = await supabase
+    .from('plantings')
+    .select('id, status, nursery_started_date, planted_date, propagation_method, crop_varieties(name, crops(name), dtm_direct_seed_min, dtm_transplant_min)')
+  for (const p of ((plantings as PlantingRow[]) || [])) {
+    const crop = p.crop_varieties?.crops?.name ?? undefined
+    const variety = p.crop_varieties?.name ?? undefined
+    const plantedDate = p.planted_date
+    const nurseryStart = p.nursery_started_date
+    const dsMin = p.crop_varieties?.dtm_direct_seed_min ?? 0
+    const tpMin = p.crop_varieties?.dtm_transplant_min ?? 0
+    let harvestDate: string | null = actualHarvestMap.get(p.id) ?? null
+    let source: 'actual' | 'predicted' | null = harvestDate ? 'actual' : null
+    if (!harvestDate) {
+      if (plantedDate && (!nurseryStart || p.propagation_method === 'Direct Seed')) {
+        if (dsMin > 0) {
+          harvestDate = addDays(plantedDate, dsMin)
+          source = 'predicted'
+        }
+      } else if (plantedDate && nurseryStart) {
+        if (tpMin > 0) {
+          harvestDate = addDays(plantedDate, tpMin)
+          source = 'predicted'
+        }
+      }
+    }
+    if (harvestDate) {
+      const titleParts = ['Harvest']
+      if (crop) titleParts.push(String(crop))
+      if (variety) titleParts.push(String(variety))
+      events.push({
+        id: `h:${p.id}`,
+        type: 'harvest',
+        title: titleParts.join(' · '),
+        start: harvestDate,
+        meta: {
+          planting_id: p.id,
+          crop,
+          variety,
+          status: p.status ?? undefined,
+          source,
+        },
+      })
+    }
   }
   return { events }
 }

@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
-import { Droplet, Sprout, Wrench, Bug, FlaskConical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CalendarDays } from 'lucide-react'
+import { Droplet, Sprout, Wrench, Bug, FlaskConical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CalendarDays, ShoppingBasket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { hawaiianMoonForDate, lunarPhaseFraction, hawaiianMoonRecommendationByName } from '@/lib/hawaiian-moon'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -11,14 +11,14 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 
 export type CalendarEvent = {
   id: string
-  type: 'activity' | 'planting'
+  type: 'activity' | 'planting' | 'harvest'
   title: string
   start: string
   end?: string | null
   meta?: Record<string, unknown>
 }
 
-type CalendarFilter = 'all' | 'activity' | 'planting'
+type CalendarFilter = 'all' | 'activity' | 'planting' | 'harvest'
 
 function moonEmojiForDate(d: Date): string {
   const f = lunarPhaseFraction(d)
@@ -95,6 +95,9 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
           return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-100'
       }
     }
+    if (e.type === 'harvest') {
+      return 'bg-emerald-200 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-100'
+    }
     switch (plantingStatusOf(e)) {
       case 'nursery':
         return 'bg-yellow-100 text-yellow-900 dark:bg-yellow-900/40 dark:text-yellow-100'
@@ -125,6 +128,9 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
           default:
             return <Droplet className="size-3 opacity-80" aria-hidden="true" />
         }
+      }
+      if (e.type === 'harvest') {
+        return <ShoppingBasket className="size-3 opacity-80" aria-hidden="true" />
       }
       return <Sprout className="size-3 opacity-80" aria-hidden="true" />
     }
@@ -163,9 +169,9 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 sm:gap-2" role="tablist" aria-label="Filter">
-            {(['all','activity','planting'] as const).map((v) => (
+            {(['all','activity','planting','harvest'] as const).map((v) => (
               <button key={v} role="tab" aria-selected={filter===v} className={`rounded px-2 py-1 text-xs sm:text-sm border transition-colors active:scale-95 ${filter===v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`} onClick={() => setFilter(v)}>
-                {v === 'all' ? 'All' : v === 'activity' ? 'Activities' : 'Plantings'}
+                {v === 'all' ? 'All' : v === 'activity' ? 'Activities' : v === 'planting' ? 'Plantings' : 'Harvests'}
               </button>
             ))}
           </div>
@@ -183,6 +189,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
                 <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-green-600" /> Planted</div>
                 <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-emerald-600" /> Harvested</div>
                 <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-slate-500" /> Removed</div>
+                <div className="inline-flex items-center gap-2"><ShoppingBasket className="size-3 text-emerald-700" /> Harvest</div>
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -372,6 +379,18 @@ function DayDetailDialog({ dateISO, events, locations, onPrev, onNext }: { dateI
                 </ul>
               </div>
             ) : null}
+            {events.filter((e) => e.type === 'harvest').length > 0 ? (
+              <div className="space-y-2 rounded-md border bg-muted/40 p-3">
+                <div className="text-sm font-medium text-foreground">Harvests</div>
+                <ul className="space-y-2">
+                  {events.filter((e) => e.type === 'harvest').map((e) => (
+                    <li key={e.id} className="text-sm">
+                      <HarvestLineDetailed e={e} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
         )}
       </div>
@@ -466,6 +485,21 @@ function PlantingLineDetailed({ e }: { e: CalendarEvent }) {
       <Sprout className="size-3 text-green-700" />
       {label}
     </div>
+  )
+}
+
+function HarvestLineDetailed({ e }: { e: CalendarEvent }) {
+  const meta = e.meta && typeof e.meta === 'object' ? (e.meta as Record<string, unknown>) : undefined
+  const crop = typeof meta?.crop === 'string' ? meta.crop : undefined
+  const variety = typeof meta?.variety === 'string' ? meta.variety : undefined
+  const plantingId = typeof meta?.planting_id === 'number' ? meta.planting_id : undefined
+  const href = plantingId ? `/plantings#p${plantingId}` : '/plantings'
+  const label = [crop, variety].filter(Boolean).join(' — ')
+  return (
+    <Link href={href} className="inline-flex items-center gap-2 underline-offset-2 hover:underline">
+      <ShoppingBasket className="size-3 text-emerald-700" />
+      <span>{label || e.title}</span>
+    </Link>
   )
 }
 
