@@ -1,4 +1,6 @@
 import CalendarClient, { type CalendarEvent } from './CalendarClient'
+export const revalidate = 0
+export const dynamic = 'force-dynamic'
 import CalendarHeaderWeather from './CalendarHeaderWeather'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,9 +15,9 @@ export default async function CalendarPage() {
     | undefined
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h1 className="text-3xl font-bold">Calendar</h1>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-1 sm:flex gap-2 w-full sm:w-auto">
           <Button asChild>
             <Link href="/activities/new" aria-label="Schedule Activity">
               <CalendarPlus className="mr-2 h-4 w-4" /> Schedule Activity

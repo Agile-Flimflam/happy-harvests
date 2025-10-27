@@ -3,11 +3,12 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
-import { Droplet, Sprout, Wrench, Bug, FlaskConical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CalendarDays, ShoppingBasket } from 'lucide-react'
+import { Droplet, Sprout, Wrench, Bug, FlaskConical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CalendarDays, ShoppingBasket, Calendar, CalendarRange, CalendarPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { hawaiianMoonForDate, lunarPhaseFraction, hawaiianMoonRecommendationByName } from '@/lib/hawaiian-moon'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 export type CalendarEvent = {
   id: string
@@ -37,6 +38,74 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   const [current, setCurrent] = React.useState<{ y: number; m: number }>({ y: today.getFullYear(), m: today.getMonth() })
   const [filter, setFilter] = React.useState<CalendarFilter>('all')
   const [detail, setDetail] = React.useState<{ open: boolean; date: string | null }>({ open: false, date: null })
+  const [range, setRange] = React.useState<'month' | 'week' | 'today'>('month')
+
+  React.useEffect(() => {
+    try { window.localStorage.setItem('calendar.filter', filter) } catch {}
+  }, [filter])
+  React.useEffect(() => {
+    try { window.localStorage.setItem('calendar.range', range) } catch {}
+  }, [range])
+  React.useEffect(() => {
+    // Load persisted settings on client after mount to avoid SSR hydration mismatch
+    try {
+      const v1 = window.localStorage.getItem('calendar.filter') as CalendarFilter | null
+      if (v1 === 'all' || v1 === 'activity' || v1 === 'planting' || v1 === 'harvest') setFilter(v1)
+      const v2 = window.localStorage.getItem('calendar.range') as 'month' | 'week' | 'today' | null
+      if (v2 === 'month' || v2 === 'week' || v2 === 'today') setRange(v2)
+    } catch {}
+  }, [])
+
+  // Focused date for week/day navigation
+  const [focusDateISO, setFocusDateISO] = React.useState<string>(() => {
+    return `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+  })
+  React.useEffect(() => {
+    if (range === 'today') {
+      setDetail({ open: true, date: focusDateISO })
+    }
+  }, [range, focusDateISO])
+
+  // Navigation helpers (used by buttons and swipe)
+  const navigatePrev = React.useCallback(() => {
+    if (range === 'today') {
+      const d = new Date(focusDateISO + 'T00:00:00')
+      d.setDate(d.getDate() - 1)
+      setFocusDateISO(fmt(d))
+      setCurrent({ y: d.getFullYear(), m: d.getMonth() })
+    } else if (range === 'week') {
+      const d = new Date(focusDateISO + 'T00:00:00')
+      d.setDate(d.getDate() - 7)
+      setFocusDateISO(fmt(d))
+      setCurrent({ y: d.getFullYear(), m: d.getMonth() })
+    } else {
+      setCurrent(({ y, m }) => (m === 0 ? { y: y-1, m: 11 } : { y, m: m-1 }))
+    }
+  }, [range, focusDateISO])
+
+  const navigateNext = React.useCallback(() => {
+    if (range === 'today') {
+      const d = new Date(focusDateISO + 'T00:00:00')
+      d.setDate(d.getDate() + 1)
+      setFocusDateISO(fmt(d))
+      setCurrent({ y: d.getFullYear(), m: d.getMonth() })
+    } else if (range === 'week') {
+      const d = new Date(focusDateISO + 'T00:00:00')
+      d.setDate(d.getDate() + 7)
+      setFocusDateISO(fmt(d))
+      setCurrent({ y: d.getFullYear(), m: d.getMonth() })
+    } else {
+      setCurrent(({ y, m }) => (m === 11 ? { y: y+1, m: 0 } : { y, m: m+1 }))
+    }
+  }, [range, focusDateISO])
+
+  // Keep header (month/year) in sync with focused date for today/week
+  React.useEffect(() => {
+    if (range !== 'month') {
+      const d = new Date(focusDateISO + 'T00:00:00')
+      setCurrent({ y: d.getFullYear(), m: d.getMonth() })
+    }
+  }, [range, focusDateISO])
 
   function startOfMonth(y: number, m: number) { return new Date(y, m, 1) }
 
@@ -45,13 +114,42 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   firstDay.setDate(first.getDate() - first.getDay())
 
   const cells: Date[] = []
-  for (let i = 0; i < 42; i++) { // 6 weeks
-    const d = new Date(firstDay)
-    d.setDate(firstDay.getDate() + i)
-    cells.push(d)
+  if (range === 'today') {
+    const anchor = new Date(focusDateISO + 'T00:00:00')
+    cells.push(anchor)
+  } else if (range === 'week') {
+    const anchor = new Date(focusDateISO + 'T00:00:00')
+    const startWeek = new Date(anchor)
+    startWeek.setDate(anchor.getDate() - startWeek.getDay())
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startWeek)
+      d.setDate(startWeek.getDate() + i)
+      cells.push(d)
+    }
+  } else {
+    for (let i = 0; i < 42; i++) { // 6 weeks
+      const d = new Date(firstDay)
+      d.setDate(firstDay.getDate() + i)
+      cells.push(d)
+    }
   }
 
-  const filtered = filter === 'all' ? events : events.filter((e) => e.type === filter)
+  function inSelectedRange(dateISO: string): boolean {
+    const d = new Date(dateISO + 'T00:00:00')
+    if (range === 'today') {
+      const t = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+      return d.getTime() === t.getTime()
+    }
+    if (range === 'week') {
+      const start = new Date(today)
+      start.setDate(today.getDate() - today.getDay())
+      const end = new Date(start)
+      end.setDate(start.getDate() + 6)
+      return d >= start && d <= end
+    }
+    return true
+  }
+  const filtered = (filter === 'all' ? events : events.filter((e) => e.type === filter)).filter((e) => inSelectedRange(e.start))
   const byDay = new Map<string, CalendarEvent[]>()
   for (const e of filtered) {
     const day = e.start.slice(0,10)
@@ -118,27 +216,40 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       if (e.type === 'activity') {
         switch (activityTypeOf(e)) {
           case 'irrigation':
-            return <Droplet className="size-3 opacity-80" aria-hidden="true" />
+            return <Droplet className="size-4 sm:size-3 opacity-80" aria-hidden="true" />
           case 'soil_amendment':
-            return <FlaskConical className="size-3 opacity-80" aria-hidden="true" />
+            return <FlaskConical className="size-4 sm:size-3 opacity-80" aria-hidden="true" />
           case 'pest_management':
-            return <Bug className="size-3 opacity-80" aria-hidden="true" />
+            return <Bug className="size-4 sm:size-3 opacity-80" aria-hidden="true" />
           case 'asset_maintenance':
-            return <Wrench className="size-3 opacity-80" aria-hidden="true" />
+            return <Wrench className="size-4 sm:size-3 opacity-80" aria-hidden="true" />
           default:
-            return <Droplet className="size-3 opacity-80" aria-hidden="true" />
+            return <Droplet className="size-4 sm:size-3 opacity-80" aria-hidden="true" />
         }
       }
       if (e.type === 'harvest') {
-        return <ShoppingBasket className="size-3 opacity-80" aria-hidden="true" />
+        return <ShoppingBasket className="size-4 sm:size-3 opacity-80" aria-hidden="true" />
       }
-      return <Sprout className="size-3 opacity-80" aria-hidden="true" />
+      return <Sprout className="size-4 sm:size-3 opacity-80" aria-hidden="true" />
     }
+    const meta = e.meta && typeof e.meta === 'object' ? (e.meta as Record<string, unknown>) : undefined
+    const start = typeof meta?.window_start === 'string' ? meta.window_start : undefined
+    const end = typeof meta?.window_end === 'string' ? meta.window_end : undefined
+    const range = start && end ? `${start.slice(5)}–${end.slice(5)}` : undefined
+    const metaCrop = meta && typeof meta.crop === 'string' ? meta.crop : undefined
+    const chipText = e.type === 'harvest' ? (['Harvest', metaCrop].filter(Boolean) as string[]).join(' · ') : e.title
     return (
-      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] sm:text-xs ${cls} transition-colors transition-shadow hover:shadow-sm active:shadow-md`} title={e.title}>
-        <Icon />
-        <span className="truncate max-w-[9rem] sm:max-w-[12rem]">{e.title}</span>
-      </span>
+      <TooltipProvider delayDuration={500}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={`inline-flex items-center gap-1 rounded-full px-1 py-0 text-[10px] sm:px-1.5 sm:py-0.5 sm:text-xs ${cls} transition-colors transition-shadow hover:shadow-sm active:shadow-md`} title={e.title}>
+            <Icon />
+            <span className="hidden sm:inline truncate max-w-[9rem] sm:max-w-[12rem]">{e.type === 'harvest' ? chipText : (range ? `${chipText} · ${range}` : chipText)}</span>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">{e.title}</TooltipContent>
+      </Tooltip>
+      </TooltipProvider>
     )
   }
 
@@ -146,38 +257,85 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setCurrent(({ y, m }) => ({ y: y-1, m }))} aria-label="Previous year">
             <ChevronsLeft className="mr-1 h-4 w-4" /> Year
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setCurrent(({ y, m }) => (m === 0 ? { y: y-1, m: 11 } : { y, m: m-1 }))} aria-label="Previous month">
+          <Button variant="outline" size="sm" onClick={navigatePrev} aria-label="Previous">
             <ChevronLeft className="mr-1 h-4 w-4" /> Prev
           </Button>
           <div className="font-semibold text-lg">
             {new Date(current.y, current.m, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' })}
           </div>
-          <Button variant="outline" size="sm" onClick={() => setCurrent(({ y, m }) => (m === 11 ? { y: y+1, m: 0 } : { y, m: m+1 }))} aria-label="Next month">
+          <Button variant="outline" size="sm" onClick={navigateNext} aria-label="Next">
             Next <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={() => setCurrent(({ y, m }) => ({ y: y+1, m }))} aria-label="Next year">
             Year <ChevronsRight className="ml-1 h-4 w-4" />
           </Button>
-          <Button variant="secondary" size="sm" className="ml-2" onClick={() => setCurrent({ y: today.getFullYear(), m: today.getMonth() })}>
+          <Button variant="secondary" size="sm" className="ml-2 hidden sm:inline-flex" onClick={() => { setCurrent({ y: today.getFullYear(), m: today.getMonth() }); setFocusDateISO(fmt(new Date(today.getFullYear(), today.getMonth(), today.getDate()))) }}>
             <CalendarDays className="mr-1 h-4 w-4" /> Today
           </Button>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 sm:gap-2" role="tablist" aria-label="Filter">
+        {/* Mobile compact filter menu */}
+        <div className="w-full md:hidden sticky top-0 z-10 bg-background/95 supports-[backdrop-filter]:bg-background/60 backdrop-blur rounded-md px-1 py-1 flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="border rounded px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40">Filters</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[16rem]">
+              <div className="px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground/80 border-b">Type</div>
+              {(['all','activity','planting','harvest'] as const).map((v) => {
+                const label = v === 'all' ? 'All' : v === 'activity' ? 'Activities' : v === 'planting' ? 'Plantings' : 'Harvests'
+                const Icon = v === 'all' ? CalendarDays : v === 'activity' ? Wrench : v === 'planting' ? Sprout : ShoppingBasket
+                return (
+                  <DropdownMenuItem key={v} onClick={() => setFilter(v)} className={filter===v ? 'bg-accent/60 focus:bg-accent/60' : ''}>
+                    <span className="inline-flex items-center gap-2">
+                      <Icon className="h-4 w-4" />
+                      <span>{label}</span>
+                    </span>
+                  </DropdownMenuItem>
+                )
+              })}
+              <div className="px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground/80 border-y">Range</div>
+              {(['month','week','today'] as const).map((v) => {
+                const label = v[0].toUpperCase() + v.slice(1)
+                const Icon = v === 'month' ? Calendar : v === 'week' ? CalendarRange : CalendarDays
+                return (
+                  <DropdownMenuItem key={v} onClick={() => setRange(v)} className={range===v ? 'bg-accent/60 focus:bg-accent/60' : ''}>
+                    <span className="inline-flex items-center gap-2">
+                      <Icon className="h-4 w-4" />
+                      <span>{label}</span>
+                    </span>
+                  </DropdownMenuItem>
+                )
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="secondary" size="sm" className="ml-auto" onClick={() => { setCurrent({ y: today.getFullYear(), m: today.getMonth() }); setFocusDateISO(fmt(new Date(today.getFullYear(), today.getMonth(), today.getDate()))) }}>
+            <CalendarDays className="mr-1 h-4 w-4" /> Today
+          </Button>
+        </div>
+        {/* Desktop/tablet filter row (wraps; no sticky to avoid overlap) */}
+        <div className="hidden md:flex w-full px-1 py-1 items-center gap-3 flex-wrap mt-1">
+          <div className="flex items-center gap-1 sm:gap-2 flex-nowrap" role="tablist" aria-label="Filter">
             {(['all','activity','planting','harvest'] as const).map((v) => (
-              <button key={v} role="tab" aria-selected={filter===v} className={`rounded px-2 py-1 text-xs sm:text-sm border transition-colors active:scale-95 ${filter===v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`} onClick={() => setFilter(v)}>
+              <button key={v} role="tab" aria-selected={filter===v} className={`rounded px-2 py-1 text-xs sm:text-sm whitespace-nowrap border transition-colors active:scale-95 ${filter===v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`} onClick={() => setFilter(v)}>
                 {v === 'all' ? 'All' : v === 'activity' ? 'Activities' : v === 'planting' ? 'Plantings' : 'Harvests'}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 sm:gap-2 flex-nowrap" role="tablist" aria-label="Range">
+            {(['month','week','today'] as const).map((v) => (
+              <button key={v} role="tab" aria-selected={range===v} className={`rounded px-2 py-1 text-xs sm:text-sm whitespace-nowrap border transition-colors active:scale-95 ${range===v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`} onClick={() => setRange(v)}>
+                {v[0].toUpperCase() + v.slice(1)}
               </button>
             ))}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="border rounded px-2 py-1 text-xs sm:text-sm hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40">Legend</button>
+              <button className="border rounded px-2 py-1 text-xs sm:text-sm hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40 hidden sm:inline-block">Legend</button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64 p-2">
               <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-foreground">
@@ -196,57 +354,53 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
         </div>
       </div>
       {/* Legend now in dropdown to reduce visual noise */}
-      <div className="grid grid-cols-7 gap-2">
-        {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
-          <div key={d} className="text-xs text-muted-foreground px-1">{d}</div>
-        ))}
+      <div className={`grid ${range==='week' ? 'grid-cols-7' : range==='today' ? 'grid-cols-1' : 'grid-cols-7'} gap-2`}>
+        {(() => {
+          const names = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+          if (range === 'today') {
+            const d = new Date(focusDateISO + 'T00:00:00')
+            return <div className="text-xs text-muted-foreground px-1">{names[d.getDay()]}</div>
+          }
+          return names.map((d) => (<div key={d} className="text-xs text-muted-foreground px-1">{d}</div>))
+        })()}
         {cells.map((d) => {
           const key = fmt(d)
-          const dayEvents = byDay.get(key) || []
+          const dayEventsRaw = byDay.get(key) || []
+          const priority = (t: CalendarEvent['type']) => (t === 'harvest' ? 0 : t === 'planting' ? 1 : 2)
+          const dayEvents = [...dayEventsRaw].sort((a, b) => {
+            const pa = priority(a.type); const pb = priority(b.type)
+            if (pa !== pb) return pa - pb
+            return (a.title || '').localeCompare(b.title || '')
+          })
           const isOtherMonth = d.getMonth() !== current.m
           const isToday = isSameDay(d, today)
           const isWeekend = d.getDay() === 0 || d.getDay() === 6
           const moon = hawaiianMoonForDate(d)
           return (
 				<div key={key} className={`min-h-28 rounded-lg p-1 border border-border/30 transition-colors transition-shadow hover:border-border/70 hover:shadow-md active:shadow-lg active:bg-accent/10 focus-within:ring-2 focus-within:ring-ring/40 ${isOtherMonth ? 'bg-muted/30 text-muted-foreground' : 'bg-background'} ${isWeekend && !isOtherMonth ? 'bg-muted/20' : ''} ${isToday ? 'ring-2 ring-primary/50' : ''}`} onClick={() => setDetail({ open: true, date: key })} role="button" tabIndex={0} aria-label={d.toLocaleDateString()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setDetail({ open: true, date: key }) }}>
-              <div className="flex items-center justify-between text-xs mb-1">
+              <div className="flex items-center justify-between text-xs mb-2">
                 <div className={`font-semibold flex items-center gap-2 ${isToday ? 'text-primary' : ''}`}>
                   {d.getDate()}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                         <span aria-hidden="true">{moonEmojiForDate(d)}</span>
-                        <span>{moon?.name ?? ''}</span>
+                        <span className="hidden sm:inline">{moon?.name ?? ''}</span>
                       </span>
                     </TooltipTrigger>
                     <TooltipContent side="top">{moon?.recommendation ?? ''}</TooltipContent>
                   </Tooltip>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="border rounded-md h-8 px-2 text-xs sm:h-7 sm:px-2 touch-manipulation select-none transition-colors active:scale-95 hover:bg-accent/20 focus-visible:ring-2 focus-visible:ring-ring/40" aria-label="Add to this day" onClick={(e) => { e.stopPropagation() }}>Add</button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link href={{ pathname: '/activities/new', query: { start: key + 'T09:00' } }}>Schedule Activity</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href={{ pathname: '/plantings', query: { schedule: key, mode: 'nursery' } }}>Nursery sow</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href={{ pathname: '/plantings', query: { schedule: key, mode: 'direct' } }}>Direct seed</Link>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {/* Add actions moved to day detail dialog for clarity on resize; '+' removed from grid */}
               </div>
-              <ul className="space-y-1">
-                {dayEvents.slice(0,4).map((e) => (
+              <ul className="space-y-1 mt-1">
+                {dayEvents.slice(0, (typeof window === 'undefined' ? 2 : 2)).map((e) => (
                   <li key={e.id} className="truncate">
                     <EventChip e={e} />
                   </li>
                 ))}
-                {dayEvents.length > 4 ? (
-                  <li className="text-xs text-muted-foreground">+{dayEvents.length - 4} more</li>
+                {dayEvents.length > 2 ? (
+                  <li className="text-xs text-muted-foreground hidden sm:block">+{dayEvents.length - 4} more</li>
                 ) : null}
               </ul>
             </div>
@@ -325,16 +479,34 @@ function DayDetailDialog({ dateISO, events, locations, onPrev, onNext }: { dateI
         <div className="flex items-center justify-between gap-2 pr-12 sm:pr-16">
           <DialogTitle>{d.toLocaleDateString()}</DialogTitle>
           <div className="flex items-center gap-2">
-            <button className="border rounded px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground" onClick={onPrev} aria-label="Previous day">Prev</button>
-            <button className="border rounded px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground" onClick={onNext} aria-label="Next day">Next</button>
+            <button className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground" onClick={onPrev} aria-label="Previous day">
+              <ChevronLeft className="h-3 w-3 mr-1" /> Prev
+            </button>
+            <button className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground" onClick={onNext} aria-label="Next day">
+              Next <ChevronRight className="h-3 w-3 ml-1" />
+            </button>
           </div>
         </div>
         <DialogDescription>Day overview with events, weather, and Hawaiian moon</DialogDescription>
       </DialogHeader>
+      <div className="flex flex-wrap gap-2 mb-3">
+        <Link className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-3 py-2 text-xs sm:text-sm shadow hover:opacity-90 active:opacity-95" href={{ pathname: '/activities/new', query: { start: dateISO + 'T09:00' } }}>
+          <CalendarPlus className="h-4 w-4" />
+          <span>Schedule Activity</span>
+        </Link>
+        <Link className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs sm:text-sm hover:bg-accent hover:text-accent-foreground" href={{ pathname: '/plantings', query: { schedule: dateISO, mode: 'nursery' } }}>
+          <FlaskConical className="h-4 w-4" />
+          <span>Nursery sow</span>
+        </Link>
+        <Link className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs sm:text-sm hover:bg-accent hover:text-accent-foreground" href={{ pathname: '/plantings', query: { schedule: dateISO, mode: 'direct' } }}>
+          <Sprout className="h-4 w-4" />
+          <span>Direct seed</span>
+        </Link>
+      </div>
       {locations.length > 1 ? (
         <div className="flex items-center gap-2 text-sm">
           <label className="text-muted-foreground">Location</label>
-          <select className="border rounded px-2 py-1" value={selectedLocationId ?? ''} onChange={(e) => setSelectedLocationId(e.currentTarget.value || null)}>
+          <select className="border rounded px-2 py-1 focus-visible:ring-2 focus-visible:ring-ring/40" value={selectedLocationId ?? ''} onChange={(e) => setSelectedLocationId(e.currentTarget.value || null)}>
             {locations.map((l) => (
               <option key={l.id} value={l.id}>{l.name}</option>
             ))}
@@ -494,7 +666,16 @@ function HarvestLineDetailed({ e }: { e: CalendarEvent }) {
   const variety = typeof meta?.variety === 'string' ? meta.variety : undefined
   const plantingId = typeof meta?.planting_id === 'number' ? meta.planting_id : undefined
   const href = plantingId ? `/plantings#p${plantingId}` : '/plantings'
-  const label = [crop, variety].filter(Boolean).join(' — ')
+  const ws = typeof meta?.window_start === 'string' ? meta.window_start : undefined
+  const we = typeof meta?.window_end === 'string' ? meta.window_end : undefined
+  const toLocal = (s?: string) => {
+    if (!s) return ''
+    try { return new Date(s + 'T00:00:00').toLocaleDateString() } catch { try { return new Date(s).toLocaleDateString() } catch { return s } }
+  }
+  const range = ws && we ? `${toLocal(ws)} → ${toLocal(we)}` : (ws ? toLocal(ws) : (we ? toLocal(we) : undefined))
+  const loc = typeof meta?.location_label === 'string' ? meta.location_label : undefined
+  const pieces = [crop, variety, loc, range ? `(${range})` : undefined].filter(Boolean)
+  const label = pieces.join(' — ')
   return (
     <Link href={href} className="inline-flex items-center gap-2 underline-offset-2 hover:underline">
       <ShoppingBasket className="size-3 text-emerald-700" />

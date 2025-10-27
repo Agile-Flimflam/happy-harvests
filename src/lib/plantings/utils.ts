@@ -35,6 +35,8 @@ export type PlantingSummary = {
   nurseryStartedDate?: string | null;
   plantedDate?: string | null;
   endedDate?: string | null;
+  projectedHarvestStart?: string | null;
+  projectedHarvestEnd?: string | null;
   nurseryDays: number;
   fieldDays: number;
   totalDays: number;
@@ -50,6 +52,7 @@ export function computePlantingSummary(args: {
   events: Array<{
     event_type: PlantingEventType | string;
     event_date: string;
+    plantings?: { crop_varieties?: { dtm_direct_seed_min?: number | null; dtm_direct_seed_max?: number | null; dtm_transplant_min?: number | null; dtm_transplant_max?: number | null } | null } | null;
     beds?: { id: number; plots?: { locations?: { name?: string | null } | null } | null } | null;
     nurseries?: { name?: string | null } | null;
     qty?: number | null;
@@ -67,6 +70,8 @@ export function computePlantingSummary(args: {
   let movesCount = 0;
   let harvestQuantity: PlantingSummary['harvestQuantity'] = null;
   let harvestWeightGrams: number | null | undefined = undefined;
+  let projectedHarvestStart: string | null = null;
+  let projectedHarvestEnd: string | null = null;
 
   for (const ev of args.events) {
     const type = ev.event_type as PlantingEventType;
@@ -110,6 +115,41 @@ export function computePlantingSummary(args: {
     return start ? daysBetween(dEnded ?? today, start) : 0;
   })();
 
+  // Projected harvest window using DTM with precedence: transplanted -> nursery_seeded -> direct_seeded
+  const first = args.events.slice().sort((a, b) => a.event_date.localeCompare(b.event_date));
+  const meta = first.find(Boolean)?.plantings?.crop_varieties ?? {};
+  const dsMin = meta.dtm_direct_seed_min ?? null;
+  const dsMax = meta.dtm_direct_seed_max ?? null;
+  const tpMin = meta.dtm_transplant_min ?? null;
+  const tpMax = meta.dtm_transplant_max ?? null;
+  const addDays = (dateISO: string, days: number) => {
+    const dt = new Date(dateISO + 'T00:00:00Z');
+    dt.setUTCDate(dt.getUTCDate() + days);
+    return dt.toISOString().slice(0, 10);
+  };
+  if (dPlanted || dNurseryStart) {
+    // Find base by event presence
+    const hasTransplant = args.events.some((e) => e.event_type === 'transplanted');
+    const base = hasTransplant ? plantedDate : (nurseryStartedDate ?? plantedDate);
+    if (base) {
+      if (hasTransplant && tpMin != null) {
+        const min = (tpMin > 0 ? tpMin : (tpMax ?? tpMin)) ?? 0;
+        const max = (tpMax && tpMax > 0 ? tpMax : min) ?? min;
+        if (min > 0) {
+          projectedHarvestStart = addDays(base, min);
+          projectedHarvestEnd = addDays(base, max);
+        }
+      } else if (dsMin != null || dsMax != null) {
+        const min = (dsMin && dsMin > 0 ? dsMin : (dsMax ?? dsMin)) ?? 0;
+        const max = (dsMax && dsMax > 0 ? dsMax : min) ?? min;
+        if (min > 0) {
+          projectedHarvestStart = addDays(base, min);
+          projectedHarvestEnd = addDays(base, max);
+        }
+      }
+    }
+  }
+
   return {
     nurseryStartedDate: nurseryStartedDate ?? null,
     plantedDate: plantedDate ?? null,
@@ -117,6 +157,8 @@ export function computePlantingSummary(args: {
     nurseryDays,
     fieldDays,
     totalDays,
+    projectedHarvestStart,
+    projectedHarvestEnd,
     currentLocationLabel: currentLocationLabel ?? null,
     movesCount,
     harvestQuantity: harvestQuantity ?? null,

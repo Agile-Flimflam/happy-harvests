@@ -27,7 +27,7 @@ export async function actionNurserySow(prev: PlantingFormState, formData: FormDa
     'fn_create_nursery_planting',
     ({
       p_crop_variety_id: Number(cropVarietyId),
-      p_qty_initial: Number(qty),
+      p_qty: Number(qty),
       p_nursery_id: String(nurseryId),
       p_event_date: String(eventDate),
       p_notes: notes ?? undefined,
@@ -52,7 +52,7 @@ export async function actionDirectSeed(prev: PlantingFormState, formData: FormDa
     'fn_create_direct_seed_planting',
     ({
       p_crop_variety_id: Number(cropVarietyId),
-      p_qty_initial: Number(qty),
+      p_qty: Number(qty),
       p_bed_id: Number(bedId),
       p_event_date: String(eventDate),
       p_notes: notes ?? undefined,
@@ -220,6 +220,7 @@ export async function getPlantingEvents(plantingId: number): Promise<{ events?: 
     .from('planting_events')
     .select(`
       *,
+      plantings ( crop_varieties:crop_variety_id ( dtm_direct_seed_min, dtm_direct_seed_max, dtm_transplant_min, dtm_transplant_max ) ),
       beds ( id, length_inches, width_inches, plots ( locations ( name ) ) ),
       nurseries ( name )
     `)
@@ -251,7 +252,7 @@ export async function createNurseryPlanting(input: { crop_variety_id: number; qt
     'fn_create_nursery_planting',
     ({
       p_crop_variety_id: input.crop_variety_id,
-      p_qty_initial: input.qty,
+      p_qty: input.qty,
       p_nursery_id: input.nursery_id,
       p_event_date: input.event_date,
       p_notes: input.notes ?? undefined,
@@ -268,7 +269,7 @@ export async function createDirectSeedPlanting(input: { crop_variety_id: number;
     'fn_create_direct_seed_planting',
     ({
       p_crop_variety_id: input.crop_variety_id,
-      p_qty_initial: input.qty,
+      p_qty: input.qty,
       p_bed_id: input.bed_id,
       p_event_date: input.event_date,
       p_notes: input.notes ?? undefined,

@@ -50,17 +50,36 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
     qty: number | null
     weight_grams: number | null
     planting_id: number
+    bed_id: number | null
     plantings: {
       status: string | null
-      crop_varieties: { name: string | null; crops: { name: string | null } | null } | null
+      crop_varieties: { name: string | null; crops: { name: string | null } | null; dtm_direct_seed_min: number; dtm_direct_seed_max: number; dtm_transplant_min: number; dtm_transplant_max: number } | null
+      beds: { id: number; plots: { name: string | null; locations: { name: string | null } | null } | null } | null
     } | null
   }
   const { data: pes } = await supabase
     .from('planting_events')
-    .select('id, event_date, event_type, qty, weight_grams, planting_id, plantings(status, crop_varieties(name, crops(name)))')
-    .in('event_type', ['nursery_seeded', 'direct_seeded'])
+    .select('id, event_date, event_type, qty, weight_grams, planting_id, bed_id, plantings(status, crop_varieties(name, crops(name), dtm_direct_seed_min, dtm_direct_seed_max, dtm_transplant_min, dtm_transplant_max), beds(id, plots(name, locations(name))))')
+    .in('event_type', ['nursery_seeded', 'direct_seeded', 'transplanted'])
     .order('event_date', { ascending: true })
+  const pushedHarvestForId = new Set<number>()
+  function addDays(dateISO: string, days: number): string {
+    const dt = new Date(dateISO + 'T00:00:00Z')
+    dt.setUTCDate(dt.getUTCDate() + days)
+    return dt.toISOString().slice(0, 10)
+  }
+  function todayLocalISO() {
+    const d = new Date()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${d.getFullYear()}-${mm}-${dd}`
+  }
+  const todayISO1 = todayLocalISO()
   for (const pe of ((pes as PlantingSeedRow[]) || [])) {
+    const locName = pe.plantings?.beds?.plots?.locations?.name ?? null
+    const plotName = pe.plantings?.beds?.plots?.name ?? null
+    const bedId = pe.plantings?.beds?.id ?? null
+    const locationLabel = bedId != null ? `Bed #${bedId}` + (plotName ? ` @ ${plotName}` : (locName ? ` @ ${locName}` : '')) : null
     events.push({
       id: `p:${pe.planting_id}`,
       type: 'planting',
@@ -73,24 +92,67 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
         qty: pe.qty ?? undefined,
         weight_grams: pe.weight_grams ?? undefined,
         planting_id: pe.planting_id,
+        location_label: locationLabel ?? undefined,
       },
     })
+    // Predict harvest window from this event (avoid duplicates per planting)
+    if (!pushedHarvestForId.has(pe.planting_id) && pe.plantings?.status !== 'harvested') {
+      const cv = pe.plantings?.crop_varieties
+      const crop = cv?.crops?.name ?? undefined
+      const variety = cv?.name ?? undefined
+      let minDays = 0, maxDays = 0
+      if (pe.event_type === 'transplanted') {
+        const tmin = cv?.dtm_transplant_min ?? 0
+        const tmax = cv?.dtm_transplant_max ?? 0
+        minDays = tmin > 0 ? tmin : (tmax > 0 ? tmax : 0)
+        maxDays = tmax > 0 ? tmax : minDays
+      } else {
+        const dmin = cv?.dtm_direct_seed_min ?? 0
+        const dmax = cv?.dtm_direct_seed_max ?? 0
+        minDays = dmin > 0 ? dmin : (dmax > 0 ? dmax : 0)
+        maxDays = dmax > 0 ? dmax : minDays
+      }
+      if (minDays > 0) {
+        const start = addDays(pe.event_date, minDays)
+        const end = addDays(pe.event_date, maxDays)
+        if (end >= todayISO1) {
+          events.push({
+            id: `h:${pe.planting_id}`,
+            type: 'harvest',
+            title: (['Harvest', crop].filter(Boolean) as string[]).join(' · '),
+            start,
+            end,
+            meta: { planting_id: pe.planting_id, crop, variety, status: pe.plantings?.status ?? undefined, source: 'predicted', window_start: start, window_end: end, location_label: locationLabel ?? undefined },
+          })
+          pushedHarvestForId.add(pe.planting_id)
+        }
+      }
+    }
   }
-  // Harvests: use actual harvested event date if present; else predict from planted/nursery dates and DTM
-  function addDays(dateISO: string, days: number): string {
-    const dt = new Date(dateISO + 'T00:00:00Z')
-    dt.setUTCDate(dt.getUTCDate() + days)
-    return dt.toISOString().slice(0, 10)
-  }
-  type HarvestEventRow = { planting_id: number; event_date: string }
-  const { data: harvestedRows } = await supabase
+  // Harvests: predict future harvest dates only (no past dates, no already-harvested plantings)
+
+  // Load minimal event timeline for each planting
+  type EventRow = { planting_id: number; event_type: string; event_date: string }
+  const { data: eventRows } = await supabase
     .from('planting_events')
-    .select('planting_id, event_date')
-    .eq('event_type', 'harvested')
-  const actualHarvestMap = new Map<number, string>()
-  for (const hr of ((harvestedRows as HarvestEventRow[]) || [])) {
-    if (!actualHarvestMap.has(hr.planting_id)) actualHarvestMap.set(hr.planting_id, hr.event_date)
+    .select('planting_id, event_type, event_date')
+    .in('event_type', ['direct_seeded','nursery_seeded','transplanted','harvested'])
+
+  type PerPlantingEvents = {
+    direct_seeded?: string
+    nursery_seeded?: string
+    transplanted?: string
+    harvested?: string
   }
+  const perPlanting = new Map<number, PerPlantingEvents>()
+  for (const er of ((eventRows as EventRow[]) || [])) {
+    const rec = perPlanting.get(er.planting_id) ?? {}
+    const key = er.event_type as keyof PerPlantingEvents
+    const prev = rec[key]
+    if (!prev || er.event_date < prev) rec[key] = er.event_date
+    perPlanting.set(er.planting_id, rec)
+  }
+
   type PlantingRow = {
     id: number
     status: string | null
@@ -101,49 +163,84 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
       name: string | null
       crops: { name: string | null } | null
       dtm_direct_seed_min: number
+      dtm_direct_seed_max: number
       dtm_transplant_min: number
+      dtm_transplant_max: number
     } | null
+    beds: { id: number; plots: { name: string | null; locations: { name: string | null } | null } | null } | null
   }
   const { data: plantings } = await supabase
     .from('plantings')
-    .select('id, status, nursery_started_date, planted_date, propagation_method, crop_varieties(name, crops(name), dtm_direct_seed_min, dtm_transplant_min)')
+    .select('id, status, nursery_started_date, planted_date, propagation_method, crop_varieties:crop_variety_id(name, crops(name), dtm_direct_seed_min, dtm_direct_seed_max, dtm_transplant_min, dtm_transplant_max), beds:bed_id(id, plots(name, locations(name)))')
+
+  const todayISO = todayISO1
   for (const p of ((plantings as PlantingRow[]) || [])) {
     const crop = p.crop_varieties?.crops?.name ?? undefined
     const variety = p.crop_varieties?.name ?? undefined
-    const plantedDate = p.planted_date
-    const nurseryStart = p.nursery_started_date
-    const dsMin = p.crop_varieties?.dtm_direct_seed_min ?? 0
-    const tpMin = p.crop_varieties?.dtm_transplant_min ?? 0
-    let harvestDate: string | null = actualHarvestMap.get(p.id) ?? null
-    let source: 'actual' | 'predicted' | null = harvestDate ? 'actual' : null
-    if (!harvestDate) {
-      if (plantedDate && (!nurseryStart || p.propagation_method === 'Direct Seed')) {
-        if (dsMin > 0) {
-          harvestDate = addDays(plantedDate, dsMin)
-          source = 'predicted'
-        }
-      } else if (plantedDate && nurseryStart) {
-        if (tpMin > 0) {
-          harvestDate = addDays(plantedDate, tpMin)
-          source = 'predicted'
-        }
-      }
+    const locName = p.beds?.plots?.locations?.name ?? null
+    const plotName = p.beds?.plots?.name ?? null
+    const bedId = p.beds?.id ?? null
+    const locationLabel = bedId != null ? `Bed #${bedId}` + (plotName ? ` @ ${plotName}` : (locName ? ` @ ${locName}` : '')) : null
+    const dsMinRaw = p.crop_varieties?.dtm_direct_seed_min ?? 0
+    const dsMaxRaw = p.crop_varieties?.dtm_direct_seed_max ?? 0
+    const tpMinRaw = p.crop_varieties?.dtm_transplant_min ?? 0
+    const tpMaxRaw = p.crop_varieties?.dtm_transplant_max ?? 0
+    const dsMin = dsMinRaw > 0 ? dsMinRaw : (dsMaxRaw > 0 ? dsMaxRaw : 0)
+    const tpMin = tpMinRaw > 0 ? tpMinRaw : (tpMaxRaw > 0 ? tpMaxRaw : 0)
+    const dsMax = dsMaxRaw > 0 ? dsMaxRaw : dsMin
+    const tpMax = tpMaxRaw > 0 ? tpMaxRaw : tpMin
+    const evs = perPlanting.get(p.id) || {}
+
+    // Skip if harvested already (by status or event)
+    if (p.status === 'harvested' || evs.harvested) continue
+
+    // Determine base date and DTM:
+    // - If transplanted: base = transplanted date, dtm = transplant min
+    // - Else if nursery sowed (and not transplanted): base = nursery date, dtm = direct-seed min
+    // - Else if direct seeded: base = direct-seed date, dtm = direct-seed min
+    // - Fallback to columns if events missing
+    let baseDate: string | null = null
+    let minDays = 0
+    let maxDays = 0
+    if (evs.transplanted) {
+      baseDate = evs.transplanted
+      minDays = tpMin
+      maxDays = tpMax
+    } else if (evs.nursery_seeded) {
+      baseDate = evs.nursery_seeded
+      minDays = dsMin
+      maxDays = dsMax
+    } else if (evs.direct_seeded) {
+      baseDate = evs.direct_seeded
+      minDays = dsMin
+      maxDays = dsMax
+    } else {
+      if (p.planted_date) { baseDate = p.planted_date; minDays = dsMin; maxDays = dsMax }
+      else if (p.nursery_started_date) { baseDate = p.nursery_started_date; minDays = dsMin; maxDays = dsMax }
     }
-    if (harvestDate) {
-      const titleParts = ['Harvest']
-      if (crop) titleParts.push(String(crop))
-      if (variety) titleParts.push(String(variety))
+
+    if (!baseDate || minDays <= 0) continue
+    if (maxDays <= 0) maxDays = minDays
+    const harvestStart = addDays(baseDate, minDays)
+    const harvestEnd = addDays(baseDate, maxDays)
+    if (harvestEnd < todayISO) continue
+
+    if (!pushedHarvestForId.has(p.id)) {
       events.push({
         id: `h:${p.id}`,
         type: 'harvest',
-        title: titleParts.join(' · '),
-        start: harvestDate,
+        title: (['Harvest', crop].filter(Boolean) as string[]).join(' · '),
+        start: harvestStart,
+        end: harvestEnd,
         meta: {
           planting_id: p.id,
           crop,
           variety,
           status: p.status ?? undefined,
-          source,
+          source: 'predicted',
+          window_start: harvestStart,
+          window_end: harvestEnd,
+          location_label: locationLabel ?? undefined,
         },
       })
     }
