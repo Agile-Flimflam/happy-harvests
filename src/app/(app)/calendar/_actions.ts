@@ -173,7 +173,6 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
     .from('plantings')
     .select('id, status, nursery_started_date, planted_date, propagation_method, crop_varieties:crop_variety_id(name, crops(name), dtm_direct_seed_min, dtm_direct_seed_max, dtm_transplant_min, dtm_transplant_max), beds:bed_id(id, plots(name, locations(name)))')
 
-  const todayISO = todayISO1
   for (const p of ((plantings as PlantingRow[]) || [])) {
     const crop = p.crop_varieties?.crops?.name ?? undefined
     const variety = p.crop_varieties?.name ?? undefined
@@ -223,7 +222,7 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
     if (maxDays <= 0) maxDays = minDays
     const harvestStart = addDays(baseDate, minDays)
     const harvestEnd = addDays(baseDate, maxDays)
-    if (harvestEnd < todayISO) continue
+    if (harvestEnd < todayISO1) continue
 
     if (!pushedHarvestForId.has(p.id)) {
       events.push({

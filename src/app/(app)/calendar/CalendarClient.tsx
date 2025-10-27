@@ -237,14 +237,15 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     const end = typeof meta?.window_end === 'string' ? meta.window_end : undefined
     const range = start && end ? `${start.slice(5)}–${end.slice(5)}` : undefined
     const metaCrop = meta && typeof meta.crop === 'string' ? meta.crop : undefined
-    const chipText = e.type === 'harvest' ? (['Harvest', metaCrop].filter(Boolean) as string[]).join(' · ') : e.title
+    const baseText = e.type === 'harvest' ? (['Harvest', metaCrop].filter(Boolean) as string[]).join(' · ') : e.title
+    const displayText = e.type === 'harvest' ? baseText : (range ? `${baseText} · ${range}` : baseText)
     return (
       <TooltipProvider delayDuration={500}>
       <Tooltip>
         <TooltipTrigger asChild>
           <span className={`inline-flex items-center gap-1 rounded-full px-1 py-0 text-[10px] sm:px-1.5 sm:py-0.5 sm:text-xs ${cls} transition-colors transition-shadow hover:shadow-sm active:shadow-md`} title={e.title}>
             <Icon />
-            <span className="hidden sm:inline truncate max-w-[9rem] sm:max-w-[12rem]">{e.type === 'harvest' ? chipText : (range ? `${chipText} · ${range}` : chipText)}</span>
+            <span className="hidden sm:inline truncate max-w-[9rem] sm:max-w-[12rem]">{displayText}</span>
           </span>
         </TooltipTrigger>
         <TooltipContent side="top">{e.title}</TooltipContent>
@@ -394,7 +395,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
                 {/* Add actions moved to day detail dialog for clarity on resize; '+' removed from grid */}
               </div>
               <ul className="space-y-1 mt-1">
-                {dayEvents.slice(0, (typeof window === 'undefined' ? 2 : 2)).map((e) => (
+                {dayEvents.slice(0, 2).map((e) => (
                   <li key={e.id} className="truncate">
                     <EventChip e={e} />
                   </li>
