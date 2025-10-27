@@ -75,6 +75,27 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
     return `${d.getFullYear()}-${mm}-${dd}`
   }
   const todayISO1 = todayLocalISO()
+
+  // Shared helper: compute a predicted harvest window from a base date and DTM values
+  function harvestWindowFromBase(args: {
+    baseDate: string | null
+    isTransplantBase: boolean
+    dsMin: number
+    dsMax: number
+    tpMin: number
+    tpMax: number
+    todayISO: string
+  }): { start: string; end: string } | null {
+    const { baseDate, isTransplantBase, dsMin, dsMax, tpMin, tpMax, todayISO } = args
+    if (!baseDate) return null
+    const minDays = isTransplantBase ? (tpMin > 0 ? tpMin : (tpMax > 0 ? tpMax : 0)) : (dsMin > 0 ? dsMin : (dsMax > 0 ? dsMax : 0))
+    const maxDays = isTransplantBase ? (tpMax > 0 ? tpMax : minDays) : (dsMax > 0 ? dsMax : minDays)
+    if (minDays <= 0) return null
+    const start = addDays(baseDate, minDays)
+    const end = addDays(baseDate, maxDays)
+    if (end < todayISO) return null
+    return { start, end }
+  }
   for (const pe of ((pes as PlantingSeedRow[]) || [])) {
     const locName = pe.plantings?.beds?.plots?.locations?.name ?? null
     const plotName = pe.plantings?.beds?.plots?.name ?? null
@@ -100,32 +121,25 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
       const cv = pe.plantings?.crop_varieties
       const crop = cv?.crops?.name ?? undefined
       const variety = cv?.name ?? undefined
-      let minDays = 0, maxDays = 0
-      if (pe.event_type === 'transplanted') {
-        const tmin = cv?.dtm_transplant_min ?? 0
-        const tmax = cv?.dtm_transplant_max ?? 0
-        minDays = tmin > 0 ? tmin : (tmax > 0 ? tmax : 0)
-        maxDays = tmax > 0 ? tmax : minDays
-      } else {
-        const dmin = cv?.dtm_direct_seed_min ?? 0
-        const dmax = cv?.dtm_direct_seed_max ?? 0
-        minDays = dmin > 0 ? dmin : (dmax > 0 ? dmax : 0)
-        maxDays = dmax > 0 ? dmax : minDays
-      }
-      if (minDays > 0) {
-        const start = addDays(pe.event_date, minDays)
-        const end = addDays(pe.event_date, maxDays)
-        if (end >= todayISO1) {
-          events.push({
-            id: `h:${pe.planting_id}`,
-            type: 'harvest',
-            title: (['Harvest', crop].filter(Boolean) as string[]).join(' · '),
-            start,
-            end,
-            meta: { planting_id: pe.planting_id, crop, variety, status: pe.plantings?.status ?? undefined, source: 'predicted', window_start: start, window_end: end, location_label: locationLabel ?? undefined },
-          })
-          pushedHarvestForId.add(pe.planting_id)
-        }
+      const win = harvestWindowFromBase({
+        baseDate: pe.event_date,
+        isTransplantBase: pe.event_type === 'transplanted',
+        dsMin: cv?.dtm_direct_seed_min ?? 0,
+        dsMax: cv?.dtm_direct_seed_max ?? 0,
+        tpMin: cv?.dtm_transplant_min ?? 0,
+        tpMax: cv?.dtm_transplant_max ?? 0,
+        todayISO: todayISO1,
+      })
+      if (win) {
+        events.push({
+          id: `h:${pe.planting_id}`,
+          type: 'harvest',
+          title: (['Harvest', crop].filter(Boolean) as string[]).join(' · '),
+          start: win.start,
+          end: win.end,
+          meta: { planting_id: pe.planting_id, crop, variety, status: pe.plantings?.status ?? undefined, source: 'predicted', window_start: win.start, window_end: win.end, location_label: locationLabel ?? undefined },
+        })
+        pushedHarvestForId.add(pe.planting_id)
       }
     }
   }
@@ -199,46 +213,39 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
     // - Else if direct seeded: base = direct-seed date, dtm = direct-seed min
     // - Fallback to columns if events missing
     let baseDate: string | null = null
-    let minDays = 0
-    let maxDays = 0
-    if (evs.transplanted) {
-      baseDate = evs.transplanted
-      minDays = tpMin
-      maxDays = tpMax
-    } else if (evs.nursery_seeded) {
-      baseDate = evs.nursery_seeded
-      minDays = dsMin
-      maxDays = dsMax
-    } else if (evs.direct_seeded) {
-      baseDate = evs.direct_seeded
-      minDays = dsMin
-      maxDays = dsMax
-    } else {
-      if (p.planted_date) { baseDate = p.planted_date; minDays = dsMin; maxDays = dsMax }
-      else if (p.nursery_started_date) { baseDate = p.nursery_started_date; minDays = dsMin; maxDays = dsMax }
-    }
+    let isTransplantBase = false
+    if (evs.transplanted) { baseDate = evs.transplanted; isTransplantBase = true }
+    else if (evs.nursery_seeded) { baseDate = evs.nursery_seeded; isTransplantBase = false }
+    else if (evs.direct_seeded) { baseDate = evs.direct_seeded; isTransplantBase = false }
+    else if (p.planted_date) { baseDate = p.planted_date; isTransplantBase = false }
+    else if (p.nursery_started_date) { baseDate = p.nursery_started_date; isTransplantBase = false }
 
-    if (!baseDate || minDays <= 0) continue
-    if (maxDays <= 0) maxDays = minDays
-    const harvestStart = addDays(baseDate, minDays)
-    const harvestEnd = addDays(baseDate, maxDays)
-    if (harvestEnd < todayISO1) continue
+    const win2 = harvestWindowFromBase({
+      baseDate,
+      isTransplantBase,
+      dsMin,
+      dsMax,
+      tpMin,
+      tpMax,
+      todayISO: todayISO1,
+    })
+    if (!win2) continue
 
     if (!pushedHarvestForId.has(p.id)) {
       events.push({
         id: `h:${p.id}`,
         type: 'harvest',
         title: (['Harvest', crop].filter(Boolean) as string[]).join(' · '),
-        start: harvestStart,
-        end: harvestEnd,
+        start: win2.start,
+        end: win2.end,
         meta: {
           planting_id: p.id,
           crop,
           variety,
           status: p.status ?? undefined,
           source: 'predicted',
-          window_start: harvestStart,
-          window_end: harvestEnd,
+          window_start: win2.start,
+          window_end: win2.end,
           location_label: locationLabel ?? undefined,
         },
       })

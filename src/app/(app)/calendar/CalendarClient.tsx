@@ -401,7 +401,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
                   </li>
                 ))}
                 {dayEvents.length > 2 ? (
-                  <li className="text-xs text-muted-foreground hidden sm:block">+{dayEvents.length - 4} more</li>
+                  <li className="text-xs text-muted-foreground hidden sm:block">+{dayEvents.length - 2} more</li>
                 ) : null}
               </ul>
             </div>
