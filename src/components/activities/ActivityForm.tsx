@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { useActionState } from 'react'
 import { hawaiianMoonForISO } from '@/lib/hawaiian-moon'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -72,7 +71,7 @@ type ActivityFormProps = {
 
 export function ActivityForm({ action, locations, plots = [], beds = [], nurseries = [], defaultStart = null }: ActivityFormProps) {
   const initialState: ActivityFormState = { message: '', errors: {} }
-  const [state, formAction] = useActionState(action, initialState)
+  const [state, formAction] = React.useActionState(action, initialState)
   const [activityType, setActivityType] = React.useState<string>('')
   const [locationId, setLocationId] = React.useState<string>('')
   const [startValue, setStartValue] = React.useState<string>(defaultStart || '')

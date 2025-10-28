@@ -11,24 +11,11 @@ import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ChevronDownIcon } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
+import type { Tables } from '@/lib/database.types'
 
 export type EditActivityContentProps = {
-  activity: {
-    activity_type: ActivityType
-    started_at: string
-    ended_at: string | null
-    duration_minutes: number | null
-    labor_hours: number | null
-    location_id: string | null
-    crop: string | null
-    asset_name: string | null
-    asset_id: string | null
-    quantity: number | null
-    unit: string | null
-    cost: number | null
-    notes: string | null
-  }
-  locations: Array<{ id: string; name: string }>
+  activity: Tables<'activities'>
+  locations: Tables<'locations'>[]
 }
 
 export function EditActivityContent({ activity, locations }: EditActivityContentProps) {
@@ -39,13 +26,22 @@ export function EditActivityContent({ activity, locations }: EditActivityContent
   const [endDate, setEndDate] = useState<Date | undefined>(activity.ended_at ? parseDateString(activity.ended_at.slice(0,10)) : undefined)
   const [endTime, setEndTime] = useState<string>(activity.ended_at?.slice(11,16) || '')
 
+  // Derived validation state
+  const startIso = combineDateTime(startDate, startTime)
+  const endIso = combineDateTime(endDate, endTime)
+  const isStartValid = Boolean(startDate) && Boolean(startTime && startTime.length >= 4)
+  const endProvided = Boolean(endDate) || Boolean(endTime)
+  const hasBothEndParts = Boolean(endDate) && Boolean(endTime && endTime.length >= 4)
+  const endChronoOk = isStartValid && hasBothEndParts ? new Date(endIso).getTime() >= new Date(startIso).getTime() : true
+  const canSubmit = Boolean(type) && isStartValid && (!endProvided || (hasBothEndParts && endChronoOk))
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {/* Hidden inputs to keep server action payload unchanged */}
       <input type="hidden" name="activity_type" value={type} />
       <input type="hidden" name="location_id" value={locationId} />
-      <input type="hidden" name="started_at" value={combineDateTime(startDate, startTime)} />
-      <input type="hidden" name="ended_at" value={combineDateTime(endDate, endTime)} />
+      <input type="hidden" name="started_at" value={startIso} />
+      <input type="hidden" name="ended_at" value={endIso} />
 
       <div className="space-y-2">
         <Label className="text-sm">Type</Label>
@@ -70,7 +66,7 @@ export function EditActivityContent({ activity, locations }: EditActivityContent
           <SelectContent>
             <SelectItem value="__none__">—</SelectItem>
             {locations.map((l) => (
-              <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+              <SelectItem key={l.id} value={l.id}>{l.name ?? 'Untitled'}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -98,6 +94,7 @@ export function EditActivityContent({ activity, locations }: EditActivityContent
             onChange={(e) => setStartTime(e.currentTarget.value)}
             required
             step="1"
+            aria-invalid={!isStartValid}
             className="bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none w-28"
           />
         </div>
@@ -122,9 +119,13 @@ export function EditActivityContent({ activity, locations }: EditActivityContent
             value={endTime}
             onChange={(e) => setEndTime(e.currentTarget.value)}
             step="1"
+            aria-invalid={!endChronoOk}
             className="bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none w-28"
           />
         </div>
+        {!endChronoOk ? (
+          <div className="text-xs text-destructive">End must be after start.</div>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -176,7 +177,7 @@ export function EditActivityContent({ activity, locations }: EditActivityContent
         <Textarea name="notes" defaultValue={activity.notes ?? ''} />
       </div>
       <div className="col-span-full">
-        <Button type="submit">Save</Button>
+        <Button type="submit" disabled={!canSubmit} aria-disabled={!canSubmit}>Save</Button>
       </div>
     </div>
   )
