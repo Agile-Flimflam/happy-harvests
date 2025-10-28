@@ -10,7 +10,7 @@ export default async function EditActivityPage({ params }: { params: Promise<{ i
   const id = Number(idParam)
   const { data: activity } = await supabase.from('activities').select('*').eq('id', id).single()
   if (!activity) return notFound()
-  const { data: locations } = await supabase.from('locations').select('*').order('name', { ascending: true })
+  const { data: locations } = await supabase.from('locations').select('id,name').order('name', { ascending: true })
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Edit Activity</h1>

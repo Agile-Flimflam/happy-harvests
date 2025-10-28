@@ -13,6 +13,7 @@ import { renameBed } from '@/app/(app)/activities/_actions'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ChevronDownIcon } from 'lucide-react'
+import { parseLocalDateFromYMD } from '@/lib/utils'
 function AmendmentsEditor() {
   const [items, setItems] = React.useState<Array<{ name: string; quantity?: string; unit?: string; notes?: string }>>([
     { name: '' },
@@ -294,7 +295,7 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
                 <PopoverContent className="w-auto overflow-hidden p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={getDatePart(startValue) ? new Date(getDatePart(startValue)!) : undefined}
+                    selected={getDatePart(startValue) ? parseLocalDateFromYMD(getDatePart(startValue)!) : undefined}
                     captionLayout="dropdown"
                     onSelect={(d) => setStartValue(combine(formatDateOnly(d || undefined), getTimePart(startValue)))}
                   />
@@ -329,7 +330,7 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
                 <PopoverContent className="w-auto overflow-hidden p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={getDatePart(endValue) ? new Date(getDatePart(endValue)!) : undefined}
+                    selected={getDatePart(endValue) ? parseLocalDateFromYMD(getDatePart(endValue)!) : undefined}
                     captionLayout="dropdown"
                     onSelect={(d) => setEndValue(combine(formatDateOnly(d || undefined), getTimePart(endValue)))}
                   />

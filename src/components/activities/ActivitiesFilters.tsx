@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ACTIVITY_TYPE_OPTIONS, type ActivityType } from '@/lib/activities/types'
+import { parseLocalDateFromYMD } from '@/lib/utils'
 import { ChevronDownIcon } from 'lucide-react'
 
 export type ActivitiesFiltersInitial = {
@@ -34,8 +35,8 @@ export function ActivitiesFilters({
 }) {
   const [type, setType] = useState<ActivitiesFiltersInitial['type']>(initial.type ?? '')
   const [locationId, setLocationId] = useState<ActivitiesFiltersInitial['location_id']>(initial.location_id ?? '')
-  const [fromDate, setFromDate] = useState<Date | undefined>(parseDateString(initial.from))
-  const [toDate, setToDate] = useState<Date | undefined>(parseDateString(initial.to))
+  const [fromDate, setFromDate] = useState<Date | undefined>(parseLocalDateFromYMD(initial.from))
+  const [toDate, setToDate] = useState<Date | undefined>(parseLocalDateFromYMD(initial.to))
 
   return (
     <form method="get" className="mb-6 grid gap-4 md:grid-cols-5">
@@ -116,12 +117,6 @@ export function ActivitiesFilters({
       </div>
     </form>
   )
-}
-
-function parseDateString(value?: string | null) {
-  if (!value) return undefined
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed
 }
 
 function formatDateValue(value?: Date) {

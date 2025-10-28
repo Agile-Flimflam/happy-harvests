@@ -12,18 +12,19 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ChevronDownIcon } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import type { Tables } from '@/lib/database.types'
+import { parseLocalDateFromYMD } from '@/lib/utils'
 
 export type EditActivityContentProps = {
   activity: Tables<'activities'>
-  locations: Tables<'locations'>[]
+  locations: { id: string; name: string | null }[]
 }
 
 export function EditActivityContent({ activity, locations }: EditActivityContentProps) {
   const [type, setType] = useState<ActivityType>(activity.activity_type)
   const [locationId, setLocationId] = useState<string>(activity.location_id || '')
-  const [startDate, setStartDate] = useState<Date | undefined>(parseDateString(activity.started_at?.slice(0,10)))
+  const [startDate, setStartDate] = useState<Date | undefined>(parseLocalDateFromYMD(activity.started_at?.slice(0,10)))
   const [startTime, setStartTime] = useState<string>(activity.started_at?.slice(11,16) || '')
-  const [endDate, setEndDate] = useState<Date | undefined>(activity.ended_at ? parseDateString(activity.ended_at.slice(0,10)) : undefined)
+  const [endDate, setEndDate] = useState<Date | undefined>(activity.ended_at ? parseLocalDateFromYMD(activity.ended_at.slice(0,10)) : undefined)
   const [endTime, setEndTime] = useState<string>(activity.ended_at?.slice(11,16) || '')
 
   // Derived validation state
@@ -181,14 +182,6 @@ export function EditActivityContent({ activity, locations }: EditActivityContent
       </div>
     </div>
   )
-}
-
-function parseDateString(value?: string | null) {
-  if (!value) return undefined
-  // Expecting YYYY-MM-DD
-  const [y, m, d] = value.split('-').map((s) => Number(s))
-  if (!y || !m || !d) return undefined
-  return new Date(y, m - 1, d)
 }
 
 function formatDate(d?: Date) {

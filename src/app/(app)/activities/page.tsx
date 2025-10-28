@@ -48,7 +48,9 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
   if (error) {
     return <div className="text-red-500">{error}</div>
   }
-  const types: ActivityType[] = Object.keys(grouped || {}).filter(isActivityType)
+  const types: ActivityType[] = Object.keys(grouped || {})
+    .filter(isActivityType)
+    .sort((a, b) => prettyActivityType(a).localeCompare(prettyActivityType(b)))
   const allRows = Object.values(grouped || {}).flat().sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''))
   const typeToCount = Object.fromEntries(types.map((t) => [t, (grouped?.[t] || []).length])) as Record<ActivityType, number>
   const { rows: flatRows = [], error: flatErr } = await getActivitiesFlat({
