@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ACTIVITY_TYPE_OPTIONS, type ActivityType } from '@/lib/activities/types'
+import { ChevronDownIcon } from 'lucide-react'
 
 export type ActivitiesFiltersInitial = {
   type?: ActivityType | ''
@@ -76,12 +77,13 @@ export function ActivitiesFilters({
         <Label className="text-sm">From</Label>
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" className="w-full justify-start text-left font-normal">
-              {fromDate ? formatDateValue(fromDate) : 'Pick a date'}
+            <Button variant="outline" className="w-full justify-between font-normal">
+              {fromDate ? formatDateValue(fromDate) : 'Select date'}
+              <ChevronDownIcon className="size-4" />
             </Button>
           </PopoverTrigger>
           <PopoverContent sideOffset={8} align="start" className="w-auto overflow-hidden p-0">
-            <Calendar mode="single" selected={fromDate} onSelect={setFromDate} />
+            <Calendar mode="single" captionLayout="dropdown" selected={fromDate} onSelect={setFromDate} />
           </PopoverContent>
         </Popover>
         <input type="hidden" name="from" value={formatDateValue(fromDate)} />
@@ -91,12 +93,13 @@ export function ActivitiesFilters({
         <Label className="text-sm">To</Label>
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" className="w-full justify-start text-left font-normal">
-              {toDate ? formatDateValue(toDate) : 'Pick a date'}
+            <Button variant="outline" className="w-full justify-between font-normal">
+              {toDate ? formatDateValue(toDate) : 'Select date'}
+              <ChevronDownIcon className="size-4" />
             </Button>
           </PopoverTrigger>
           <PopoverContent sideOffset={8} align="start" className="w-auto overflow-hidden p-0">
-            <Calendar mode="single" selected={toDate} onSelect={setToDate} />
+            <Calendar mode="single" captionLayout="dropdown" selected={toDate} onSelect={setToDate} />
           </PopoverContent>
         </Popover>
         <input type="hidden" name="to" value={formatDateValue(toDate)} />

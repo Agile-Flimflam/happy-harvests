@@ -12,6 +12,7 @@ import { ActivitiesFilters } from '@/components/activities/ActivitiesFilters'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Download } from 'lucide-react'
 import { isActivityType, prettyActivityType, type ActivityType } from '@/lib/activities/types'
+import { DeleteActivityDialog } from '@/components/activities/DeleteActivityDialog'
 //
 
 
@@ -153,10 +154,10 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
                             </div>
                             <div className="flex items-center gap-2">
                               <Button asChild size="sm" variant="outline"><Link href={`/activities/${a.id}/edit`}>Edit</Link></Button>
-                              <form action={async (fd) => { 'use server'; const { deleteActivity } = await import('./_actions'); await deleteActivity(fd) }}>
+                              <form id={`delete-activity-${a.id}`} action={async (fd) => { 'use server'; const { deleteActivity } = await import('./_actions'); await deleteActivity(fd) }} className="hidden">
                                 <input type="hidden" name="id" value={a.id} />
-                                <Button type="submit" size="sm" variant="destructive">Delete</Button>
                               </form>
+                              <DeleteActivityDialog formId={`delete-activity-${a.id}`} />
                             </div>
                           </div>
                           {a.notes ? <div className="text-xs text-muted-foreground mt-1">{a.notes}</div> : null}
@@ -195,10 +196,10 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
                             </div>
                             <div className="flex items-center gap-2">
                               <Button asChild size="sm" variant="outline"><Link href={`/activities/${a.id}/edit`}>Edit</Link></Button>
-                              <form action={async (fd) => { 'use server'; const { deleteActivity } = await import('./_actions'); await deleteActivity(fd) }}>
+                              <form id={`delete-activity-${a.id}`} action={async (fd) => { 'use server'; const { deleteActivity } = await import('./_actions'); await deleteActivity(fd) }} className="hidden">
                                 <input type="hidden" name="id" value={a.id} />
-                                <Button type="submit" size="sm" variant="destructive">Delete</Button>
                               </form>
+                              <DeleteActivityDialog formId={`delete-activity-${a.id}`} />
                             </div>
                           </div>
                           {a.notes ? <div className="text-xs text-muted-foreground mt-1">{a.notes}</div> : null}
