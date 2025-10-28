@@ -1,4 +1,5 @@
-import CalendarClient, { type CalendarEvent } from './CalendarClient'
+import CalendarClient from './CalendarClient'
+import type { CalendarEvent } from './types'
 export const revalidate = 0
 export const dynamic = 'force-dynamic'
 import CalendarHeaderWeather from './CalendarHeaderWeather'

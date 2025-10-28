@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { WeatherBadge } from '@/components/weather/WeatherBadge'
+import { moonEmojiFromLabel } from '@/lib/hawaiian-moon'
 
 type Props = {
   id: string | null
@@ -68,19 +69,6 @@ export default function CalendarHeaderWeather({ id, latitude, longitude }: Props
   const icon = current.weather?.icon || null
   const description = current.weather?.description || null
   // Compute the same emoji used in calendar days for consistency
-  function moonEmojiFromLabel(label: string | null | undefined): string | null {
-    if (!label) return null
-    // Rough mapping by name groups
-    const l = label.toLowerCase()
-    if (/(hilo|hoaka|kū|ole|olepau)/.test(l)) return '🌒'
-    if (/(huna|mōhalu|hua|akua)/.test(l)) return '🌓'
-    if (/(hoku|mahealani)/.test(l)) return '🌕'
-    if (/(kulu|lāʻau)/.test(l)) return '🌖'
-    if (/(kāloa|kāne|lono)/.test(l)) return '🌗'
-    if (/(mauli)/.test(l)) return '🌘'
-    if (/(muku)/.test(l)) return '🌑'
-    return '🌙'
-  }
   const moonEmoji = moonEmojiFromLabel(moonPhaseLabel)
 
   return (

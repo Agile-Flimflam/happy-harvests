@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { hawaiianMoonRecommendationByName } from '@/lib/hawaiian-moon'
+import { hawaiianMoonRecommendationByName, DEFAULT_MOON_EMOJI } from '@/lib/hawaiian-moon'
 
 type WeatherBadgeProps = {
   icon: string | null | undefined
@@ -40,7 +40,7 @@ export function WeatherBadge({ icon, tempF, description, inlineDescription = fal
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="inline-flex items-center gap-1 text-muted-foreground text-sm cursor-help underline decoration-dotted underline-offset-2">
-                    <span aria-hidden="true">{moonEmoji ?? '🌙'}</span>
+                    <span aria-hidden="true">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
                     {hawaiianMoon}
                   </span>
                 </TooltipTrigger>
@@ -50,7 +50,7 @@ export function WeatherBadge({ icon, tempF, description, inlineDescription = fal
               </Tooltip>
             </TooltipProvider>
           ) : (
-            <span className="inline-flex items-center gap-1 text-muted-foreground text-sm"><span aria-hidden="true">{moonEmoji ?? '🌙'}</span>{hawaiianMoon}</span>
+            <span className="inline-flex items-center gap-1 text-muted-foreground text-sm"><span aria-hidden="true">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>{hawaiianMoon}</span>
           )
         ) : null}
       </div>

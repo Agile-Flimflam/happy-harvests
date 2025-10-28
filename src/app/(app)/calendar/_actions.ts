@@ -2,15 +2,7 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { Enums } from '@/lib/database.types'
-
-export type CalendarEvent = {
-  id: string
-  type: 'activity' | 'planting' | 'harvest'
-  title: string
-  start: string
-  end?: string | null
-  meta?: Record<string, unknown>
-}
+import type { CalendarEvent, CalendarLocation } from './types'
 
 export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> {
   const supabase = await createSupabaseServerClient()
@@ -68,13 +60,11 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
     dt.setUTCDate(dt.getUTCDate() + days)
     return dt.toISOString().slice(0, 10)
   }
-  function todayLocalISO() {
-    const d = new Date()
-    const mm = String(d.getMonth() + 1).padStart(2, '0')
-    const dd = String(d.getDate()).padStart(2, '0')
-    return `${d.getFullYear()}-${mm}-${dd}`
+  // Use UTC for today's date to match UTC-based addDays output (YYYY-MM-DD)
+  function todayUtcISO() {
+    return new Date().toISOString().slice(0, 10)
   }
-  const todayISO1 = todayLocalISO()
+  const todayISO1 = todayUtcISO()
 
   // Shared helper: compute a predicted harvest window from a base date and DTM values
   function harvestWindowFromBase(args: {
@@ -254,14 +244,14 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
   return { events }
 }
 
-export async function getCalendarLocations(): Promise<{ locations: Array<{ id: string; name: string; latitude: number | null; longitude: number | null }> }> {
+export async function getCalendarLocations(): Promise<{ locations: Array<CalendarLocation> }> {
   const supabase = await createSupabaseServerClient()
   const { data } = await supabase
     .from('locations')
     .select('id, name, latitude, longitude')
     .order('created_at', { ascending: true })
     .limit(10)
-  return { locations: (data as Array<{ id: string; name: string; latitude: number | null; longitude: number | null }>) || [] }
+  return { locations: (data as Array<CalendarLocation>) || [] }
 }
 
 
