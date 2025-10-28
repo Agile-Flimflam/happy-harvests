@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ACTIVITY_TYPE_OPTIONS } from '@/lib/activities/types'
 import type { ActivityFormState } from '@/app/(app)/activities/_actions'
 import { renameBed } from '@/app/(app)/activities/_actions'
 function AmendmentsEditor() {
@@ -242,10 +243,9 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
             <SelectValue placeholder="Select type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="irrigation">Irrigation</SelectItem>
-            <SelectItem value="soil_amendment">Soil Amendment</SelectItem>
-            <SelectItem value="pest_management">Pest Management</SelectItem>
-            <SelectItem value="asset_maintenance">Asset Maintenance</SelectItem>
+            {ACTIVITY_TYPE_OPTIONS.slice().sort((a, b) => a.label.localeCompare(b.label)).map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

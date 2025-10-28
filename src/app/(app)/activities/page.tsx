@@ -8,6 +8,10 @@ import type { Tables } from '@/lib/database.types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ActivitiesTable } from '@/components/activities/ActivitiesTable'
 import { Badge } from '@/components/ui/badge'
+import { ActivitiesFilters } from '@/components/activities/ActivitiesFilters'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Download } from 'lucide-react'
+import { isActivityType, prettyActivityType, type ActivityType } from '@/lib/activities/types'
 //
 
 
@@ -32,11 +36,6 @@ function parseWeather(a: { weather?: unknown } | null | undefined) {
   return { icon, tempF, description }
 }
 
-type ActivityType = 'irrigation' | 'soil_amendment' | 'pest_management' | 'asset_maintenance'
-function isActivityType(v: string | undefined): v is ActivityType {
-  return v === 'irrigation' || v === 'soil_amendment' || v === 'pest_management' || v === 'asset_maintenance'
-}
-
 type ActivityRow = Tables<'activities'> & { locations?: { name?: string | null } | null }
 
 export default async function ActivitiesPage({ searchParams }: { searchParams?: Promise<{ type?: string; from?: string; to?: string; location_id?: string }> }) {
@@ -48,9 +47,9 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
   if (error) {
     return <div className="text-red-500">{error}</div>
   }
-  const types = Object.keys(grouped || {}).sort()
+  const types: ActivityType[] = Object.keys(grouped || {}).filter(isActivityType)
   const allRows = Object.values(grouped || {}).flat().sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''))
-  const typeToCount = Object.fromEntries(types.map((t) => [t, (grouped?.[t] || []).length])) as Record<string, number>
+  const typeToCount = Object.fromEntries(types.map((t) => [t, (grouped?.[t] || []).length])) as Record<ActivityType, number>
   const { rows: flatRows = [], error: flatErr } = await getActivitiesFlat({
     type,
     from: sp?.from,
@@ -63,55 +62,35 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
   if (sp?.to) exportParams.set('to', sp.to)
   if (sp?.location_id) exportParams.set('location_id', sp.location_id)
   const exportHref = `/api/activities/export${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
-  const pretty = (t: string) => t.replace('_',' ')
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Activities</h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link href={exportHref}>Export CSV</Link>
-          </Button>
-          <Button asChild>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon" asChild>
+                <Link href={exportHref} aria-label="Export to CSV">
+                  <Download className="h-4 w-4" />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Export to CSV</TooltipContent>
+          </Tooltip>
+          <Button asChild size="sm">
             <Link href="/activities/new">Track an Activity</Link>
           </Button>
         </div>
       </div>
-      <form className="mb-6 grid gap-4 md:grid-cols-5">
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Type</label>
-          <select name="type" defaultValue={sp?.type ?? ''} className="border rounded px-2 py-1 w-full">
-            <option value="">All</option>
-            <option value="irrigation">Irrigation</option>
-            <option value="soil_amendment">Soil Amendment</option>
-            <option value="pest_management">Pest Management</option>
-            <option value="asset_maintenance">Asset Maintenance</option>
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Location</label>
-          <select name="location_id" defaultValue={sp?.location_id ?? ''} className="border rounded px-2 py-1 w-full">
-            <option value="">All</option>
-            {(locations || []).map((l) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-sm font-medium">From</label>
-          <input type="date" name="from" defaultValue={sp?.from ?? ''} className="border rounded px-2 py-1 w-full" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-sm font-medium">To</label>
-          <input type="date" name="to" defaultValue={sp?.to ?? ''} className="border rounded px-2 py-1 w-full" />
-        </div>
-        <div className="flex items-end gap-2">
-          <Button type="submit">Apply</Button>
-          <Button variant="outline" asChild>
-            <Link href="/activities">Reset</Link>
-          </Button>
-        </div>
-      </form>
+      <ActivitiesFilters
+        locations={(locations || []) as { id: string; name: string | null }[]}
+        initial={{
+          type: type || '',
+          location_id: sp?.location_id ?? '',
+          from: sp?.from ?? '',
+          to: sp?.to ?? '',
+        }}
+      />
       <div>
         {types.length === 0 ? (
           <Card>
@@ -127,7 +106,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
             <TabsList>
               <TabsTrigger value="all">All <Badge className="ml-2" variant="secondary">{allRows.length}</Badge></TabsTrigger>
               {types.map((t) => (
-                <TabsTrigger key={t} value={t}>{pretty(t)} <Badge className="ml-2" variant="secondary">{typeToCount[t] || 0}</Badge></TabsTrigger>
+                <TabsTrigger key={t} value={t}>{prettyActivityType(t)} <Badge className="ml-2" variant="secondary">{typeToCount[t] || 0}</Badge></TabsTrigger>
               ))}
               <TabsTrigger value="table">Table</TabsTrigger>
             </TabsList>
@@ -158,7 +137,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 text-xs rounded bg-muted capitalize">{String(a.activity_type).replace('_',' ')}</span>
+                              <Badge variant="secondary" className="capitalize">{String(a.activity_type).replace('_',' ')}</Badge>
                               <span className="font-medium">{a.started_at?.slice(0,16).replace('T',' ')}</span>
                             </div>
                             <div className="flex items-center gap-3 text-muted-foreground">
@@ -193,7 +172,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
               <TabsContent key={t} value={t}>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base capitalize">{pretty(t)}</CardTitle>
+                    <CardTitle className="text-base capitalize">{prettyActivityType(t)}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ul className="divide-y">
@@ -236,5 +215,3 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
     </div>
   )
 }
-
-
