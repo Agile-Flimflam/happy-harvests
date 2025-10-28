@@ -22,13 +22,8 @@ export function DeleteActivityDialog({
       setOpen(false)
       return
     }
-    try {
-      setConfirming(true)
-      form.requestSubmit()
-    } finally {
-      setConfirming(false)
-      setOpen(false)
-    }
+    setConfirming(true)
+    form.requestSubmit()
   }
 
   return (

@@ -28,8 +28,12 @@ export function ConfirmDialog({
   onConfirm,
 }: ConfirmDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={open} onOpenChange={(next) => { if (!confirming) onOpenChange(next) }}>
+      <DialogContent
+        className="sm:max-w-[425px]"
+        onEscapeKeyDown={(e) => { if (confirming) e.preventDefault() }}
+        onInteractOutside={(e) => { if (confirming) e.preventDefault() }}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
@@ -42,7 +46,7 @@ export function ConfirmDialog({
         >
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">{cancelText}</Button>
+              <Button type="button" variant="outline" disabled={confirming} aria-disabled={confirming}>{cancelText}</Button>
             </DialogClose>
             <Button type="submit" variant={confirmVariant} disabled={confirming} aria-disabled={confirming} autoFocus>
               {confirming ? 'Please wait…' : confirmText}
