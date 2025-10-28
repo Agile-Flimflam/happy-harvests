@@ -54,6 +54,19 @@ export default function PlantingSummaryCard({ summary, endLabel }: { summary: Pl
             <span className="font-medium">{formatDateLocal(summary.endedDate)}</span>
           </div>
         </div>
+
+        {/* Projected harvest window */}
+        <div className="grid w-full grid-cols-3 gap-3">
+          <div className="flex items-center gap-2 text-sm col-span-3">
+            <ShoppingBasket className="h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Projected harvest</span>
+            <span className="font-medium">
+              {summary.projectedHarvestStart || summary.projectedHarvestEnd
+                ? `${formatDateLocal(summary.projectedHarvestStart)} → ${formatDateLocal(summary.projectedHarvestEnd)}`
+                : '—'}
+            </span>
+          </div>
+        </div>
       </div>
     </Card>
   );

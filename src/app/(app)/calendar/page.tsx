@@ -1,7 +1,12 @@
-import CalendarClient, { type CalendarEvent } from './CalendarClient'
+import CalendarClient from './CalendarClient'
+import type { CalendarEvent } from './types'
+export const revalidate = 0
+export const dynamic = 'force-dynamic'
 import CalendarHeaderWeather from './CalendarHeaderWeather'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { CalendarPlus, Sprout } from 'lucide-react'
 import { getCalendarEvents, getCalendarLocations } from './_actions'
 
 export default async function CalendarPage() {
@@ -11,11 +16,19 @@ export default async function CalendarPage() {
     | undefined
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h1 className="text-3xl font-bold">Calendar</h1>
-        <div className="flex gap-2">
-          <Link className="border px-3 py-2 rounded transition-colors active:scale-95 hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40" href="/activities/new">Schedule Activity</Link>
-          <Link className="border px-3 py-2 rounded transition-colors active:scale-95 hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40" href="/plantings">Manage Plantings</Link>
+        <div className="grid grid-cols-1 sm:flex gap-2 w-full sm:w-auto">
+          <Button asChild>
+            <Link href="/activities/new" aria-label="Schedule Activity">
+              <CalendarPlus className="mr-2 h-4 w-4" /> Schedule Activity
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/plantings" aria-label="Manage Plantings">
+              <Sprout className="mr-2 h-4 w-4" /> Manage Plantings
+            </Link>
+          </Button>
         </div>
       </div>
       <div>

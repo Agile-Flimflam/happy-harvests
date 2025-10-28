@@ -177,3 +177,33 @@ export function hawaiianMoonRecommendationByName(name: string | null | undefined
 }
 
 
+// Shared default emoji to use when a specific mapping isn't available
+export const DEFAULT_MOON_EMOJI = '🌙'
+
+// Centralized emoji helpers to avoid duplicating logic across components
+export function moonEmojiForDate(date: Date): string {
+  const f = lunarPhaseFraction(date)
+  if (f < 0.0625 || f >= 0.9375) return '🌑'
+  if (f < 0.1875) return '🌒'
+  if (f < 0.3125) return '🌓'
+  if (f < 0.4375) return '🌔'
+  if (f < 0.5625) return '🌕'
+  if (f < 0.6875) return '🌖'
+  if (f < 0.8125) return '🌗'
+  return '🌘'
+}
+
+export function moonEmojiFromLabel(label: string | null | undefined): string | null {
+  if (!label) return null
+  const l = label.toLowerCase()
+  if (/(hilo|hoaka|kū|ole|olepau)/.test(l)) return '🌒'
+  if (/(huna|mōhalu|hua|akua)/.test(l)) return '🌓'
+  if (/(hoku|mahealani)/.test(l)) return '🌕'
+  if (/(kulu|lāʻau)/.test(l)) return '🌖'
+  if (/(kāloa|kāne|lono)/.test(l)) return '🌗'
+  if (/(mauli)/.test(l)) return '🌘'
+  if (/(muku)/.test(l)) return '🌑'
+  return '🌙'
+}
+
+
