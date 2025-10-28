@@ -105,7 +105,9 @@ function HarvestLineDetailed({ e }: { e: CalendarEvent }) {
     // If basic YYYY-MM-DD, construct local Date explicitly to avoid timezone quirks
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t)
     if (m) {
-      const y = Number(m[1]); const mo = Number(m[2]) - 1; const d = Number(m[3])
+      const y = Number(m[1])
+      const mo = Number(m[2]) - 1
+      const d = Number(m[3])
       const dt = new Date(y, mo, d)
       return isNaN(dt.getTime()) ? s : dt.toLocaleDateString()
     }
@@ -114,7 +116,13 @@ function HarvestLineDetailed({ e }: { e: CalendarEvent }) {
     if (!Number.isNaN(ts)) return new Date(ts).toLocaleDateString()
     return s
   }
-  const range = ws && we ? `${toLocal(ws)} → ${toLocal(we)}` : (ws ? toLocal(ws) : (we ? toLocal(we) : undefined))
+  function formatRange(start?: string, end?: string): string | undefined {
+    const startLocal = start ? toLocal(start) : undefined
+    const endLocal = end ? toLocal(end) : undefined
+    if (startLocal && endLocal) return `${startLocal} → ${endLocal}`
+    return startLocal ?? endLocal
+  }
+  const range = formatRange(ws, we)
   const loc = typeof meta?.location_label === 'string' ? meta.location_label : undefined
   const pieces = [crop, variety, loc, range ? `(${range})` : undefined].filter(Boolean)
   const label = pieces.join(' — ')

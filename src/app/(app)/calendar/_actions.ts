@@ -66,6 +66,18 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
   const todayISO1 = todayUtcISO()
 
   // Shared helper: compute a predicted harvest window from a base date and DTM values
+  /**
+   * Computes an estimated harvest window based on a base date and days-to-maturity (DTM) inputs.
+   *
+   * @param args.baseDate - ISO date (YYYY-MM-DD) used as the starting point for DTM calculations; null to skip.
+   * @param args.isTransplantBase - If true, use transplant DTM values; otherwise use direct-seed DTM values.
+   * @param args.dsMin - Direct-seed minimum DTM (days) to first harvest; may be 0/undefined if not applicable.
+   * @param args.dsMax - Direct-seed maximum DTM (days) to last harvest; may be 0/undefined if not applicable.
+   * @param args.tpMin - Transplant minimum DTM (days) to first harvest; may be 0/undefined if not applicable.
+   * @param args.tpMax - Transplant maximum DTM (days) to last harvest; may be 0/undefined if not applicable.
+   * @param args.todayISO - Today’s date (YYYY-MM-DD) in UTC for filtering out fully past windows.
+   * @returns A window with inclusive start and end ISO dates, or null if insufficient data.
+   */
   function harvestWindowFromBase(args: {
     baseDate: string | null
     isTransplantBase: boolean
