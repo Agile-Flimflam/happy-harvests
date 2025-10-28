@@ -6,6 +6,7 @@ import { DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/c
 import { ChevronLeft, ChevronRight, CalendarPlus, Droplet, FlaskConical, Bug, Wrench, ShoppingBasket, Sprout } from 'lucide-react'
 import type { CalendarEvent, CalendarLocation } from '../types'
 import { hawaiianMoonForDate, hawaiianMoonRecommendationByName, moonEmojiForDate } from '@/lib/hawaiian-moon'
+import { formatDateLocal } from '@/lib/date'
 
 function PlantingLine({ e }: { e: CalendarEvent }) {
   const meta = e.meta && typeof e.meta === 'object' ? (e.meta as Record<string, unknown>) : undefined
@@ -99,23 +100,7 @@ function HarvestLineDetailed({ e }: { e: CalendarEvent }) {
   const href = plantingId ? `/plantings#p${plantingId}` : '/plantings'
   const ws = typeof meta?.window_start === 'string' ? meta.window_start : undefined
   const we = typeof meta?.window_end === 'string' ? meta.window_end : undefined
-  const toLocal = (s?: string) => {
-    if (!s) return ''
-    const t = s.trim()
-    // If basic YYYY-MM-DD, construct local Date explicitly to avoid timezone quirks
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t)
-    if (m) {
-      const y = Number(m[1])
-      const mo = Number(m[2]) - 1
-      const d = Number(m[3])
-      const dt = new Date(y, mo, d)
-      return isNaN(dt.getTime()) ? s : dt.toLocaleDateString()
-    }
-    // Otherwise, let Date parse (ISO with time or other formats)
-    const ts = Date.parse(t)
-    if (!Number.isNaN(ts)) return new Date(ts).toLocaleDateString()
-    return s
-  }
+  const toLocal = (s?: string) => (s ? formatDateLocal(s) : '')
   function formatRange(start?: string, end?: string): string | undefined {
     const startLocal = start ? toLocal(start) : undefined
     const endLocal = end ? toLocal(end) : undefined
