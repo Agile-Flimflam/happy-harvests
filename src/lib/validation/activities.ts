@@ -1,7 +1,8 @@
 import { z } from 'zod'
+import { ACTIVITY_TYPES_ENUM } from '@/lib/activities/types'
 
 export const ActivitySchema = z.object({
-  activity_type: z.enum(['irrigation','soil_amendment','pest_management','asset_maintenance']),
+  activity_type: z.enum(ACTIVITY_TYPES_ENUM),
   started_at: z.string().min(1, { message: 'Start time is required' }).transform((s) => s.replace(' ', 'T')),
   ended_at: z
     .string()
@@ -28,5 +29,3 @@ export const ActivitySchema = z.object({
 })
 
 export type ActivityFormValues = z.infer<typeof ActivitySchema>
-
-

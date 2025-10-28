@@ -1,15 +1,19 @@
 'use client'
 
 import * as React from 'react'
-import { useActionState } from 'react'
 import { hawaiianMoonForISO } from '@/lib/hawaiian-moon'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ACTIVITY_TYPE_OPTIONS } from '@/lib/activities/types'
 import type { ActivityFormState } from '@/app/(app)/activities/_actions'
 import { renameBed } from '@/app/(app)/activities/_actions'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ChevronDownIcon } from 'lucide-react'
+import { parseLocalDateFromYMD } from '@/lib/utils'
 function AmendmentsEditor() {
   const [items, setItems] = React.useState<Array<{ name: string; quantity?: string; unit?: string; notes?: string }>>([
     { name: '' },
@@ -68,7 +72,7 @@ type ActivityFormProps = {
 
 export function ActivityForm({ action, locations, plots = [], beds = [], nurseries = [], defaultStart = null }: ActivityFormProps) {
   const initialState: ActivityFormState = { message: '', errors: {} }
-  const [state, formAction] = useActionState(action, initialState)
+  const [state, formAction] = React.useActionState(action, initialState)
   const [activityType, setActivityType] = React.useState<string>('')
   const [locationId, setLocationId] = React.useState<string>('')
   const [startValue, setStartValue] = React.useState<string>(defaultStart || '')
@@ -115,6 +119,26 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
     if (isNaN(base.getTime())) return
     const end = new Date(base.getTime() + mins * 60000)
     setEndValue(formatLocalFromDate(end))
+  }
+
+  // Helpers for date/time UI
+  function getDatePart(iso?: string | null) {
+    return iso && iso.length >= 10 ? iso.slice(0, 10) : ''
+  }
+  function getTimePart(iso?: string | null) {
+    return iso && iso.length >= 16 ? iso.slice(11, 16) : ''
+  }
+  function formatDateOnly(d?: Date) {
+    if (!d) return ''
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+  function combine(dateStr?: string, timeStr?: string) {
+    if (!dateStr) return ''
+    const t = (timeStr && timeStr.length >= 4) ? timeStr : '00:00'
+    return `${dateStr}T${t}`
   }
 
   React.useEffect(() => {
@@ -242,22 +266,50 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
             <SelectValue placeholder="Select type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="irrigation">Irrigation</SelectItem>
-            <SelectItem value="soil_amendment">Soil Amendment</SelectItem>
-            <SelectItem value="pest_management">Pest Management</SelectItem>
-            <SelectItem value="asset_maintenance">Asset Maintenance</SelectItem>
+            {ACTIVITY_TYPE_OPTIONS.slice().sort((a, b) => a.label.localeCompare(b.label)).map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
       {activityType ? (
         <>
           <div className="col-span-full text-xs font-semibold uppercase text-muted-foreground">Step 2 · When</div>
+          {/* Hidden fields to submit ISO values */}
+          <input type="hidden" name="started_at" value={startValue} />
+          <input type="hidden" name="ended_at" value={endValue} />
+
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">Start</label>
               <Button type="button" size="sm" variant="outline" onClick={() => setStartValue(formatNowLocal())}>Now</Button>
             </div>
-            <Input type="datetime-local" name="started_at" value={startValue} onChange={(e) => setStartValue(e.currentTarget.value)} required />
+            <div className="grid grid-cols-2 gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between font-normal">
+                    {getDatePart(startValue) || 'Select date'}
+                    <ChevronDownIcon className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={parseLocalDateFromYMD(getDatePart(startValue))}
+                    captionLayout="dropdown"
+                    onSelect={(d) => setStartValue(combine(formatDateOnly(d || undefined), getTimePart(startValue)))}
+                  />
+                </PopoverContent>
+              </Popover>
+              <Input
+                type="time"
+                value={getTimePart(startValue)}
+                onChange={(e) => setStartValue(combine(getDatePart(startValue), e.currentTarget.value))}
+                required
+                step="1"
+                className="bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none w-full"
+              />
+            </div>
             {startValue ? (
               <div className="text-xs text-muted-foreground">Hawaiian moon: <span className="font-medium">{hawaiianMoonForISO(startValue) ?? '—'}</span></div>
             ) : null}
@@ -267,7 +319,31 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
               <label className="text-sm font-medium">End</label>
               <Button type="button" size="sm" variant="outline" onClick={() => setEndValue(formatNowLocal())}>Now</Button>
             </div>
-            <Input type="datetime-local" name="ended_at" value={endValue} onChange={(e) => setEndValue(e.currentTarget.value)} />
+            <div className="grid grid-cols-2 gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between font-normal">
+                    {getDatePart(endValue) || 'Select date'}
+                    <ChevronDownIcon className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={parseLocalDateFromYMD(getDatePart(endValue))}
+                    captionLayout="dropdown"
+                    onSelect={(d) => setEndValue(combine(formatDateOnly(d || undefined), getTimePart(endValue)))}
+                  />
+                </PopoverContent>
+              </Popover>
+              <Input
+                type="time"
+                value={getTimePart(endValue)}
+                onChange={(e) => setEndValue(combine(getDatePart(endValue), e.currentTarget.value))}
+                step="1"
+                className="bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none w-full"
+              />
+            </div>
             <div className="flex flex-wrap gap-2 text-xs">
               <span className="text-muted-foreground">Quick set:</span>
               <Button type="button" size="sm" variant="outline" onClick={() => setEndFromStartDelta(15)}>+15m</Button>
@@ -301,21 +377,31 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
             </div>
             <div className="space-y-1 md:col-span-1">
               <label className="text-sm font-medium">Plot</label>
-              <select name="plot_id" className="w-full h-9 border rounded px-2" value={plotId} onChange={(e) => { setPlotId(e.currentTarget.value); setBedId('') }} disabled={!locationId}>
-                <option value="">—</option>
-                {plots.filter((p) => p.location_id === locationId).map((p) => (
-                  <option key={p.plot_id} value={p.plot_id}>{p.name}</option>
-                ))}
-              </select>
+              <Select value={plotId || '__none__'} onValueChange={(v) => { const nv = v === '__none__' ? '' : v; setPlotId(nv); setBedId('') }}>
+                <SelectTrigger className={`w-full ${!locationId ? 'pointer-events-none opacity-50' : ''}`} aria-disabled={!locationId}>
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">—</SelectItem>
+                  {plots.filter((p) => p.location_id === locationId).map((p) => (
+                    <SelectItem key={p.plot_id} value={String(p.plot_id)}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1 md:col-span-1">
               <label className="text-sm font-medium">Bed</label>
-              <select name="bed_id" className="w-full h-9 border rounded px-2" value={bedId} onChange={(e) => setBedId(e.currentTarget.value)} disabled={!locationId}>
-                <option value="">—</option>
-                {bedsLocal.filter((b) => (plotId ? String(b.plot_id) === plotId : true)).map((b) => (
-                  <option key={b.id} value={b.id}>{b.name ? b.name : `Bed #${b.id}`}</option>
-                ))}
-              </select>
+              <Select value={bedId || '__none__'} onValueChange={(v) => setBedId(v === '__none__' ? '' : v)}>
+                <SelectTrigger className={`w-full ${!locationId ? 'pointer-events-none opacity-50' : ''}`} aria-disabled={!locationId}>
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">—</SelectItem>
+                  {bedsLocal.filter((b) => (plotId ? String(b.plot_id) === plotId : true)).map((b) => (
+                    <SelectItem key={b.id} value={String(b.id)}>{b.name ? b.name : `Bed #${b.id}`}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             {bedId ? (
               <div className="flex items-center gap-2 text-xs mt-1">
                 <input id="rename_bed_name" placeholder="Rename bed…" className="h-7 border rounded px-2 flex-1" />
@@ -341,12 +427,17 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
             </div>
             <div className="space-y-1 md:col-span-1">
               <label className="text-sm font-medium">Nursery</label>
-              <select name="nursery_id" className="w-full h-9 border rounded px-2" value={nurseryId} onChange={(e) => setNurseryId(e.currentTarget.value)} disabled={!locationId}>
-                <option value="">—</option>
-                {nurseries.filter((n) => n.location_id === locationId).map((n) => (
-                  <option key={n.id} value={n.id}>{n.name}</option>
-                ))}
-              </select>
+              <Select value={nurseryId || '__none__'} onValueChange={(v) => setNurseryId(v === '__none__' ? '' : v)}>
+                <SelectTrigger className={`w-full ${!locationId ? 'pointer-events-none opacity-50' : ''}`} aria-disabled={!locationId}>
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">—</SelectItem>
+                  {nurseries.filter((n) => n.location_id === locationId).map((n) => (
+                    <SelectItem key={n.id} value={n.id}>{n.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
@@ -374,21 +465,6 @@ export function ActivityForm({ action, locations, plots = [], beds = [], nurseri
         <div className="space-y-2">
           <label className="text-sm font-medium">Labor Hours</label>
           <Input type="number" step="0.1" name="labor_hours" min={0} />
-        </div>
-      ) : null}
-      {visibility.showLocation ? (
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Location</label>
-          <Select value={locationId} onValueChange={setLocationId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select location (optional)" />
-            </SelectTrigger>
-            <SelectContent>
-              {locations.map((l) => (
-                <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
       ) : null}
       {(visibility.showCrop || visibility.showAsset || visibility.showQuantityUnit || visibility.showCost || visibility.showAmendments) ? (

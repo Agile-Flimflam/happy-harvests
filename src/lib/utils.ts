@@ -71,3 +71,17 @@ export function squareInchesToSquareFeet(squareInches: number): number {
 export function squareFeetToAcres(squareFeet: number): number {
   return squareFeet / 43_560
 }
+
+/**
+ * Parse a YYYY-MM-DD string into a local Date (midnight in local time).
+ * Returns undefined for invalid input.
+ */
+export function parseLocalDateFromYMD(value?: string | null): Date | undefined {
+  if (!value) return undefined
+  const parts = value.split('-').map((s) => Number(s))
+  if (parts.length !== 3) return undefined
+  const [y, m, d] = parts
+  if (!y || !m || !d) return undefined
+  const local = new Date(y, m - 1, d)
+  return Number.isNaN(local.getTime()) ? undefined : local
+}
