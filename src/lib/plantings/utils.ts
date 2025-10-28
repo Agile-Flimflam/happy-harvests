@@ -35,7 +35,7 @@ function titleCase(s: string): string {
 // Normalize DTM min/max values where a missing/zero min should fall back to max,
 // and a missing/zero max should fall back to the normalized min.
 export function normalizeMinMax(min: number | null, max: number | null): { min: number; max: number } {
-  const normalizedMin = min != null && min > 0 ? min : ((max ?? min) ?? 0);
+  const normalizedMin = min != null && min > 0 ? min : (max ?? 0);
   const normalizedMax = max != null && max > 0 ? max : normalizedMin;
   return { min: normalizedMin, max: normalizedMax };
 }

@@ -162,12 +162,20 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
     transplanted?: string
     harvested?: string
   }
+  function isPerPlantingEventKey(k: string): k is keyof PerPlantingEvents {
+    return k === 'direct_seeded' || k === 'nursery_seeded' || k === 'transplanted' || k === 'harvested'
+  }
   const perPlanting = new Map<number, PerPlantingEvents>()
   for (const er of ((eventRows as EventRow[]) || [])) {
     const rec = perPlanting.get(er.planting_id) ?? {}
-    const key = er.event_type as keyof PerPlantingEvents
-    const prev = rec[key]
-    if (!prev || er.event_date < prev) rec[key] = er.event_date
+    const rawKey = er.event_type
+    if (!isPerPlantingEventKey(rawKey)) {
+      // Skip unknown event types defensively, even though .in() filters them
+      perPlanting.set(er.planting_id, rec)
+      continue
+    }
+    const prev = rec[rawKey]
+    if (!prev || er.event_date < prev) rec[rawKey] = er.event_date
     perPlanting.set(er.planting_id, rec)
   }
 

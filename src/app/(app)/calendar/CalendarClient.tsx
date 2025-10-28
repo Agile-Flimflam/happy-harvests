@@ -19,10 +19,14 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   const [range, setRange] = React.useState<'month' | 'week' | 'today'>('month')
 
   React.useEffect(() => {
-    try { window.localStorage.setItem('calendar.filter', filter) } catch {}
+    try { window.localStorage.setItem('calendar.filter', filter) } catch (e) {
+      console.warn('Failed to persist calendar.filter to localStorage', e)
+    }
   }, [filter])
   React.useEffect(() => {
-    try { window.localStorage.setItem('calendar.range', range) } catch {}
+    try { window.localStorage.setItem('calendar.range', range) } catch (e) {
+      console.warn('Failed to persist calendar.range to localStorage', e)
+    }
   }, [range])
   React.useEffect(() => {
     // Load persisted settings on client after mount to avoid SSR hydration mismatch
@@ -31,7 +35,9 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       if (storedFilter === 'all' || storedFilter === 'activity' || storedFilter === 'planting' || storedFilter === 'harvest') setFilter(storedFilter)
       const storedRange = window.localStorage.getItem('calendar.range') as 'month' | 'week' | 'today' | null
       if (storedRange === 'month' || storedRange === 'week' || storedRange === 'today') setRange(storedRange)
-    } catch {}
+    } catch (e) {
+      console.warn('Failed to load persisted calendar settings from localStorage', e)
+    }
   }, [])
 
   // Focused date for week/day navigation
