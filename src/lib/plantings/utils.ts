@@ -1,4 +1,5 @@
 import type { Enums } from '@/lib/supabase-server';
+import { addDaysUtc } from '@/lib/date';
 
 export type PlantingEventType = Enums<'planting_event_type'>;
 export type PlantingStatus = Enums<'planting_status'>;
@@ -29,6 +30,14 @@ export function formatPlantingStatus(status: PlantingStatus): string {
 
 function titleCase(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Normalize DTM min/max values where a missing/zero min should fall back to max,
+// and a missing/zero max should fall back to the normalized min.
+export function normalizeMinMax(min: number | null, max: number | null): { min: number; max: number } {
+  const normalizedMin = min != null && min > 0 ? min : ((max ?? min) ?? 0);
+  const normalizedMax = max != null && max > 0 ? max : normalizedMin;
+  return { min: normalizedMin, max: normalizedMax };
 }
 
 export type PlantingSummary = {
@@ -122,26 +131,20 @@ export function computePlantingSummary(args: {
   const dsMax = meta.dtm_direct_seed_max ?? null;
   const tpMin = meta.dtm_transplant_min ?? null;
   const tpMax = meta.dtm_transplant_max ?? null;
-  const addDays = (dateISO: string, days: number) => {
-    const dt = new Date(dateISO + 'T00:00:00Z');
-    dt.setUTCDate(dt.getUTCDate() + days);
-    return dt.toISOString().slice(0, 10);
-  };
+  const addDays = addDaysUtc;
   if (dPlanted || dNurseryStart) {
     // Find base by event presence
     const hasTransplant = args.events.some((e) => e.event_type === 'transplanted');
     const base = hasTransplant ? plantedDate : (nurseryStartedDate ?? plantedDate);
     if (base) {
-      if (hasTransplant && tpMin != null) {
-        const min = (tpMin > 0 ? tpMin : (tpMax ?? tpMin)) ?? 0;
-        const max = (tpMax && tpMax > 0 ? tpMax : min) ?? min;
+      if (hasTransplant && (tpMin != null || tpMax != null)) {
+        const { min, max } = normalizeMinMax(tpMin ?? null, tpMax ?? null);
         if (min > 0) {
           projectedHarvestStart = addDays(base, min);
           projectedHarvestEnd = addDays(base, max);
         }
       } else if (dsMin != null || dsMax != null) {
-        const min = (dsMin && dsMin > 0 ? dsMin : (dsMax ?? dsMin)) ?? 0;
-        const max = (dsMax && dsMax > 0 ? dsMax : min) ?? min;
+        const { min, max } = normalizeMinMax(dsMin ?? null, dsMax ?? null);
         if (min > 0) {
           projectedHarvestStart = addDays(base, min);
           projectedHarvestEnd = addDays(base, max);

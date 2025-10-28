@@ -101,7 +101,18 @@ function HarvestLineDetailed({ e }: { e: CalendarEvent }) {
   const we = typeof meta?.window_end === 'string' ? meta.window_end : undefined
   const toLocal = (s?: string) => {
     if (!s) return ''
-    try { return new Date(s + 'T00:00:00').toLocaleDateString() } catch { try { return new Date(s).toLocaleDateString() } catch { return s } }
+    const t = s.trim()
+    // If basic YYYY-MM-DD, construct local Date explicitly to avoid timezone quirks
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t)
+    if (m) {
+      const y = Number(m[1]); const mo = Number(m[2]) - 1; const d = Number(m[3])
+      const dt = new Date(y, mo, d)
+      return isNaN(dt.getTime()) ? s : dt.toLocaleDateString()
+    }
+    // Otherwise, let Date parse (ISO with time or other formats)
+    const ts = Date.parse(t)
+    if (!Number.isNaN(ts)) return new Date(ts).toLocaleDateString()
+    return s
   }
   const range = ws && we ? `${toLocal(ws)} → ${toLocal(we)}` : (ws ? toLocal(ws) : (we ? toLocal(we) : undefined))
   const loc = typeof meta?.location_label === 'string' ? meta.location_label : undefined

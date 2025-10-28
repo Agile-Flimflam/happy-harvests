@@ -252,12 +252,15 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
         {cells.map((d) => {
           const key = fmt(d)
           const dayEventsRaw = byDay.get(key) || []
-          const priority = (t: CalendarEvent['type']) => (t === 'harvest' ? 0 : t === 'planting' ? 1 : 2)
-          const dayEvents = [...dayEventsRaw].sort((a, b) => {
-            const pa = priority(a.type); const pb = priority(b.type)
-            if (pa !== pb) return pa - pb
-            return (a.title || '').localeCompare(b.title || '')
+          const eventsWithPriority = dayEventsRaw.map((e) => ({
+            e,
+            p: e.type === 'harvest' ? 0 : e.type === 'planting' ? 1 : 2,
+          }))
+          eventsWithPriority.sort((a, b) => {
+            if (a.p !== b.p) return a.p - b.p
+            return (a.e.title || '').localeCompare(b.e.title || '')
           })
+          const dayEvents = eventsWithPriority.map(({ e }) => e)
           return (
             <DayCell
               key={key}

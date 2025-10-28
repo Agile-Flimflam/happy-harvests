@@ -3,6 +3,9 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { Enums } from '@/lib/database.types'
 import type { CalendarEvent, CalendarLocation } from './types'
+import { normalizeMinMax } from '@/lib/plantings/utils'
+import { normalizeDtm } from '@/lib/dtm'
+import { addDaysUtc } from '@/lib/date'
 
 export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> {
   const supabase = await createSupabaseServerClient()
@@ -55,11 +58,7 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
     .in('event_type', ['nursery_seeded', 'direct_seeded', 'transplanted'])
     .order('event_date', { ascending: true })
   const pushedHarvestForId = new Set<number>()
-  function addDays(dateISO: string, days: number): string {
-    const dt = new Date(dateISO + 'T00:00:00Z')
-    dt.setUTCDate(dt.getUTCDate() + days)
-    return dt.toISOString().slice(0, 10)
-  }
+  const addDays = addDaysUtc
   // Use UTC for today's date to match UTC-based addDays output (YYYY-MM-DD)
   function todayUtcISO() {
     return new Date().toISOString().slice(0, 10)
@@ -78,8 +77,10 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
   }): { start: string; end: string } | null {
     const { baseDate, isTransplantBase, dsMin, dsMax, tpMin, tpMax, todayISO } = args
     if (!baseDate) return null
-    const minDays = isTransplantBase ? (tpMin > 0 ? tpMin : (tpMax > 0 ? tpMax : 0)) : (dsMin > 0 ? dsMin : (dsMax > 0 ? dsMax : 0))
-    const maxDays = isTransplantBase ? (tpMax > 0 ? tpMax : minDays) : (dsMax > 0 ? dsMax : minDays)
+    const tp = normalizeMinMax(tpMin ?? null, tpMax ?? null)
+    const ds = normalizeMinMax(dsMin ?? null, dsMax ?? null)
+    const minDays = isTransplantBase ? tp.min : ds.min
+    const maxDays = isTransplantBase ? tp.max : ds.max
     if (minDays <= 0) return null
     const start = addDays(baseDate, minDays)
     const end = addDays(baseDate, maxDays)
@@ -111,13 +112,14 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
       const cv = pe.plantings?.crop_varieties
       const crop = cv?.crops?.name ?? undefined
       const variety = cv?.name ?? undefined
+      const { dsMin, dsMax, tpMin, tpMax } = normalizeDtm(cv?.dtm_direct_seed_min, cv?.dtm_direct_seed_max, cv?.dtm_transplant_min, cv?.dtm_transplant_max)
       const win = harvestWindowFromBase({
         baseDate: pe.event_date,
         isTransplantBase: pe.event_type === 'transplanted',
-        dsMin: cv?.dtm_direct_seed_min ?? 0,
-        dsMax: cv?.dtm_direct_seed_max ?? 0,
-        tpMin: cv?.dtm_transplant_min ?? 0,
-        tpMax: cv?.dtm_transplant_max ?? 0,
+        dsMin,
+        dsMax,
+        tpMin,
+        tpMax,
         todayISO: todayISO1,
       })
       if (win) {
@@ -184,14 +186,12 @@ export async function getCalendarEvents(): Promise<{ events: CalendarEvent[] }> 
     const plotName = p.beds?.plots?.name ?? null
     const bedId = p.beds?.id ?? null
     const locationLabel = bedId != null ? `Bed #${bedId}` + (plotName ? ` @ ${plotName}` : (locName ? ` @ ${locName}` : '')) : null
-    const dsMinRaw = p.crop_varieties?.dtm_direct_seed_min ?? 0
-    const dsMaxRaw = p.crop_varieties?.dtm_direct_seed_max ?? 0
-    const tpMinRaw = p.crop_varieties?.dtm_transplant_min ?? 0
-    const tpMaxRaw = p.crop_varieties?.dtm_transplant_max ?? 0
-    const dsMin = dsMinRaw > 0 ? dsMinRaw : (dsMaxRaw > 0 ? dsMaxRaw : 0)
-    const tpMin = tpMinRaw > 0 ? tpMinRaw : (tpMaxRaw > 0 ? tpMaxRaw : 0)
-    const dsMax = dsMaxRaw > 0 ? dsMaxRaw : dsMin
-    const tpMax = tpMaxRaw > 0 ? tpMaxRaw : tpMin
+    const { dsMin, dsMax, tpMin, tpMax } = normalizeDtm(
+      p.crop_varieties?.dtm_direct_seed_min,
+      p.crop_varieties?.dtm_direct_seed_max,
+      p.crop_varieties?.dtm_transplant_min,
+      p.crop_varieties?.dtm_transplant_max,
+    )
     const evs = perPlanting.get(p.id) || {}
 
     // Skip if harvested already (by status or event)
