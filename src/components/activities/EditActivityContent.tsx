@@ -86,7 +86,7 @@ export function EditActivityContent({ activity, locations }: EditActivityContent
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-              <Calendar mode="single" selected={startDate} captionLayout="dropdown" onSelect={(d) => { setStartDate(d); }} />
+              <Calendar mode="single" selected={startDate} captionLayout="dropdown" onSelect={(d) => setStartDate(d)} />
             </PopoverContent>
           </Popover>
           <Input
@@ -112,7 +112,7 @@ export function EditActivityContent({ activity, locations }: EditActivityContent
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-              <Calendar mode="single" selected={endDate} captionLayout="dropdown" onSelect={(d) => { setEndDate(d); }} />
+              <Calendar mode="single" selected={endDate} captionLayout="dropdown" onSelect={(d) => setEndDate(d)} />
             </PopoverContent>
           </Popover>
           <Input
