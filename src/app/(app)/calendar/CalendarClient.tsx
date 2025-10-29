@@ -149,28 +149,17 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       setFocusDateISO(todayISO)
       setCurrent({ y, m: m1 - 1 })
       const cameFromNonToday = prevRangeRef.current !== 'today'
-      setDetail((d) => {
-        if (d.open) return { open: true, date: todayISO }
-        if (cameFromNonToday) return { open: true, date: todayISO }
-        return { open: false, date: todayISO }
-      })
+      setDetail((d) => (d.open || cameFromNonToday) ? { open: true, date: todayISO } : { open: false, date: todayISO })
     }
     prevRangeRef.current = range
   }, [todayISO, range])
 
   // Memoized allowed-day set for quick membership checks during filtering.
-  // Derived from the user's focused date and range selection, not from the
-  // current calendar month, so navigation determines which days are considered
-  // in-range. For clarity, we always depend on focusDateISO even though month
-  // view ignores it (the function bails out early for 'month').
-  const allowedDateISOSet = React.useMemo<Set<string>>(() => {
-    if (range === 'month') {
-      // Month view includes all days; set is unused
-      return new Set<string>()
-    }
-    if (range === 'today') {
-      return new Set<string>([focusDateISO])
-    }
+  // Derived from the user's focused date and range selection. We return null
+  // for 'month' since all days are in-range and set membership is skipped.
+  const allowedDateISOSet = React.useMemo<Set<string> | null>(() => {
+    if (range === 'month') return null
+    if (range === 'today') return new Set<string>([focusDateISO])
     // week
     const s = new Set<string>()
     const startISO = weekStartISO(focusDateISO)
@@ -259,7 +248,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       if (filter !== 'all' && e.type !== filter) return false
       if (range === 'month') return true
       const dateOnly = e.start.slice(0, 10)
-      return allowedDateISOSet.has(dateOnly)
+      return !!allowedDateISOSet && allowedDateISOSet.has(dateOnly)
     })
   }, [events, filter, range, allowedDateISOSet])
 
