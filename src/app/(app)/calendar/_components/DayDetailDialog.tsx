@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { ChevronLeft, ChevronRight, CalendarPlus, Droplet, FlaskConical, Bug, Wrench, ShoppingBasket, Sprout } from 'lucide-react'
 import type { CalendarEvent, CalendarLocation } from '../types'
-import { hawaiianMoonForDate, hawaiianMoonRecommendationByName, moonEmojiForDate } from '@/lib/hawaiian-moon'
+import { hawaiianMoonForDate, hawaiianMoonRecommendationByName, moonEmojiForDate, moonEmojiFromLabel } from '@/lib/hawaiian-moon'
+import { WeatherBadge } from '@/components/weather/WeatherBadge'
 import { formatDateLocal } from '@/lib/date'
 
 function PlantingLine({ e }: { e: CalendarEvent }) {
@@ -257,8 +258,22 @@ export function DayDetailDialog({ dateISO, events, locations, onPrev, onNext }: 
       </div>
       <div className="text-sm rounded-md border bg-muted/40 p-3">
         <div className="text-base font-semibold mb-1">Weather</div>
-        {state.status === 'loading' ? <div className="text-muted-foreground">Loading…</div> : (
-          <div className="text-muted-foreground">{state.status === 'ready' && state.data.current?.temp != null ? `${Math.round(state.data.current.temp)}°` : '—'} {state.status === 'ready' && state.data.current?.weather?.description ? `· ${state.data.current.weather.description}` : ''}</div>
+        {state.status === 'loading' ? (
+          <div className="text-muted-foreground">Loading…</div>
+        ) : state.status === 'error' ? (
+          <div className="text-red-500">{state.message}</div>
+        ) : state.status === 'ready' ? (
+          <WeatherBadge
+            icon={state.data.current?.weather?.icon || null}
+            tempF={state.data.current?.temp ?? null}
+            description={state.data.current?.weather?.description || null}
+            inlineDescription
+            hawaiianMoon={moonLocal?.name ?? state.data.moonPhaseLabel ?? null}
+            moonEmoji={moonEmojiFromLabel(moonLocal?.name ?? state.data.moonPhaseLabel) || undefined}
+            size="sm"
+          />
+        ) : (
+          <div className="text-muted-foreground">—</div>
         )}
       </div>
     </DialogContent>
