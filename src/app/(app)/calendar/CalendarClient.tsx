@@ -126,7 +126,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     const update = () => {
       const now = new Date()
       const iso = isoFromYMD(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate())
-      setTodayISO((prev) => (prev === iso ? prev : iso))
+      setTodayISO(iso)
     }
     update()
     const id = setInterval(update, 60_000) // 1 minute
