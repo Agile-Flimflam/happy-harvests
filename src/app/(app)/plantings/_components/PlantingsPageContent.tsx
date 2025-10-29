@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import FormDialog from "@/components/dialogs/FormDialog";
 import { Card } from "@/components/ui/card";
@@ -126,33 +127,13 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     return plantings.filter((p) => p.status === PLANTING_STATUS[statusFilter]);
   })();
 
-  const renderEmptyState = () => (
-    <div className="text-center py-12">
-      <div className="mx-auto w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
-        <Sprout className="h-12 w-12 text-muted-foreground" />
-      </div>
-      <h3 className="text-lg font-semibold mb-2">No plantings recorded</h3>
-      <p className="text-muted-foreground mb-6 max-w-md mx-auto">Add your first planting to get started.</p>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="lg">
-            <PlusCircle className="h-5 w-5 mr-2" />
-            Add Your First Planting
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="center">
-          <DropdownMenuItem onClick={openNurserySow}>Nursery sow</DropdownMenuItem>
-          <DropdownMenuItem onClick={openDirectSeed}>Direct seed</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
+  const hasPlantings = plantings.length > 0;
 
   return (
     <div>
       <PageHeader
         title="Plantings"
-        action={(
+        action={hasPlantings ? (
           <Button
             size="sm"
             className="w-full sm:w-auto"
@@ -161,7 +142,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
             <PlusCircle className="h-4 w-4 mr-2" />
             Add Planting
           </Button>
-        )}
+        ) : undefined}
       />
 
       <FormDialog
@@ -256,8 +237,32 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
       />
 
       <PageContent>
-        {plantings.length === 0 ? (
-          renderEmptyState()
+        {!hasPlantings ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Sprout className="size-10" />
+              </EmptyMedia>
+              <EmptyTitle>No plantings yet</EmptyTitle>
+              <EmptyDescription>
+                Add your first planting to get started.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="lg">
+                    <PlusCircle className="h-5 w-5 mr-2" />
+                    Add Your First Planting
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center">
+                  <DropdownMenuItem onClick={openNurserySow}>Nursery sow</DropdownMenuItem>
+                  <DropdownMenuItem onClick={openDirectSeed}>Direct seed</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </EmptyContent>
+          </Empty>
         ) : (
           <div className="space-y-6">
             {/* Summary Stats */}

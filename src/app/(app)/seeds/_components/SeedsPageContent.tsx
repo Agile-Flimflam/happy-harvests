@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Tables } from '@/lib/database.types'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Bean, Plus } from 'lucide-react'
 
 type Variety = { id: number; name: string; latin_name: string; crops?: { name: string } | null }
 type Seed = Tables<'seeds'>
@@ -23,45 +25,70 @@ export function SeedsPageContent({ seeds, varieties }: { seeds: Seed[]; varietie
 
   const startCreate = () => { setEditing(null); setOpen(true) }
   const startEdit = (seed: Seed) => { setEditing(seed); setOpen(true) }
+  const hasSeeds = seeds.length > 0
 
   return (
     <div>
-      <PageHeader title="Seeds" action={<Button size="sm" onClick={startCreate}>Add Seed</Button>} />
+      <PageHeader title="Seeds" action={hasSeeds ? <Button size="sm" onClick={startCreate}>Add Seed</Button> : undefined} />
       <PageContent>
-        <div className="border rounded-md overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Crop</TableHead>
-                <TableHead>Variety</TableHead>
-                <TableHead>Vendor</TableHead>
-                <TableHead>LOT</TableHead>
-                <TableHead>Received</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {seeds.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell>{s.crop_name}</TableCell>
-                  <TableCell>{s.variety_name}</TableCell>
-                  <TableCell>{s.vendor || '-'}</TableCell>
-                  <TableCell>{s.lot_number || '-'}</TableCell>
-                  <TableCell>{s.date_received || '-'}</TableCell>
-                  <TableCell>{typeof s.quantity === 'number' ? `${s.quantity} ${s.quantity_units || ''}` : '-'}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="outline" size="sm" onClick={() => startEdit(s)}>Edit</Button>
-                    <form action={deleteSeed} className="inline-block ml-2">
-                      <input type="hidden" name="id" value={s.id} />
-                      <Button variant="destructive" size="sm" type="submit">Delete</Button>
-                    </form>
-                  </TableCell>
+        {!hasSeeds ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Bean className="size-10" />
+              </EmptyMedia>
+              <EmptyTitle>No seeds yet</EmptyTitle>
+              <EmptyDescription>
+                Track seeds you have purchased or acquired to plan plantings and inventory.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <div className="flex gap-2 justify-center">
+                <Button onClick={startCreate}>
+                  <span className="flex items-center gap-1">
+                    <Plus className="w-4 h-4" />
+                    Add Seed
+                  </span>
+                </Button>
+              </div>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <div className="border rounded-md overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Crop</TableHead>
+                  <TableHead>Variety</TableHead>
+                  <TableHead>Vendor</TableHead>
+                  <TableHead>LOT</TableHead>
+                  <TableHead>Received</TableHead>
+                  <TableHead>Qty</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {seeds.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell>{s.crop_name}</TableCell>
+                    <TableCell>{s.variety_name}</TableCell>
+                    <TableCell>{s.vendor || '-'}</TableCell>
+                    <TableCell>{s.lot_number || '-'}</TableCell>
+                    <TableCell>{s.date_received || '-'}</TableCell>
+                    <TableCell>{typeof s.quantity === 'number' ? `${s.quantity} ${s.quantity_units || ''}` : '-'}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="outline" size="sm" onClick={() => startEdit(s)}>Edit</Button>
+                      <form action={deleteSeed} className="inline-block ml-2">
+                        <input type="hidden" name="id" value={s.id} />
+                        <Button variant="destructive" size="sm" type="submit">Delete</Button>
+                      </form>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </PageContent>
 
       <FormDialog open={open} onOpenChange={setOpen} title={editing ? 'Edit Seed' : 'Add Seed'} description="Log seeds purchased or acquired" submitLabel="Save" formId="seedForm">

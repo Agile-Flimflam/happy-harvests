@@ -5,6 +5,8 @@ import PageHeader from '@/components/page-header'
 import PageContent from '@/components/page-content'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Users, Plus } from 'lucide-react'
 import FormDialog from '@/components/dialogs/FormDialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,45 +18,68 @@ export function CustomersPageContent({ customers }: { customers: Tables<'custome
   const [editing, setEditing] = useState<Tables<'customers'> | null>(null)
   const initial: CustomerFormState = { message: '' }
   const [state, formAction] = useActionState(upsertCustomer, initial)
+  const hasCustomers = customers.length > 0
 
   return (
     <div>
-      <PageHeader title="Customers" action={<Button size="sm" onClick={() => { setEditing(null); setOpen(true) }}>Add Customer</Button>} />
+      <PageHeader title="Customers" action={hasCustomers ? <Button size="sm" onClick={() => { setEditing(null); setOpen(true) }}>Add Customer</Button> : undefined} />
       <PageContent>
-        <div className="border rounded-md overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Website</TableHead>
-                <TableHead>Billing (City, State)</TableHead>
-                <TableHead>Shipping (City, State)</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {customers.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell>{c.phone || '-'}</TableCell>
-                  <TableCell>{c.email || '-'}</TableCell>
-                  <TableCell>{c.website || '-'}</TableCell>
-                  <TableCell>{[c.billing_city, c.billing_state].filter(Boolean).join(', ') || '-'}</TableCell>
-                  <TableCell>{[c.shipping_city, c.shipping_state].filter(Boolean).join(', ') || '-'}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="outline" size="sm" onClick={() => { setEditing(c); setOpen(true) }}>Edit</Button>
-                    <form action={deleteCustomer} className="inline-block ml-2">
-                      <input type="hidden" name="id" value={c.id} />
-                      <Button variant="destructive" size="sm" type="submit">Delete</Button>
-                    </form>
-                  </TableCell>
+        {!hasCustomers ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Users className="size-10" />
+              </EmptyMedia>
+              <EmptyTitle>No customers yet</EmptyTitle>
+              <EmptyDescription>
+                Add your first customer to track orders and deliveries.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={() => { setEditing(null); setOpen(true) }}>
+                <span className="flex items-center gap-1">
+                  <Plus className="w-4 h-4" />
+                  Add Customer
+                </span>
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <div className="border rounded-md overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Website</TableHead>
+                  <TableHead>Billing (City, State)</TableHead>
+                  <TableHead>Shipping (City, State)</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {customers.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell>{c.phone || '-'}</TableCell>
+                    <TableCell>{c.email || '-'}</TableCell>
+                    <TableCell>{c.website || '-'}</TableCell>
+                    <TableCell>{[c.billing_city, c.billing_state].filter(Boolean).join(', ') || '-'}</TableCell>
+                    <TableCell>{[c.shipping_city, c.shipping_state].filter(Boolean).join(', ') || '-'}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="outline" size="sm" onClick={() => { setEditing(c); setOpen(true) }}>Edit</Button>
+                      <form action={deleteCustomer} className="inline-block ml-2">
+                        <input type="hidden" name="id" value={c.id} />
+                        <Button variant="destructive" size="sm" type="submit">Delete</Button>
+                      </form>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </PageContent>
 
       <FormDialog open={open} onOpenChange={setOpen} title={editing ? 'Edit Customer' : 'Add Customer'} description="Track your customers' details" submitLabel="Save" formId="customerForm">

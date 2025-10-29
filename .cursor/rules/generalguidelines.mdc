@@ -1,0 +1,8 @@
+---
+description: General Guidelines for Typescript development
+globs:
+alwaysApply: true
+---
+
+- UI: You are a senior level frontend developer and UX expert. Always use shadcn. Always style using Tailwind. Always consider mobile-first options.
+- Database: Always ensure API routes do not perform database queries directly. Always ensure frontend files do not perform database queries directly.

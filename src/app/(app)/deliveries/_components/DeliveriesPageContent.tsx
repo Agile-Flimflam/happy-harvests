@@ -5,12 +5,16 @@ import PageHeader from '@/components/page-header'
 import PageContent from '@/components/page-content'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Package, Plus, Trash2 } from 'lucide-react'
 import FormDialog from '@/components/dialogs/FormDialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { createDelivery, updateDelivery, type DeliveryFormState } from '../_actions'
+import { createDelivery, updateDelivery, deleteDelivery, type DeliveryFormState } from '../_actions'
 import type { Tables } from '@/lib/database.types'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { toast } from 'sonner'
 
 type Customer = { id: string; name: string }
 type Variety = { id: number; name: string; crops?: { name: string } | null }
@@ -22,9 +26,29 @@ export function DeliveriesPageContent({ deliveries, customers, varieties }: { de
   const [state, formAction] = useActionState(createDelivery, initial)
   const [items, setItems] = useState<{ id: string; crop_variety_id?: number; qty?: number; unit?: string; price_per?: number; total_price?: number }[]>([])
   const [availability, setAvailability] = useState<Record<number, { count_available: number; grams_available: number }>>({})
+  const hasDeliveries = deliveries.length > 0
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const addLine = () => setItems((prev) => [...prev, { id: crypto.randomUUID(), unit: 'lbs' }])
   const removeLine = (id: string) => setItems((prev) => prev.filter((l) => l.id !== id))
+
+  const openDelete = (id: string) => setDeleteId(id)
+  const confirmDelete = async () => {
+    if (!deleteId) return
+    try {
+      setDeleting(true)
+      const result = await deleteDelivery(deleteId)
+      if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
+        toast.error(result.message)
+      } else {
+        toast.success(result.message)
+      }
+    } finally {
+      setDeleting(false)
+      setDeleteId(null)
+    }
+  }
 
   const itemsJson = useMemo(
     () =>
@@ -61,61 +85,100 @@ export function DeliveriesPageContent({ deliveries, customers, varieties }: { de
 
   return (
     <div>
-      <PageHeader title="Deliveries" action={<Button size="sm" onClick={() => { setItems([]); setOpen(true) }}>Create Delivery</Button>} />
+      <PageHeader title="Deliveries" action={hasDeliveries ? <Button size="sm" onClick={() => { setItems([]); setOpen(true) }}>Create Delivery</Button> : undefined} />
       <PageContent>
-        <div className="border rounded-md overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Payment</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {deliveries.map((d) => (
-                <TableRow key={d.id}>
-                  <TableCell className="font-medium">{d.delivery_date}</TableCell>
-                  <TableCell>{d.customers?.name ?? '-'}</TableCell>
-                  <TableCell>{d.status ?? '-'}</TableCell>
-                  <TableCell>
-                    <form action={updateDelivery} className="inline-flex items-center gap-2">
-                      <input type="hidden" name="id" value={d.id} />
-                      <Select name="payment_status" defaultValue={d.payment_status ?? ''}>
-                        <SelectTrigger className="h-8 w-40">
-                          <SelectValue placeholder="Payment" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="open">Open</SelectItem>
-                          <SelectItem value="sent">Sent</SelectItem>
-                          <SelectItem value="partially_paid">Partially Paid</SelectItem>
-                          <SelectItem value="paid">Paid</SelectItem>
-                          <SelectItem value="deposited">Deposited</SelectItem>
-                          <SelectItem value="not_deposited">Not Deposited</SelectItem>
-                          <SelectItem value="voided">Voided</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Select name="status" defaultValue={d.status ?? ''}>
-                        <SelectTrigger className="h-8 w-36">
-                          <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="scheduled">Scheduled</SelectItem>
-                          <SelectItem value="delivered">Delivered</SelectItem>
-                          <SelectItem value="canceled">Canceled</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Input name="payment_terms" defaultValue={d.payment_terms ?? ''} className="h-8 w-24" />
-                      <Button type="submit" size="sm" variant="outline">Update</Button>
-                    </form>
-                  </TableCell>
+        {!hasDeliveries ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Package className="size-10" />
+              </EmptyMedia>
+              <EmptyTitle>No deliveries yet</EmptyTitle>
+              <EmptyDescription>
+                Log a new delivery to start tracking your first order.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={() => { setItems([]); setOpen(true) }}>
+                <span className="flex items-center gap-1">
+                  <Plus className="w-4 h-4" />
+                  Create Delivery
+                </span>
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <div className="border rounded-md overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {deliveries.map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell className="font-medium">{d.delivery_date}</TableCell>
+                    <TableCell>{d.customers?.name ?? '-'}</TableCell>
+                    <TableCell>{d.status ?? '-'}</TableCell>
+                    <TableCell>
+                      <form action={updateDelivery} className="inline-flex items-center gap-2">
+                        <input type="hidden" name="id" value={d.id} />
+                        <Select name="payment_status" defaultValue={d.payment_status ?? ''}>
+                          <SelectTrigger className="h-8 w-40">
+                            <SelectValue placeholder="Payment" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="open">Open</SelectItem>
+                            <SelectItem value="sent">Sent</SelectItem>
+                            <SelectItem value="partially_paid">Partially Paid</SelectItem>
+                            <SelectItem value="paid">Paid</SelectItem>
+                            <SelectItem value="deposited">Deposited</SelectItem>
+                            <SelectItem value="not_deposited">Not Deposited</SelectItem>
+                            <SelectItem value="voided">Voided</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select name="status" defaultValue={d.status ?? ''}>
+                          <SelectTrigger className="h-8 w-36">
+                            <SelectValue placeholder="Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="scheduled">Scheduled</SelectItem>
+                            <SelectItem value="delivered">Delivered</SelectItem>
+                            <SelectItem value="canceled">Canceled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input name="payment_terms" defaultValue={d.payment_terms ?? ''} className="h-8 w-24" />
+                        <Button type="submit" size="sm" variant="outline">Update</Button>
+                      </form>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => openDelete(d.id)} className="text-red-500 hover:text-red-700">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </PageContent>
+
+      <ConfirmDialog
+        open={deleteId != null}
+        onOpenChange={(open) => { if (!open) setDeleteId(null) }}
+        title="Delete delivery?"
+        description="This will remove the delivery and its items. This action cannot be undone."
+        confirmText="Delete"
+        confirmVariant="destructive"
+        confirming={deleting}
+        onConfirm={confirmDelete}
+      />
 
       <FormDialog open={open} onOpenChange={setOpen} title="Create Delivery" description="Relate harvests to a customer with pricing" submitLabel="Save" formId="deliveryForm">
         <form id="deliveryForm" action={formAction} className="space-y-3">
