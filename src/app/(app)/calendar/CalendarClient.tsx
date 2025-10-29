@@ -115,21 +115,21 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     }
   }, [])
 
-  // Keep todayISO fresh with a single timeout scheduled for next LOCAL midnight (no polling)
+  // Keep todayISO fresh with a single timeout scheduled for next UTC midnight (no polling)
   React.useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
     let cancelled = false
     const update = () => {
       const now = new Date()
-      const iso = isoFromYMD(now.getFullYear(), now.getMonth() + 1, now.getDate())
+      const iso = isoFromYMD(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate())
       setTodayISO((prev) => (prev === iso ? prev : iso))
     }
     const scheduleNext = () => {
       if (cancelled) return
       const now = new Date()
-      // Schedule for local midnight so the 'today' designation updates at local day rollover
-      const nextLocalMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0)
-      const delayMs = Math.max(0, nextLocalMidnight.getTime() - now.getTime())
+      // Schedule for UTC midnight so the 'today' designation updates consistently
+      const nextUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0))
+      const delayMs = Math.max(0, nextUtcMidnight.getTime() - now.getTime())
       timeoutId = setTimeout(() => {
         if (cancelled) return
         update()
@@ -154,7 +154,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     }
   }, [range, focusDateISO])
 
-  // When day rolls over (local) and user is on 'today' view, keep focus/current in sync
+  // When day rolls over (UTC) and user is on 'today' view, keep focus/current in sync
   React.useEffect(() => {
     if (range === 'today') {
       const { y, m1 } = parseISO(todayISO)
