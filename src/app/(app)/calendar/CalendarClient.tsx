@@ -111,17 +111,21 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   // Keep todayISO fresh with a single timeout scheduled for next UTC midnight (no polling)
   React.useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
+    let cancelled = false
     const update = () => {
       const now = new Date()
       const iso = isoFromYMD(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate())
       setTodayISO((prev) => (prev === iso ? prev : iso))
     }
     const scheduleNext = () => {
+      if (cancelled) return
       const now = new Date()
       const nextUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0))
       const delayMs = Math.max(0, nextUtcMidnight.getTime() - now.getTime())
       timeoutId = setTimeout(() => {
+        if (cancelled) return
         update()
+        if (cancelled) return
         scheduleNext()
       }, delayMs)
     }
@@ -129,6 +133,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     update()
     scheduleNext()
     return () => {
+      cancelled = true
       if (timeoutId !== undefined) clearTimeout(timeoutId)
     }
   }, [])
@@ -227,7 +232,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     })
   }, [range, focusDateISO, current.y, current.m])
 
-  function inSelectedRange(dateISO: string): boolean {
+  const inSelectedRange = React.useCallback((dateISO: string): boolean => {
     if (range === 'today') {
       return utcTimeValueFromISO(dateISO) === focusDateUTC
     }
@@ -236,7 +241,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       return t >= weekRangeUTC.start && t <= weekRangeUTC.end
     }
     return true
-  }
+  }, [range, focusDateUTC, weekRangeUTC.start, weekRangeUTC.end])
 
   // Header label derived in UTC to avoid DST issues
   const headerLabel = React.useMemo(() => {
