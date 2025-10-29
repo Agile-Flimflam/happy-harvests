@@ -155,18 +155,24 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     }
   }, [todayISO, range])
 
-  // Memoized UTC times to avoid repeated parsing during filters
-  // Week range is intentionally derived from the user's currently focused date
-  // (focusDateISO), rather than always using the current calendar week. This
-  // lets users navigate to past/future weeks and see events for those weeks,
-  // instead of being constrained to the week containing "today".
-  const focusDateUTC = React.useMemo(() => utcTimeValueFromISO(focusDateISO), [focusDateISO])
-  const weekRangeUTC = React.useMemo(() => {
-    const startISO = weekStartISO(focusDateISO)
-    const start = utcTimeValueFromISO(startISO)
-    const end = utcTimeValueFromISO(addDaysISO(startISO, 6))
-    return { start, end }
-  }, [focusDateISO])
+  // Memoized allowed-day set for quick membership checks during filtering.
+  // Derived from the user's focused date, not the current calendar week,
+  // so navigation determines which days are considered in-range.
+  const allowedDateISOSet = React.useMemo<Set<string>>(() => {
+    if (range === 'today') {
+      return new Set<string>([focusDateISO])
+    }
+    if (range === 'week') {
+      const s = new Set<string>()
+      const startISO = weekStartISO(focusDateISO)
+      for (let i = 0; i < 7; i += 1) {
+        s.add(addDaysISO(startISO, i))
+      }
+      return s
+    }
+    // month view includes all days; set unused in that case
+    return new Set<string>()
+  }, [range, focusDateISO])
 
   // Navigation helpers (used by buttons and swipe)
   const navigatePrev = React.useCallback(() => {
@@ -237,15 +243,9 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   }, [range, focusDateISO, current.y, current.m])
 
   const inSelectedRange = React.useCallback((dateISO: string): boolean => {
-    if (range === 'today') {
-      return utcTimeValueFromISO(dateISO) === focusDateUTC
-    }
-    if (range === 'week') {
-      const t = utcTimeValueFromISO(dateISO)
-      return t >= weekRangeUTC.start && t <= weekRangeUTC.end
-    }
-    return true
-  }, [range, focusDateUTC, weekRangeUTC])
+    if (range === 'month') return true
+    return allowedDateISOSet.has(dateISO)
+  }, [range, allowedDateISOSet])
 
   // Header label derived in UTC to avoid DST issues
   const headerLabel = React.useMemo(() => {
