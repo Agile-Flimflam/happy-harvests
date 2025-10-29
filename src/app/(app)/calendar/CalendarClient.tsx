@@ -116,7 +116,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       setTodayISO((prev) => (prev === iso ? prev : iso))
     }
     update()
-    const id: number = window.setInterval(update, 60_000)
+    const id = window.setInterval(update, 60_000)
     return () => window.clearInterval(id)
   }, [])
 
