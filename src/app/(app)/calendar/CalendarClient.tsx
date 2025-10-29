@@ -11,37 +11,38 @@ import { DayDetailDialog } from './_components/DayDetailDialog'
 
 // moonEmojiForDate now imported from '@/lib/hawaiian-moon'
 
+// UTC helpers and string-only date math (YYYY-MM-DD)
+const pad2 = (n: number): string => String(n).padStart(2, '0')
+const isoFromYMD = (y: number, m1: number, d: number): string => `${y}-${pad2(m1)}-${pad2(d)}`
+const parseISO = (iso: string): { y: number; m1: number; d: number } => {
+  const [yStr, mStr, dStr] = iso.split('-')
+  const y = Number(yStr)
+  const m1 = Number(mStr)
+  const d = Number(dStr)
+  return { y, m1, d }
+}
+const utcTimeValueFromISO = (iso: string): number => {
+  const { y, m1, d } = parseISO(iso)
+  return Date.UTC(y, m1 - 1, d)
+}
+const addDaysISO = (iso: string, deltaDays: number): string => {
+  const t = utcTimeValueFromISO(iso)
+  const d = new Date(t)
+  d.setUTCDate(d.getUTCDate() + deltaDays)
+  return isoFromYMD(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate())
+}
+const weekStartISO = (iso: string): string => {
+  const t = utcTimeValueFromISO(iso)
+  const d = new Date(t)
+  const dow = d.getUTCDay() // 0 = Sunday
+  d.setUTCDate(d.getUTCDate() - dow)
+  return isoFromYMD(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate())
+}
+const startOfMonthUTC = (y: number, mZeroBased: number): string => isoFromYMD(y, mZeroBased + 1, 1)
+const monthGridStartISO = (y: number, mZeroBased: number): string => weekStartISO(startOfMonthUTC(y, mZeroBased))
+const toLocalMidnightDate = (iso: string): Date => new Date(iso + 'T00:00:00')
+
 export default function CalendarClient({ events, locations = [] }: { events: CalendarEvent[]; locations?: Array<CalendarLocation> }) {
-  // UTC helpers and string-only date math (YYYY-MM-DD)
-  const pad2 = (n: number) => String(n).padStart(2, '0')
-  const isoFromYMD = (y: number, m1: number, d: number): string => `${y}-${pad2(m1)}-${pad2(d)}`
-  const parseISO = (iso: string): { y: number; m1: number; d: number } => {
-    const [yStr, mStr, dStr] = iso.split('-')
-    const y = Number(yStr)
-    const m1 = Number(mStr)
-    const d = Number(dStr)
-    return { y, m1, d }
-  }
-  const utcTimeValueFromISO = (iso: string): number => {
-    const { y, m1, d } = parseISO(iso)
-    return Date.UTC(y, m1 - 1, d)
-  }
-  const addDaysISO = (iso: string, deltaDays: number): string => {
-    const t = utcTimeValueFromISO(iso)
-    const d = new Date(t)
-    d.setUTCDate(d.getUTCDate() + deltaDays)
-    return isoFromYMD(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate())
-  }
-  const weekStartISO = (iso: string): string => {
-    const t = utcTimeValueFromISO(iso)
-    const d = new Date(t)
-    const dow = d.getUTCDay() // 0 = Sunday
-    d.setUTCDate(d.getUTCDate() - dow)
-    return isoFromYMD(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate())
-  }
-  const startOfMonthUTC = (y: number, mZeroBased: number): string => isoFromYMD(y, mZeroBased + 1, 1)
-  const monthGridStartISO = (y: number, mZeroBased: number): string => weekStartISO(startOfMonthUTC(y, mZeroBased))
-  const toLocalMidnightDate = (iso: string): Date => new Date(iso + 'T00:00:00')
 
   // Today in UTC ISO
   const now = new Date()
