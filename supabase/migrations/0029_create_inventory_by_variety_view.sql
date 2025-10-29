@@ -27,3 +27,4 @@ from crop_varieties cv
     left join delivered d on d.crop_variety_id = cv.id;
 
 
+

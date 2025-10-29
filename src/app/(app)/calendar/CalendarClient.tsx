@@ -15,10 +15,39 @@ import { DayDetailDialog } from './_components/DayDetailDialog'
 const pad2 = (n: number): string => String(n).padStart(2, '0')
 const isoFromYMD = (y: number, m1: number, d: number): string => `${y}-${pad2(m1)}-${pad2(d)}`
 const parseISO = (iso: string): { y: number; m1: number; d: number } => {
+  const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/
+  const fallbackToTodayUTC = (): { y: number; m1: number; d: number } => {
+    const now = new Date()
+    return { y: now.getUTCFullYear(), m1: now.getUTCMonth() + 1, d: now.getUTCDate() }
+  }
+
+  if (!isoDatePattern.test(iso)) {
+    console.warn('parseISO: invalid format, expected YYYY-MM-DD. Received:', iso)
+    return fallbackToTodayUTC()
+  }
+
   const [yStr, mStr, dStr] = iso.split('-')
   const y = Number(yStr)
   const m1 = Number(mStr)
   const d = Number(dStr)
+
+  if (!Number.isFinite(y) || !Number.isFinite(m1) || !Number.isFinite(d)) {
+    console.warn('parseISO: non-numeric components in input:', iso)
+    return fallbackToTodayUTC()
+  }
+
+  if (m1 < 1 || m1 > 12 || d < 1 || d > 31) {
+    console.warn('parseISO: out-of-range month/day in input:', iso)
+    return fallbackToTodayUTC()
+  }
+
+  // Validate against UTC date to catch invalid calendar dates (e.g., 2023-02-30)
+  const dt = new Date(Date.UTC(y, m1 - 1, d))
+  if (dt.getUTCFullYear() !== y || (dt.getUTCMonth() + 1) !== m1 || dt.getUTCDate() !== d) {
+    console.warn('parseISO: invalid calendar date in input:', iso)
+    return fallbackToTodayUTC()
+  }
+
   return { y, m1, d }
 }
 const utcTimeValueFromISO = (iso: string): number => {
@@ -44,9 +73,11 @@ const toLocalMidnightDate = (iso: string): Date => new Date(iso + 'T00:00:00')
 
 export default function CalendarClient({ events, locations = [] }: { events: CalendarEvent[]; locations?: Array<CalendarLocation> }) {
 
-  // Today in UTC ISO
-  const now = new Date()
-  const todayISO = isoFromYMD(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate())
+  // Today in UTC ISO (kept fresh across midnight UTC)
+  const [todayISO, setTodayISO] = React.useState<string>(() => {
+    const nowInit = new Date()
+    return isoFromYMD(nowInit.getUTCFullYear(), nowInit.getUTCMonth() + 1, nowInit.getUTCDate())
+  })
   const [current, setCurrent] = React.useState<{ y: number; m: number }>(() => {
     const { y, m1 } = parseISO(todayISO)
     return { y, m: m1 - 1 }
@@ -74,6 +105,28 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       if (storedRange === 'month' || storedRange === 'week' || storedRange === 'today') setRange(storedRange)
     } catch (e) {
       console.warn('Failed to load persisted calendar settings from localStorage', e)
+    }
+  }, [])
+
+  // Refresh todayISO at next UTC midnight and every day thereafter
+  React.useEffect(() => {
+    let timer: number | undefined
+    const compute = () => {
+      const now = new Date()
+      setTodayISO(isoFromYMD(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate()))
+    }
+    const scheduleNext = () => {
+      const now = new Date()
+      const nextUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0))
+      const delayMs = nextUtcMidnight.getTime() - now.getTime()
+      timer = window.setTimeout(() => {
+        compute()
+        scheduleNext()
+      }, Math.max(0, delayMs))
+    }
+    scheduleNext()
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer)
     }
   }, [])
 
@@ -126,8 +179,14 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     }
   }, [range, focusDateISO])
 
+  const handleTodayClick = React.useCallback(() => {
+    const { y, m1 } = parseISO(todayISO)
+    setCurrent({ y, m: m1 - 1 })
+    setFocusDateISO(todayISO)
+  }, [todayISO])
+
   // Build cells from ISO math; render using local-midnight Dates for UI components
-  const cells: Array<{ iso: string; dateLocal: Date }> = (() => {
+  const cells: Array<{ iso: string; dateLocal: Date }> = React.useMemo(() => {
     if (range === 'today') {
       const iso = focusDateISO
       return [{ iso, dateLocal: toLocalMidnightDate(iso) }]
@@ -145,7 +204,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       const iso = addDaysISO(startISO, i)
       return { iso, dateLocal: toLocalMidnightDate(iso) }
     })
-  })()
+  }, [range, focusDateISO, current.y, current.m])
 
   function inSelectedRange(dateISO: string): boolean {
     if (range === 'today') {
@@ -191,7 +250,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
           <Button variant="outline" size="sm" onClick={() => setCurrent(({ y, m }) => ({ y: y+1, m }))} aria-label="Next year">
             Year <ChevronsRight className="ml-1 h-4 w-4" />
           </Button>
-          <Button variant="secondary" size="sm" className="ml-2 hidden sm:inline-flex" onClick={() => { const { y, m1 } = parseISO(todayISO); setCurrent({ y, m: m1 - 1 }); setFocusDateISO(todayISO) }}>
+          <Button variant="secondary" size="sm" className="ml-2 hidden sm:inline-flex" onClick={handleTodayClick}>
             <CalendarDays className="mr-1 h-4 w-4" /> Today
           </Button>
         </div>
@@ -230,7 +289,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
               })}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="secondary" size="sm" className="ml-auto" onClick={() => { const { y, m1 } = parseISO(todayISO); setCurrent({ y, m: m1 - 1 }); setFocusDateISO(todayISO) }}>
+          <Button variant="secondary" size="sm" className="ml-auto" onClick={handleTodayClick}>
             <CalendarDays className="mr-1 h-4 w-4" /> Today
           </Button>
         </div>
