@@ -255,7 +255,12 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   }, [current.y, current.m])
 
   const filtered = React.useMemo(() => {
-    return events.filter((e) => (filter === 'all' || e.type === filter) && (range === 'month' || allowedDateISOSet.has(e.start)))
+    return events.filter((e) => {
+      if (filter !== 'all' && e.type !== filter) return false
+      if (range === 'month') return true
+      const dateOnly = e.start.slice(0, 10)
+      return allowedDateISOSet.has(dateOnly)
+    })
   }, [events, filter, range, allowedDateISOSet])
 
   const byDay = React.useMemo(() => {
