@@ -69,6 +69,7 @@ const weekStartISO = (iso: string): string => {
 }
 const startOfMonthUTC = (y: number, mZeroBased: number): string => isoFromYMD(y, mZeroBased + 1, 1)
 const monthGridStartISO = (y: number, mZeroBased: number): string => weekStartISO(startOfMonthUTC(y, mZeroBased))
+const dateOnlyFromISO = (iso: string): string => iso.slice(0, 10)
 /**
  * Convert an ISO date string (YYYY-MM-DD) to a Date at local midnight.
  *
@@ -247,15 +248,15 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     return events.filter((e) => {
       if (filter !== 'all' && e.type !== filter) return false
       if (range === 'month') return true
-      const dateOnly = e.start.slice(0, 10)
-      return !!allowedDateISOSet && allowedDateISOSet.has(dateOnly)
+      const dateOnly = dateOnlyFromISO(e.start)
+      return allowedDateISOSet === null || allowedDateISOSet.has(dateOnly)
     })
   }, [events, filter, range, allowedDateISOSet])
 
   const byDay = React.useMemo(() => {
     const m = new Map<string, CalendarEvent[]>()
     for (const e of filtered) {
-      const day = e.start.slice(0,10)
+      const day = dateOnlyFromISO(e.start)
       const arr = m.get(day)
       if (arr) arr.push(e)
       else m.set(day, [e])
