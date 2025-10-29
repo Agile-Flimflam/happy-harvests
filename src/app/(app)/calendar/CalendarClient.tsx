@@ -154,7 +154,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     }
   }, [range, focusDateISO])
 
-  // When day rolls over (UTC) and user is on 'today' view, keep focus/current in sync
+  // When day rolls over (local) and user is on 'today' view, keep focus/current in sync
   React.useEffect(() => {
     if (range === 'today') {
       const { y, m1 } = parseISO(todayISO)
