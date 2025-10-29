@@ -135,20 +135,27 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
 
   // Focused date for week/day navigation
   const [focusDateISO, setFocusDateISO] = React.useState<string>(() => todayISO)
+  const prevRangeRef = React.useRef<'month' | 'week' | 'today'>(range)
 
-  // When day rolls over (UTC) and user is on 'today' view, keep focus/current in sync.
-  // Runs on both: (1) switching the range to 'today' and (2) UTC day rollover
-  // (todayISO update). Intentional behavior: entering or remaining in 'today'
-  // always resets the focused date to the actual current day. Manual
-  // navigation while in 'today' is overridden; to browse other days, use
-  // 'week' or 'month' views.
+  // Keep focus/current in sync in 'today' view.
+  // Runs on: (1) switching the range to 'today' and (2) UTC day rollover
+  // (todayISO update). If the detail dialog is already open, we keep it open
+  // and update the date. If switching into 'today', we open the dialog. We do
+  // not auto-reopen the dialog on day rollover if the user closed it while
+  // staying in 'today'.
   React.useEffect(() => {
     if (range === 'today') {
       const { y, m1 } = parseISO(todayISO)
       setFocusDateISO(todayISO)
       setCurrent({ y, m: m1 - 1 })
-      setDetail({ open: true, date: todayISO })
+      const cameFromNonToday = prevRangeRef.current !== 'today'
+      setDetail((d) => {
+        if (d.open) return { open: true, date: todayISO }
+        if (cameFromNonToday) return { open: true, date: todayISO }
+        return { open: false, date: todayISO }
+      })
     }
+    prevRangeRef.current = range
   }, [todayISO, range])
 
   // Memoized allowed-day set for quick membership checks during filtering.
