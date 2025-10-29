@@ -72,9 +72,14 @@ const monthGridStartISO = (y: number, mZeroBased: number): string => weekStartIS
 /**
  * Convert an ISO date string (YYYY-MM-DD) to a Date at local midnight.
  *
- * All calendar calculations are performed in UTC to avoid DST issues.
- * This helper returns a local-midnight Date only for UI rendering
- * in components that expect local Date instances.
+ * Note: This relies on JavaScript's parsing of a datetime string without a
+ * timezone (YYYY-MM-DDTHH:mm:ss) as local time. By appending 'T00:00:00', the
+ * resulting Date represents 00:00:00 in the user's local timezone for the
+ * provided calendar date.
+ *
+ * All calendar calculations are performed in UTC to avoid DST issues. This
+ * helper returns a local-midnight Date strictly for UI rendering in components
+ * that expect local Date instances.
  */
 const toLocalMidnightDate = (iso: string): Date => new Date(iso + 'T00:00:00')
 
@@ -164,8 +169,10 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   }, [todayISO, range])
 
   // Memoized UTC times to avoid repeated parsing during filters
-  // Week range is intentionally derived from focusDateISO so that week view
-  // filtering follows user navigation, not the current (today) week.
+  // Week range is intentionally derived from the user's currently focused date
+  // (focusDateISO), rather than always using the current calendar week. This
+  // lets users navigate to past/future weeks and see events for those weeks,
+  // instead of being constrained to the week containing "today".
   const focusDateUTC = React.useMemo(() => utcTimeValueFromISO(focusDateISO), [focusDateISO])
   const weekRangeUTC = React.useMemo(() => {
     const startISO = weekStartISO(focusDateISO)
