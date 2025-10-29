@@ -121,7 +121,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     let cancelled = false
     const update = () => {
       const now = new Date()
-      const iso = isoFromYMD(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate())
+      const iso = isoFromYMD(now.getFullYear(), now.getMonth() + 1, now.getDate())
       setTodayISO((prev) => (prev === iso ? prev : iso))
     }
     const scheduleNext = () => {
