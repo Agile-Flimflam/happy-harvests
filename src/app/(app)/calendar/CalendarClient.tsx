@@ -138,6 +138,24 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     }
   }, [range, focusDateISO])
 
+  // When day rolls over (UTC) and user is on 'today' view, keep focus/current in sync
+  React.useEffect(() => {
+    if (range === 'today') {
+      const { y, m1 } = parseISO(todayISO)
+      setFocusDateISO(todayISO)
+      setCurrent({ y, m: m1 - 1 })
+    }
+  }, [todayISO, range])
+
+  // Memoized UTC times to avoid repeated parsing during filters
+  const focusDateUTC = React.useMemo(() => utcTimeValueFromISO(focusDateISO), [focusDateISO])
+  const weekRangeUTC = React.useMemo(() => {
+    const startISO = weekStartISO(focusDateISO)
+    const start = utcTimeValueFromISO(startISO)
+    const end = utcTimeValueFromISO(addDaysISO(startISO, 6))
+    return { start, end }
+  }, [focusDateISO])
+
   // Navigation helpers (used by buttons and swipe)
   const navigatePrev = React.useCallback(() => {
     if (range === 'today') {
@@ -204,17 +222,15 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       const iso = addDaysISO(startISO, i)
       return { iso, dateLocal: toLocalMidnightDate(iso) }
     })
-  }, [range, focusDateISO, current.y, current.m])
+  }, [range, focusDateISO, current.y, current.m, todayISO])
 
   function inSelectedRange(dateISO: string): boolean {
     if (range === 'today') {
-      return utcTimeValueFromISO(dateISO) === utcTimeValueFromISO(focusDateISO)
+      return utcTimeValueFromISO(dateISO) === focusDateUTC
     }
     if (range === 'week') {
-      const startISO = weekStartISO(focusDateISO)
-      const endISO = addDaysISO(startISO, 6)
       const t = utcTimeValueFromISO(dateISO)
-      return t >= utcTimeValueFromISO(startISO) && t <= utcTimeValueFromISO(endISO)
+      return t >= weekRangeUTC.start && t <= weekRangeUTC.end
     }
     return true
   }
