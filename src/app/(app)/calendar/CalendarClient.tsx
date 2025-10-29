@@ -257,9 +257,9 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     const m = new Map<string, CalendarEvent[]>()
     for (const e of filtered) {
       const day = dateOnlyFromISO(e.start)
-      const arr = m.get(day)
-      if (arr) arr.push(e)
-      else m.set(day, [e])
+      const arr = m.get(day) ?? []
+      arr.push(e)
+      if (!m.has(day)) m.set(day, arr)
     }
     return m
   }, [filtered])
