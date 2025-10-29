@@ -69,6 +69,13 @@ const weekStartISO = (iso: string): string => {
 }
 const startOfMonthUTC = (y: number, mZeroBased: number): string => isoFromYMD(y, mZeroBased + 1, 1)
 const monthGridStartISO = (y: number, mZeroBased: number): string => weekStartISO(startOfMonthUTC(y, mZeroBased))
+/**
+ * Convert an ISO date string (YYYY-MM-DD) to a Date at local midnight.
+ *
+ * All calendar calculations are performed in UTC to avoid DST issues.
+ * This helper returns a local-midnight Date only for UI rendering
+ * in components that expect local Date instances.
+ */
 const toLocalMidnightDate = (iso: string): Date => new Date(iso + 'T00:00:00')
 
 export default function CalendarClient({ events, locations = [] }: { events: CalendarEvent[]; locations?: Array<CalendarLocation> }) {
@@ -241,7 +248,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       return t >= weekRangeUTC.start && t <= weekRangeUTC.end
     }
     return true
-  }, [range, focusDateUTC, weekRangeUTC.start, weekRangeUTC.end])
+  }, [range, focusDateUTC, weekRangeUTC])
 
   // Header label derived in UTC to avoid DST issues
   const headerLabel = React.useMemo(() => {
