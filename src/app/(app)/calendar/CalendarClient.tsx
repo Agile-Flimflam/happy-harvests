@@ -134,7 +134,8 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       const now = new Date()
       // Schedule for UTC midnight so the 'today' designation updates consistently
       const nextUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0))
-      const delayMs = Math.max(0, nextUtcMidnight.getTime() - now.getTime())
+      const rawDelay = nextUtcMidnight.getTime() - now.getTime()
+      const delayMs = Math.max(1000, rawDelay) // enforce small minimum to avoid tight loops
       timeoutId = setTimeout(() => {
         if (cancelled) return
         update()
