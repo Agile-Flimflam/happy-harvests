@@ -85,7 +85,7 @@ const toLocalMidnightDate = (iso: string): Date => new Date(iso + 'T00:00:00')
 
 export default function CalendarClient({ events, locations = [] }: { events: CalendarEvent[]; locations?: Array<CalendarLocation> }) {
 
-  // Today in UTC ISO (kept fresh across midnight UTC)
+  // Today in UTC ISO (kept fresh by periodic checks that detect UTC day rollover)
   const [todayISO, setTodayISO] = React.useState<string>(() => {
     const nowInit = new Date()
     return isoFromYMD(nowInit.getUTCFullYear(), nowInit.getUTCMonth() + 1, nowInit.getUTCDate())
@@ -156,8 +156,9 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   }, [todayISO, range])
 
   // Memoized allowed-day set for quick membership checks during filtering.
-  // Derived from the user's focused date, not the current calendar week,
-  // so navigation determines which days are considered in-range.
+  // Derived from the user's focused date and range selection, not from the
+  // current calendar month, so navigation determines which days are considered
+  // in-range.
   const allowedDateISOSet = React.useMemo<Set<string>>(() => {
     if (range === 'today') {
       return new Set<string>([focusDateISO])
