@@ -223,5 +223,3 @@ export async function deleteDelivery(id: string): Promise<{ message: string }> {
   revalidatePath('/deliveries')
   return { message: 'Delivery deleted' }
 }
-
-
