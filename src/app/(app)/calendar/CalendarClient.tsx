@@ -22,7 +22,7 @@ const parseISO = (iso: string): { y: number; m1: number; d: number } => {
   }
 
   if (!isoDatePattern.test(iso)) {
-    console.warn('parseISO: invalid format, expected YYYY-MM-DD. Received:', iso)
+    console.error('parseISO: invalid format, expected YYYY-MM-DD. Received:', iso)
     return fallbackToTodayUTC()
   }
 
@@ -32,19 +32,19 @@ const parseISO = (iso: string): { y: number; m1: number; d: number } => {
   const d = Number(dStr)
 
   if (!Number.isFinite(y) || !Number.isFinite(m1) || !Number.isFinite(d)) {
-    console.warn('parseISO: non-numeric components in input:', iso)
+    console.error('parseISO: non-numeric components in input:', iso)
     return fallbackToTodayUTC()
   }
 
   if (m1 < 1 || m1 > 12 || d < 1 || d > 31) {
-    console.warn('parseISO: out-of-range month/day in input:', iso)
+    console.error('parseISO: out-of-range month/day in input:', iso)
     return fallbackToTodayUTC()
   }
 
   // Validate against UTC date to catch invalid calendar dates (e.g., 2023-02-30)
   const dt = new Date(Date.UTC(y, m1 - 1, d))
   if (dt.getUTCFullYear() !== y || (dt.getUTCMonth() + 1) !== m1 || dt.getUTCDate() !== d) {
-    console.warn('parseISO: invalid calendar date in input:', iso)
+    console.error('parseISO: invalid calendar date in input:', iso)
     return fallbackToTodayUTC()
   }
 
@@ -154,22 +154,23 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   // Memoized allowed-day set for quick membership checks during filtering.
   // Derived from the user's focused date and range selection, not from the
   // current calendar month, so navigation determines which days are considered
-  // in-range.
+  // in-range. Optimized to avoid recomputation on focus changes while in month view.
   const allowedDateISOSet = React.useMemo<Set<string>>(() => {
+    if (range === 'month') {
+      // Month view includes all days; set is unused
+      return new Set<string>()
+    }
     if (range === 'today') {
       return new Set<string>([focusDateISO])
     }
-    if (range === 'week') {
-      const s = new Set<string>()
-      const startISO = weekStartISO(focusDateISO)
-      for (let i = 0; i < 7; i += 1) {
-        s.add(addDaysISO(startISO, i))
-      }
-      return s
+    // week
+    const s = new Set<string>()
+    const startISO = weekStartISO(focusDateISO)
+    for (let i = 0; i < 7; i += 1) {
+      s.add(addDaysISO(startISO, i))
     }
-    // month view includes all days; set unused in that case
-    return new Set<string>()
-  }, [range, focusDateISO])
+    return s
+  }, [range, range === 'month' ? 0 : focusDateISO])
 
   // Navigation helpers (used by buttons and swipe)
   const navigatePrev = React.useCallback(() => {
@@ -250,8 +251,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     return d.toLocaleString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' })
   }, [current.y, current.m])
 
-  const typeFiltered = filter === 'all' ? events : events.filter((e) => e.type === filter)
-  const filtered = typeFiltered.filter((e) => inSelectedRange(e.start))
+  const filtered = events.filter((e) => (filter === 'all' || e.type === filter) && inSelectedRange(e.start))
   const byDay = new Map<string, CalendarEvent[]>()
   for (const e of filtered) {
     const day = e.start.slice(0,10)
