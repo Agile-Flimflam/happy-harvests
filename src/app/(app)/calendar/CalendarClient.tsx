@@ -126,7 +126,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     const update = () => {
       const now = new Date()
       const iso = isoFromYMD(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate())
-      setTodayISO(iso)
+      setTodayISO((prev) => (prev === iso ? prev : iso))
     }
     update()
     const id = setInterval(update, 60_000) // 1 minute
@@ -135,11 +135,6 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
 
   // Focused date for week/day navigation
   const [focusDateISO, setFocusDateISO] = React.useState<string>(() => todayISO)
-  React.useEffect(() => {
-    if (range === 'today') {
-      setDetail({ open: true, date: focusDateISO })
-    }
-  }, [range, focusDateISO])
 
   // When day rolls over (UTC) and user is on 'today' view, keep focus/current in sync.
   // Runs on both: (1) switching the range to 'today' and (2) UTC day rollover
@@ -152,6 +147,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       const { y, m1 } = parseISO(todayISO)
       setFocusDateISO(todayISO)
       setCurrent({ y, m: m1 - 1 })
+      setDetail({ open: true, date: todayISO })
     }
   }, [todayISO, range])
 
@@ -254,7 +250,8 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     return d.toLocaleString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' })
   }, [current.y, current.m])
 
-  const filtered = (filter === 'all' ? events : events.filter((e) => e.type === filter)).filter((e) => inSelectedRange(e.start))
+  const typeFiltered = filter === 'all' ? events : events.filter((e) => e.type === filter)
+  const filtered = typeFiltered.filter((e) => inSelectedRange(e.start))
   const byDay = new Map<string, CalendarEvent[]>()
   for (const e of filtered) {
     const day = e.start.slice(0,10)
