@@ -215,3 +215,11 @@ export async function updateDelivery(formData: FormData): Promise<void> {
 }
 
 
+export async function deleteDelivery(id: string): Promise<{ message: string }> {
+  const supabase = await createSupabaseServerClient()
+  if (!id) return { message: 'Error: Missing id' }
+  const { error } = await supabase.from('deliveries').delete().eq('id', id)
+  if (error) return { message: `Database Error: ${error.message}` }
+  revalidatePath('/deliveries')
+  return { message: 'Delivery deleted' }
+}

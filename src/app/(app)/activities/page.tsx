@@ -13,6 +13,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Download } from 'lucide-react'
 import { isActivityType, prettyActivityType, type ActivityType } from '@/lib/activities/types'
 import { DeleteActivityDialog } from '@/components/activities/DeleteActivityDialog'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Droplets, Plus } from 'lucide-react'
 //
 
 
@@ -65,25 +67,28 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
   if (sp?.to) exportParams.set('to', sp.to)
   if (sp?.location_id) exportParams.set('location_id', sp.location_id)
   const exportHref = `/api/activities/export${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
+  const hasActivities = types.length > 0
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Activities</h1>
-        <div className="flex items-center gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" asChild>
-                <Link href={exportHref} aria-label="Export to CSV">
-                  <Download className="h-4 w-4" />
-                </Link>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Export to CSV</TooltipContent>
-          </Tooltip>
-          <Button asChild size="sm">
-            <Link href="/activities/new">Track an Activity</Link>
-          </Button>
-        </div>
+        {hasActivities ? (
+          <div className="flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" asChild>
+                  <Link href={exportHref} aria-label="Export to CSV">
+                    <Download className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Export to CSV</TooltipContent>
+            </Tooltip>
+            <Button asChild size="sm">
+              <Link href="/activities/new">Track an Activity</Link>
+            </Button>
+          </div>
+        ) : null}
       </div>
       <ActivitiesFilters
         locations={(locations || []) as { id: string; name: string | null }[]}
@@ -95,15 +100,28 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
         }}
       />
       <div>
-        {types.length === 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>No activities yet</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Click &quot;Track an Activity&quot; to get started.</p>
-            </CardContent>
-          </Card>
+        {!hasActivities ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Droplets className="size-10" />
+              </EmptyMedia>
+              <EmptyTitle>No activities yet</EmptyTitle>
+              <EmptyDescription>
+                Track your first activity to get started.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button asChild>
+                <Link href="/activities/new">
+                  <span className="flex items-center gap-1">
+                    <Plus className="w-4 h-4" />
+                    Track an Activity
+                  </span>
+                </Link>
+              </Button>
+            </EmptyContent>
+          </Empty>
         ) : (
           <Tabs defaultValue="all">
             <TabsList>

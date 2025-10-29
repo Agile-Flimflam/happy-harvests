@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Badge } from "@/components/ui/badge";
 import FormDialog from "@/components/dialogs/FormDialog";
 import {
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { CropVarietyForm } from '../_components/CropVarietyForm';
 import { deleteCropVariety } from '../_actions';
-import { Pencil, Trash2, PlusCircle } from 'lucide-react';
+import { Pencil, Trash2, PlusCircle, Leaf } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from "sonner";
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -35,6 +36,7 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
   const [editingCropVariety, setEditingCropVariety] = useState<CropVariety | null>(null);
   const [deleteId, setDeleteId] = useState<number | string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const hasVarieties = cropVarieties.length > 0;
 
   const handleEdit = (cropVariety: CropVariety) => {
     setEditingCropVariety(cropVariety);
@@ -77,12 +79,12 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
     <div>
       <PageHeader
         title="Crop Varieties"
-        action={(
+        action={hasVarieties ? (
           <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
             <PlusCircle className="h-4 w-4 mr-2" />
             Add Crop Variety
           </Button>
-        )}
+        ) : undefined}
       />
       <FormDialog
         open={isDialogOpen}
@@ -97,61 +99,75 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
       </FormDialog>
 
       <PageContent>
-      <div className="border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Image</TableHead>
-              <TableHead>Crop</TableHead>
-              <TableHead>Variety</TableHead>
-              <TableHead>Latin Name</TableHead>
-              <TableHead>Organic</TableHead>
-              <TableHead>DTM (DS)</TableHead>
-              <TableHead>DTM (TP)</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {cropVarieties.length === 0 && (
+        {!hasVarieties ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Leaf className="size-10" />
+              </EmptyMedia>
+              <EmptyTitle>No crop varieties yet</EmptyTitle>
+              <EmptyDescription>
+                Add a crop variety to start planning and tracking your crops.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={handleAdd}>
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add Crop Variety
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={8} className="text-center">No crop varieties found.</TableCell>
+                <TableHead>Image</TableHead>
+                <TableHead>Crop</TableHead>
+                <TableHead>Variety</TableHead>
+                <TableHead>Latin Name</TableHead>
+                <TableHead>Organic</TableHead>
+                <TableHead>DTM (DS)</TableHead>
+                <TableHead>DTM (TP)</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            )}
-            {cropVarieties.map((cropVariety) => (
-              <TableRow key={cropVariety.id}>
-                <TableCell>
-                  {cropVariety.image_url ? (
-                    <Image
-                      src={cropVariety.image_url}
-                      alt=""
-                      width={40}
-                      height={40}
-                      unoptimized
-                      className="h-10 w-10 rounded object-cover border"
-                    />
-                  ) : (
-                    <div className="h-10 w-10 rounded border bg-muted" />
-                  )}
-                </TableCell>
-                <TableCell className="font-medium">{cropVariety.crops?.name ?? 'N/A'}</TableCell>
-                <TableCell>{cropVariety.name}</TableCell>
-                <TableCell className="font-serif italic text-muted-foreground text-sm whitespace-nowrap">
-                  {cropVariety.latin_name ?? 'N/A'}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={cropVariety.is_organic ? 'secondary' : 'outline'}>
-                    {cropVariety.is_organic ? 'Yes' : 'No'}
-                  </Badge>
-                </TableCell>
-                <TableCell>{cropVariety.dtm_direct_seed_min}-{cropVariety.dtm_direct_seed_max}</TableCell>
-                <TableCell>{cropVariety.dtm_transplant_min}-{cropVariety.dtm_transplant_max}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={() => handleEdit(cropVariety)} className="mr-2">
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => openDelete(cropVariety.id)} className="text-red-500 hover:text-red-700">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+            </TableHeader>
+            <TableBody>
+              {cropVarieties.map((cropVariety) => (
+                <TableRow key={cropVariety.id}>
+                  <TableCell>
+                    {cropVariety.image_url ? (
+                      <Image
+                        src={cropVariety.image_url}
+                        alt=""
+                        width={40}
+                        height={40}
+                        unoptimized
+                        className="h-10 w-10 rounded object-cover border"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded border bg-muted" />
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium">{cropVariety.crops?.name ?? 'N/A'}</TableCell>
+                  <TableCell>{cropVariety.name}</TableCell>
+                  <TableCell className="font-serif italic text-muted-foreground text-sm whitespace-nowrap">
+                    {cropVariety.latin_name ?? 'N/A'}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={cropVariety.is_organic ? 'secondary' : 'outline'}>
+                      {cropVariety.is_organic ? 'Yes' : 'No'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{cropVariety.dtm_direct_seed_min}-{cropVariety.dtm_direct_seed_max}</TableCell>
+                  <TableCell>{cropVariety.dtm_transplant_min}-{cropVariety.dtm_transplant_max}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(cropVariety)} className="mr-2">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => openDelete(cropVariety.id)} className="text-red-500 hover:text-red-700">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
       <ConfirmDialog
         open={deleteId != null}
         onOpenChange={(open) => { if (!open) setDeleteId(null); }}
@@ -162,12 +178,13 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
         confirming={deleting}
         onConfirm={confirmDelete}
       />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        )}
       </PageContent>
     </div>
   );

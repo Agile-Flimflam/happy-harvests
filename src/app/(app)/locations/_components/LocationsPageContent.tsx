@@ -14,6 +14,8 @@ import { LocationForm } from './LocationForm';
 import { deleteLocation } from '../_actions';
 import { toast } from 'sonner';
 import { Pencil, Trash2, PlusCircle, Sunrise, Sunset, Droplet } from 'lucide-react';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { MapPin, Plus } from 'lucide-react';
 
 type Location = Tables<'locations'>;
 
@@ -26,6 +28,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const hasLocations = locations.length > 0;
 
   const handleAdd = () => {
     setEditingLocation(null);
@@ -63,12 +66,12 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
     <div>
       <PageHeader
         title="Locations"
-        action={(
+        action={hasLocations ? (
           <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
             <PlusCircle className="h-4 w-4 mr-2" />
             Add Location
           </Button>
-        )}
+        ) : undefined}
       />
 
       <FormDialog
@@ -84,8 +87,26 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
       </FormDialog>
 
       <PageContent>
-        {locations.length === 0 ? (
-          <p className="text-center text-gray-500">No locations found. Add one to get started.</p>
+        {!hasLocations ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <MapPin className="size-10" />
+              </EmptyMedia>
+              <EmptyTitle>No locations yet</EmptyTitle>
+              <EmptyDescription>
+                Add your farm, field, or garden to get started.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={handleAdd}>
+                <span className="flex items-center gap-1">
+                  <Plus className="w-4 h-4" />
+                  Add Location
+                </span>
+              </Button>
+            </EmptyContent>
+          </Empty>
         ) : (
           <div className="border rounded-md overflow-x-auto">
             <Table>

@@ -24,6 +24,7 @@ import { Pencil, Trash2, PlusCircle, MapPin, Sunrise, Sunset, Droplet } from 'lu
 import { toast } from "sonner";
 import PageHeader from '@/components/page-header';
 import PageContent from '@/components/page-content';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 
 type Plot = Tables<'plots'>;
 type Bed = Tables<'beds'>;
@@ -65,6 +66,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
   const [isDeletingBed, setIsDeletingBed] = useState(false);
 
   const plotsByLocation = groupPlotsByLocation(plotsWithBeds);
+  const hasPlots = plotsWithBeds.length > 0;
 
   const handleEditPlot = (plot: Plot) => {
     setEditingPlot(plot);
@@ -290,12 +292,12 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
     <div>
       <PageHeader
         title="Plots & Beds"
-        action={(
+        action={hasPlots ? (
           <Button onClick={handleAddPlot} size="sm" className="w-full sm:w-auto">
             <PlusCircle className="h-4 w-4 mr-2" />
             Add Plot
           </Button>
-        )}
+        ) : undefined}
       />
 
       <FormDialog
@@ -369,15 +371,33 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
       </Dialog>
 
       <PageContent>
-      <div className="space-y-8">
-        {plotsWithBeds.length === 0 ? (
-          <p className="text-center text-gray-500">No plots found. Add a plot to get started.</p>
+        {!hasPlots ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <MapPin className="h-10 w-10" />
+              </EmptyMedia>
+              <EmptyTitle>No plots yet</EmptyTitle>
+              <EmptyDescription>
+                Create a plot to add beds and track your garden.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={handleAddPlot}>
+                <span className="flex items-center gap-1">
+                  <PlusCircle className="h-4 w-4" />
+                  Add Plot
+                </span>
+              </Button>
+            </EmptyContent>
+          </Empty>
         ) : (
-          Object.entries(plotsByLocation).map(([locationKey, locationData]) =>
-            renderLocationSection(locationKey, locationData)
-          )
+          <div className="space-y-8">
+            {Object.entries(plotsByLocation).map(([locationKey, locationData]) =>
+              renderLocationSection(locationKey, locationData)
+            )}
+          </div>
         )}
-      </div>
       </PageContent>
     </div>
   );

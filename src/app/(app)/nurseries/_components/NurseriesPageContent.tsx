@@ -13,8 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { actionCreateNursery, actionUpdateNursery, actionDeleteNursery, type NurseryFormState } from '../_actions';
 import type { Tables } from '@/lib/database.types';
-import { PlusCircle, Sprout, Pencil, Trash2 } from 'lucide-react';
+import { PlusCircle, FlaskConical, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 
 type Nursery = Tables<'nurseries'>;
 type Location = Tables<'locations'>;
@@ -31,6 +32,7 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
   const [updateState, updateAction] = useActionState<NurseryFormState, FormData>(actionUpdateNursery, initial);
   const [deleteTarget, setDeleteTarget] = useState<Nursery | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const hasNurseries = nurseries.length > 0;
 
   // Initialize/reset form state when opening dialog
   useEffect(() => {
@@ -86,22 +88,28 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
 
   return (
     <div>
-      <PageHeader title="Nurseries" action={<Button size="sm" onClick={() => { setEditing(null); setOpen(true); }}>Add Nursery</Button>} />
+      <PageHeader title="Nurseries" action={hasNurseries ? <Button size="sm" onClick={() => { setEditing(null); setOpen(true); }}>Add Nursery</Button> : undefined} />
       <PageContent>
         {error ? (
           <div className="text-red-500">Error loading nurseries: {error}</div>
-        ) : nurseries.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="mx-auto w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
-              <Sprout className="h-12 w-12 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">No nurseries yet</h3>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto">Add your first nursery to manage seedling starts and transplants.</p>
-            <Button size="lg" onClick={() => { setEditing(null); setOpen(true); }}>
-              <PlusCircle className="h-5 w-5 mr-2" />
-              Add Your First Nursery
-            </Button>
-          </div>
+        ) : !hasNurseries ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <FlaskConical className="size-10" />
+              </EmptyMedia>
+              <EmptyTitle>No nurseries yet</EmptyTitle>
+              <EmptyDescription>
+                Add your first nursery to manage seedling starts and transplants.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={() => { setEditing(null); setOpen(true); }}>
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add Your First Nursery
+              </Button>
+            </EmptyContent>
+          </Empty>
         ) : (
           <div className="border rounded-md overflow-hidden">
             <Table>
