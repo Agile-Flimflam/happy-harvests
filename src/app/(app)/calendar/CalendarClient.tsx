@@ -115,7 +115,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     }
   }, [])
 
-  // Keep todayISO fresh with a single timeout scheduled for next UTC midnight (no polling)
+  // Keep todayISO fresh with a single timeout scheduled for next LOCAL midnight (no polling)
   React.useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined
     let cancelled = false
@@ -127,8 +127,9 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     const scheduleNext = () => {
       if (cancelled) return
       const now = new Date()
-      const nextUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0))
-      const delayMs = Math.max(0, nextUtcMidnight.getTime() - now.getTime())
+      // Schedule for local midnight so the 'today' designation updates at local day rollover
+      const nextLocalMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0)
+      const delayMs = Math.max(0, nextLocalMidnight.getTime() - now.getTime())
       timeoutId = setTimeout(() => {
         if (cancelled) return
         update()
@@ -163,6 +164,8 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   }, [todayISO, range])
 
   // Memoized UTC times to avoid repeated parsing during filters
+  // Week range is intentionally derived from focusDateISO so that week view
+  // filtering follows user navigation, not the current (today) week.
   const focusDateUTC = React.useMemo(() => utcTimeValueFromISO(focusDateISO), [focusDateISO])
   const weekRangeUTC = React.useMemo(() => {
     const startISO = weekStartISO(focusDateISO)
