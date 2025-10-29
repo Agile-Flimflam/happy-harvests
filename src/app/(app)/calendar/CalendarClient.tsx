@@ -154,7 +154,8 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   // Memoized allowed-day set for quick membership checks during filtering.
   // Derived from the user's focused date and range selection, not from the
   // current calendar month, so navigation determines which days are considered
-  // in-range. Optimized to avoid recomputation on focus changes while in month view.
+  // in-range. For clarity, we always depend on focusDateISO even though month
+  // view ignores it (the function bails out early for 'month').
   const allowedDateISOSet = React.useMemo<Set<string>>(() => {
     if (range === 'month') {
       // Month view includes all days; set is unused
@@ -170,7 +171,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       s.add(addDaysISO(startISO, i))
     }
     return s
-  }, [range, range === 'month' ? 0 : focusDateISO])
+  }, [range, focusDateISO])
 
   // Navigation helpers (used by buttons and swipe)
   const navigatePrev = React.useCallback(() => {
@@ -240,24 +241,26 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     })
   }, [range, focusDateISO, current.y, current.m])
 
-  const inSelectedRange = React.useCallback((dateISO: string): boolean => {
-    if (range === 'month') return true
-    return allowedDateISOSet.has(dateISO)
-  }, [range, allowedDateISOSet])
-
   // Header label derived in UTC to avoid DST issues
   const headerLabel = React.useMemo(() => {
     const d = new Date(Date.UTC(current.y, current.m, 1))
     return d.toLocaleString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' })
   }, [current.y, current.m])
 
-  const filtered = events.filter((e) => (filter === 'all' || e.type === filter) && inSelectedRange(e.start))
-  const byDay = new Map<string, CalendarEvent[]>()
-  for (const e of filtered) {
-    const day = e.start.slice(0,10)
-    if (!byDay.has(day)) byDay.set(day, [])
-    byDay.get(day)!.push(e)
-  }
+  const filtered = React.useMemo(() => {
+    return events.filter((e) => (filter === 'all' || e.type === filter) && (range === 'month' || allowedDateISOSet.has(e.start)))
+  }, [events, filter, range, allowedDateISOSet])
+
+  const byDay = React.useMemo(() => {
+    const m = new Map<string, CalendarEvent[]>()
+    for (const e of filtered) {
+      const day = e.start.slice(0,10)
+      const arr = m.get(day)
+      if (arr) arr.push(e)
+      else m.set(day, [e])
+    }
+    return m
+  }, [filtered])
 
   return (
     <div className="space-y-3">
