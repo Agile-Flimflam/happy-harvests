@@ -27,7 +27,6 @@ export default async function CalendarPage() {
           </Button>
         </div>
       </div>
-      
       <Card>
         <CardContent className="p-0">
           <div className="rounded-xl bg-gradient-to-b from-muted/20 via-muted/10 to-transparent p-3 sm:p-4">

@@ -269,7 +269,7 @@ export function DayDetailDialog({ dateISO, events, locations, onPrev, onNext }: 
             description={state.data.current?.weather?.description || null}
             inlineDescription
             hawaiianMoon={moonLocal?.name ?? state.data.moonPhaseLabel ?? null}
-            moonEmoji={moonEmojiFromLabel(moonLocal?.name ?? state.data.moonPhaseLabel) || undefined}
+            moonEmoji={moonEmojiFromLabel(moonLocal?.name ?? state.data.moonPhaseLabel)}
             size="sm"
           />
         ) : (
