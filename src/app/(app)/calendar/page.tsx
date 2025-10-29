@@ -2,7 +2,6 @@ import CalendarClient from './CalendarClient'
 import type { CalendarEvent } from './types'
 export const revalidate = 0
 export const dynamic = 'force-dynamic'
-import CalendarHeaderWeather from './CalendarHeaderWeather'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,9 +10,6 @@ import { getCalendarEvents, getCalendarLocations } from './_actions'
 
 export default async function CalendarPage() {
   const [{ events }, { locations }] = await Promise.all([getCalendarEvents(), getCalendarLocations()])
-  const primary = (locations || []).find((l) => l.latitude != null && l.longitude != null) as
-    | { id: string; name: string; latitude: number | null; longitude: number | null }
-    | undefined
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -30,9 +26,6 @@ export default async function CalendarPage() {
             </Link>
           </Button>
         </div>
-      </div>
-      <div>
-        <CalendarHeaderWeather id={primary?.id ?? null} latitude={primary?.latitude ?? null} longitude={primary?.longitude ?? null} />
       </div>
       <Card>
         <CardContent className="p-0">

@@ -8,6 +8,7 @@ import type { CalendarEvent, CalendarFilter, CalendarLocation } from './types'
 import { Dialog } from '@/components/ui/dialog'
 import { DayCell } from './_components/DayCell'
 import { DayDetailDialog } from './_components/DayDetailDialog'
+import CalendarHeaderWeather from './CalendarHeaderWeather'
 
 // moonEmojiForDate now imported from '@/lib/hawaiian-moon'
 
@@ -17,6 +18,9 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   const [filter, setFilter] = React.useState<CalendarFilter>('all')
   const [detail, setDetail] = React.useState<{ open: boolean; date: string | null }>({ open: false, date: null })
   const [range, setRange] = React.useState<'month' | 'week' | 'today'>('month')
+  const primaryLocation = React.useMemo(() => {
+    return locations.find((l) => l.latitude != null && l.longitude != null) ?? null
+  }, [locations])
 
   React.useEffect(() => {
     try { window.localStorage.setItem('calendar.filter', filter) } catch (e) {
@@ -170,6 +174,10 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
             <CalendarDays className="mr-1 h-4 w-4" /> Today
           </Button>
         </div>
+        {/* Mobile weather display */}
+        <div className="w-full md:hidden">
+          <CalendarHeaderWeather id={primaryLocation?.id ?? null} latitude={primaryLocation?.latitude ?? null} longitude={primaryLocation?.longitude ?? null} />
+        </div>
         {/* Mobile compact filter menu */}
         <div className="w-full md:hidden sticky top-0 z-10 bg-background/95 supports-[backdrop-filter]:bg-background/60 backdrop-blur rounded-md px-1 py-1 flex items-center gap-2">
           <DropdownMenu>
@@ -224,6 +232,9 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
                 {v[0].toUpperCase() + v.slice(1)}
               </button>
             ))}
+          </div>
+          <div className="ml-auto hidden md:flex items-center">
+            <CalendarHeaderWeather id={primaryLocation?.id ?? null} latitude={primaryLocation?.latitude ?? null} longitude={primaryLocation?.longitude ?? null} />
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
