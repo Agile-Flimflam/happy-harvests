@@ -120,36 +120,17 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     }
   }, [])
 
-  // Keep todayISO fresh with a single timeout scheduled for next UTC midnight (no polling)
+  // Keep todayISO fresh using a single interval (no recursive timers)
+  // Checks every 5 minutes and updates when the UTC date rolls over.
   React.useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
-    let cancelled = false
     const update = () => {
       const now = new Date()
       const iso = isoFromYMD(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate())
       setTodayISO((prev) => (prev === iso ? prev : iso))
     }
-    const scheduleNext = () => {
-      if (cancelled) return
-      const now = new Date()
-      // Schedule for UTC midnight so the 'today' designation updates consistently
-      const nextUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0))
-      const rawDelay = nextUtcMidnight.getTime() - now.getTime()
-      const delayMs = Math.max(1000, rawDelay) // enforce small minimum to avoid tight loops
-      timeoutId = setTimeout(() => {
-        if (cancelled) return
-        update()
-        if (cancelled) return
-        scheduleNext()
-      }, delayMs)
-    }
-    // Ensure we are correct on mount, then schedule to next midnight
     update()
-    scheduleNext()
-    return () => {
-      cancelled = true
-      if (timeoutId !== undefined) clearTimeout(timeoutId)
-    }
+    const id = setInterval(update, 300_000) // 5 minutes
+    return () => clearInterval(id)
   }, [])
 
   // Focused date for week/day navigation
