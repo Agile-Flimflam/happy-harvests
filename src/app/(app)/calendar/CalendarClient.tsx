@@ -121,7 +121,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   }, [])
 
   // Keep todayISO fresh using a single interval (no recursive timers)
-  // Checks every 5 minutes and updates when the UTC date rolls over.
+  // Checks every 1 minute and updates when the UTC date rolls over.
   React.useEffect(() => {
     const update = () => {
       const now = new Date()
@@ -129,7 +129,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       setTodayISO((prev) => (prev === iso ? prev : iso))
     }
     update()
-    const id = setInterval(update, 300_000) // 5 minutes
+    const id = setInterval(update, 60_000) // 1 minute
     return () => clearInterval(id)
   }, [])
 
@@ -141,7 +141,10 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     }
   }, [range, focusDateISO])
 
-  // When day rolls over (UTC) and user is on 'today' view, keep focus/current in sync
+  // When day rolls over (UTC) and user is on 'today' view, keep focus/current in sync.
+  // Intentional behavior: entering or remaining in 'today' view always resets
+  // the focused date to the actual current day. Manual navigation while in
+  // 'today' is overridden; to browse other days, use 'week' or 'month' views.
   React.useEffect(() => {
     if (range === 'today') {
       const { y, m1 } = parseISO(todayISO)
