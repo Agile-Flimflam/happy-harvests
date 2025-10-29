@@ -142,9 +142,11 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   }, [range, focusDateISO])
 
   // When day rolls over (UTC) and user is on 'today' view, keep focus/current in sync.
-  // Intentional behavior: entering or remaining in 'today' view always resets
-  // the focused date to the actual current day. Manual navigation while in
-  // 'today' is overridden; to browse other days, use 'week' or 'month' views.
+  // Runs on both: (1) switching the range to 'today' and (2) UTC day rollover
+  // (todayISO update). Intentional behavior: entering or remaining in 'today'
+  // always resets the focused date to the actual current day. Manual
+  // navigation while in 'today' is overridden; to browse other days, use
+  // 'week' or 'month' views.
   React.useEffect(() => {
     if (range === 'today') {
       const { y, m1 } = parseISO(todayISO)
