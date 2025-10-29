@@ -108,26 +108,16 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     }
   }, [])
 
-  // Refresh todayISO at next UTC midnight and every day thereafter
+  // Keep todayISO fresh: update immediately and then check once per minute
   React.useEffect(() => {
-    let timer: number | undefined
-    const compute = () => {
+    const update = () => {
       const now = new Date()
-      setTodayISO(isoFromYMD(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate()))
+      const iso = isoFromYMD(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate())
+      setTodayISO((prev) => (prev === iso ? prev : iso))
     }
-    const scheduleNext = () => {
-      const now = new Date()
-      const nextUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0))
-      const delayMs = nextUtcMidnight.getTime() - now.getTime()
-      timer = window.setTimeout(() => {
-        compute()
-        scheduleNext()
-      }, Math.max(0, delayMs))
-    }
-    scheduleNext()
-    return () => {
-      if (timer !== undefined) window.clearTimeout(timer)
-    }
+    update()
+    const id: number = window.setInterval(update, 60_000)
+    return () => window.clearInterval(id)
   }, [])
 
   // Focused date for week/day navigation
@@ -222,7 +212,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
       const iso = addDaysISO(startISO, i)
       return { iso, dateLocal: toLocalMidnightDate(iso) }
     })
-  }, [range, focusDateISO, current.y, current.m, todayISO])
+  }, [range, focusDateISO, current.y, current.m])
 
   function inSelectedRange(dateISO: string): boolean {
     if (range === 'today') {
