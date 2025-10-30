@@ -12,9 +12,90 @@ import CalendarHeaderWeather from './CalendarHeaderWeather'
 
 // moonEmojiForDate now imported from '@/lib/hawaiian-moon'
 
+// UTC helpers and string-only date math (YYYY-MM-DD)
+const pad2 = (n: number): string => String(n).padStart(2, '0')
+const isoFromYMD = (y: number, m1: number, d: number): string => `${y}-${pad2(m1)}-${pad2(d)}`
+const parseISO = (iso: string): { y: number; m1: number; d: number } => {
+  const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/
+  const fallbackToTodayUTC = (): { y: number; m1: number; d: number } => {
+    const now = new Date()
+    return { y: now.getUTCFullYear(), m1: now.getUTCMonth() + 1, d: now.getUTCDate() }
+  }
+
+  if (!isoDatePattern.test(iso)) {
+    console.error('parseISO: invalid format, expected YYYY-MM-DD. Received:', iso)
+    return fallbackToTodayUTC()
+  }
+
+  const [yStr, mStr, dStr] = iso.split('-')
+  const y = Number(yStr)
+  const m1 = Number(mStr)
+  const d = Number(dStr)
+
+  if (!Number.isFinite(y) || !Number.isFinite(m1) || !Number.isFinite(d)) {
+    console.error('parseISO: non-numeric components in input:', iso)
+    return fallbackToTodayUTC()
+  }
+
+  if (m1 < 1 || m1 > 12 || d < 1 || d > 31) {
+    console.error('parseISO: out-of-range month/day in input:', iso)
+    return fallbackToTodayUTC()
+  }
+
+  // Validate against UTC date to catch invalid calendar dates (e.g., 2023-02-30)
+  const dt = new Date(Date.UTC(y, m1 - 1, d))
+  if (dt.getUTCFullYear() !== y || (dt.getUTCMonth() + 1) !== m1 || dt.getUTCDate() !== d) {
+    console.error('parseISO: invalid calendar date in input:', iso)
+    return fallbackToTodayUTC()
+  }
+
+  return { y, m1, d }
+}
+const utcTimeValueFromISO = (iso: string): number => {
+  const { y, m1, d } = parseISO(iso)
+  return Date.UTC(y, m1 - 1, d)
+}
+const addDaysISO = (iso: string, deltaDays: number): string => {
+  const t = utcTimeValueFromISO(iso)
+  const d = new Date(t)
+  d.setUTCDate(d.getUTCDate() + deltaDays)
+  return isoFromYMD(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate())
+}
+const weekStartISO = (iso: string): string => {
+  const t = utcTimeValueFromISO(iso)
+  const d = new Date(t)
+  const dow = d.getUTCDay() // 0 = Sunday
+  d.setUTCDate(d.getUTCDate() - dow)
+  return isoFromYMD(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate())
+}
+const startOfMonthUTC = (y: number, mZeroBased: number): string => isoFromYMD(y, mZeroBased + 1, 1)
+const monthGridStartISO = (y: number, mZeroBased: number): string => weekStartISO(startOfMonthUTC(y, mZeroBased))
+const dateOnlyFromISO = (iso: string): string => iso.slice(0, 10)
+/**
+ * Convert an ISO date string (YYYY-MM-DD) to a Date at local midnight.
+ *
+ * Note: This relies on JavaScript's parsing of a datetime string without a
+ * timezone (YYYY-MM-DDTHH:mm:ss) as local time. By appending 'T00:00:00', the
+ * resulting Date represents 00:00:00 in the user's local timezone for the
+ * provided calendar date.
+ *
+ * All calendar calculations are performed in UTC to avoid DST issues. This
+ * helper returns a local-midnight Date strictly for UI rendering in components
+ * that expect local Date instances.
+ */
+const toLocalMidnightDate = (iso: string): Date => new Date(iso + 'T00:00:00')
+
 export default function CalendarClient({ events, locations = [] }: { events: CalendarEvent[]; locations?: Array<CalendarLocation> }) {
-  const today = new Date()
-  const [current, setCurrent] = React.useState<{ y: number; m: number }>({ y: today.getFullYear(), m: today.getMonth() })
+
+  // Today in UTC ISO (kept fresh by periodic checks that detect UTC day rollover)
+  const [todayISO, setTodayISO] = React.useState<string>(() => {
+    const nowInit = new Date()
+    return isoFromYMD(nowInit.getUTCFullYear(), nowInit.getUTCMonth() + 1, nowInit.getUTCDate())
+  })
+  const [current, setCurrent] = React.useState<{ y: number; m: number }>(() => {
+    const { y, m1 } = parseISO(todayISO)
+    return { y, m: m1 - 1 }
+  })
   const [filter, setFilter] = React.useState<CalendarFilter>('all')
   const [detail, setDetail] = React.useState<{ open: boolean; date: string | null }>({ open: false, date: null })
   const [range, setRange] = React.useState<'month' | 'week' | 'today'>('month')
@@ -44,28 +125,67 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     }
   }, [])
 
+  // Keep todayISO fresh using a single interval (no recursive timers)
+  // Checks every 1 minute and updates when the UTC date rolls over.
+  React.useEffect(() => {
+    const update = () => {
+      const now = new Date()
+      const iso = isoFromYMD(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate())
+      setTodayISO((prev) => (prev === iso ? prev : iso))
+    }
+    update()
+    const id = setInterval(update, 60_000) // 1 minute
+    return () => clearInterval(id)
+  }, [])
+
   // Focused date for week/day navigation
-  const [focusDateISO, setFocusDateISO] = React.useState<string>(() => {
-    return `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
-  })
+  const [focusDateISO, setFocusDateISO] = React.useState<string>(() => todayISO)
+  const prevRangeRef = React.useRef<'month' | 'week' | 'today'>(range)
+
+  // Keep focus/current in sync in 'today' view.
+  // Runs on: (1) switching the range to 'today' and (2) UTC day rollover
+  // (todayISO update). If the detail dialog is already open, we keep it open
+  // and update the date. If switching into 'today', we open the dialog. We do
+  // not auto-reopen the dialog on day rollover if the user closed it while
+  // staying in 'today'.
   React.useEffect(() => {
     if (range === 'today') {
-      setDetail({ open: true, date: focusDateISO })
+      const { y, m1 } = parseISO(todayISO)
+      setFocusDateISO(todayISO)
+      setCurrent({ y, m: m1 - 1 })
+      const cameFromNonToday = prevRangeRef.current !== 'today'
+      setDetail((d) => (d.open || cameFromNonToday) ? { open: true, date: todayISO } : { open: false, date: todayISO })
     }
+    prevRangeRef.current = range
+  }, [todayISO, range])
+
+  // Memoized allowed-day set for quick membership checks during filtering.
+  // Derived from the user's focused date and range selection. We return null
+  // for 'month' since all days are in-range and set membership is skipped.
+  const allowedDateISOSet = React.useMemo<Set<string> | null>(() => {
+    if (range === 'month') return null
+    if (range === 'today') return new Set<string>([focusDateISO])
+    // week
+    const s = new Set<string>()
+    const startISO = weekStartISO(focusDateISO)
+    for (let i = 0; i < 7; i += 1) {
+      s.add(addDaysISO(startISO, i))
+    }
+    return s
   }, [range, focusDateISO])
 
   // Navigation helpers (used by buttons and swipe)
   const navigatePrev = React.useCallback(() => {
     if (range === 'today') {
-      const d = new Date(focusDateISO + 'T00:00:00')
-      d.setDate(d.getDate() - 1)
-      setFocusDateISO(fmt(d))
-      setCurrent({ y: d.getFullYear(), m: d.getMonth() })
+      const nextISO = addDaysISO(focusDateISO, -1)
+      const { y, m1 } = parseISO(nextISO)
+      setFocusDateISO(nextISO)
+      setCurrent({ y, m: m1 - 1 })
     } else if (range === 'week') {
-      const d = new Date(focusDateISO + 'T00:00:00')
-      d.setDate(d.getDate() - 7)
-      setFocusDateISO(fmt(d))
-      setCurrent({ y: d.getFullYear(), m: d.getMonth() })
+      const nextISO = addDaysISO(focusDateISO, -7)
+      const { y, m1 } = parseISO(nextISO)
+      setFocusDateISO(nextISO)
+      setCurrent({ y, m: m1 - 1 })
     } else {
       setCurrent(({ y, m }) => (m === 0 ? { y: y-1, m: 11 } : { y, m: m-1 }))
     }
@@ -73,15 +193,15 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
 
   const navigateNext = React.useCallback(() => {
     if (range === 'today') {
-      const d = new Date(focusDateISO + 'T00:00:00')
-      d.setDate(d.getDate() + 1)
-      setFocusDateISO(fmt(d))
-      setCurrent({ y: d.getFullYear(), m: d.getMonth() })
+      const nextISO = addDaysISO(focusDateISO, 1)
+      const { y, m1 } = parseISO(nextISO)
+      setFocusDateISO(nextISO)
+      setCurrent({ y, m: m1 - 1 })
     } else if (range === 'week') {
-      const d = new Date(focusDateISO + 'T00:00:00')
-      d.setDate(d.getDate() + 7)
-      setFocusDateISO(fmt(d))
-      setCurrent({ y: d.getFullYear(), m: d.getMonth() })
+      const nextISO = addDaysISO(focusDateISO, 7)
+      const { y, m1 } = parseISO(nextISO)
+      setFocusDateISO(nextISO)
+      setCurrent({ y, m: m1 - 1 })
     } else {
       setCurrent(({ y, m }) => (m === 11 ? { y: y+1, m: 0 } : { y, m: m+1 }))
     }
@@ -90,66 +210,63 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
   // Keep header (month/year) in sync with focused date for today/week
   React.useEffect(() => {
     if (range !== 'month') {
-      const d = new Date(focusDateISO + 'T00:00:00')
-      setCurrent({ y: d.getFullYear(), m: d.getMonth() })
+      const { y, m1 } = parseISO(focusDateISO)
+      setCurrent({ y, m: m1 - 1 })
     }
   }, [range, focusDateISO])
 
-  function startOfMonth(y: number, m: number) { return new Date(y, m, 1) }
+  const handleTodayClick = React.useCallback(() => {
+    const { y, m1 } = parseISO(todayISO)
+    setCurrent({ y, m: m1 - 1 })
+    setFocusDateISO(todayISO)
+  }, [todayISO])
 
-  const first = startOfMonth(current.y, current.m)
-  const firstDay = new Date(first)
-  firstDay.setDate(first.getDate() - first.getDay())
-
-  const cells: Date[] = []
-  if (range === 'today') {
-    const anchor = new Date(focusDateISO + 'T00:00:00')
-    cells.push(anchor)
-  } else if (range === 'week') {
-    const anchor = new Date(focusDateISO + 'T00:00:00')
-    const startWeek = new Date(anchor)
-    startWeek.setDate(anchor.getDate() - startWeek.getDay())
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(startWeek)
-      d.setDate(startWeek.getDate() + i)
-      cells.push(d)
-    }
-  } else {
-    for (let i = 0; i < 42; i++) { // 6 weeks
-      const d = new Date(firstDay)
-      d.setDate(firstDay.getDate() + i)
-      cells.push(d)
-    }
-  }
-
-  function inSelectedRange(dateISO: string): boolean {
-    const d = new Date(dateISO + 'T00:00:00')
+  // Build cells from ISO math; render using local-midnight Dates for UI components
+  const cells: Array<{ iso: string; dateLocal: Date }> = React.useMemo(() => {
     if (range === 'today') {
-      const t = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-      return d.getTime() === t.getTime()
+      const iso = focusDateISO
+      return [{ iso, dateLocal: toLocalMidnightDate(iso) }]
     }
     if (range === 'week') {
-      const start = new Date(today)
-      start.setDate(today.getDate() - today.getDay())
-      const end = new Date(start)
-      end.setDate(start.getDate() + 6)
-      return d >= start && d <= end
+      const startISO = weekStartISO(focusDateISO)
+      return Array.from({ length: 7 }, (_, i) => {
+        const iso = addDaysISO(startISO, i)
+        return { iso, dateLocal: toLocalMidnightDate(iso) }
+      })
     }
-    return true
-  }
+    // month grid (6 weeks)
+    const startISO = monthGridStartISO(current.y, current.m)
+    return Array.from({ length: 42 }, (_, i) => {
+      const iso = addDaysISO(startISO, i)
+      return { iso, dateLocal: toLocalMidnightDate(iso) }
+    })
+  }, [range, focusDateISO, current.y, current.m])
 
-  function fmt(d: Date) {
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
-  }
+  // Header label derived in UTC to avoid DST issues
+  const headerLabel = React.useMemo(() => {
+    const d = new Date(Date.UTC(current.y, current.m, 1))
+    return d.toLocaleString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  }, [current.y, current.m])
 
-  const filtered = (filter === 'all' ? events : events.filter((e) => e.type === filter)).filter((e) => inSelectedRange(e.start))
-  const byDay = new Map<string, CalendarEvent[]>()
-  for (const e of filtered) {
-    const day = e.start.slice(0,10)
-    if (!byDay.has(day)) byDay.set(day, [])
-    byDay.get(day)!.push(e)
-  }
+  const filtered = React.useMemo(() => {
+    return events.filter((e) => {
+      if (filter !== 'all' && e.type !== filter) return false
+      if (range === 'month') return true
+      const dateOnly = dateOnlyFromISO(e.start)
+      return allowedDateISOSet === null || allowedDateISOSet.has(dateOnly)
+    })
+  }, [events, filter, range, allowedDateISOSet])
+
+  const byDay = React.useMemo(() => {
+    const m = new Map<string, CalendarEvent[]>()
+    for (const e of filtered) {
+      const day = dateOnlyFromISO(e.start)
+      const arr = m.get(day) ?? []
+      arr.push(e)
+      if (!m.has(day)) m.set(day, arr)
+    }
+    return m
+  }, [filtered])
 
   return (
     <div className="space-y-3">
@@ -161,16 +278,14 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
           <Button variant="outline" size="sm" onClick={navigatePrev} aria-label="Previous">
             <ChevronLeft className="mr-1 h-4 w-4" /> Prev
           </Button>
-          <div className="font-semibold text-lg">
-            {new Date(current.y, current.m, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' })}
-          </div>
+          <div className="font-semibold text-lg">{headerLabel}</div>
           <Button variant="outline" size="sm" onClick={navigateNext} aria-label="Next">
             Next <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={() => setCurrent(({ y, m }) => ({ y: y+1, m }))} aria-label="Next year">
             Year <ChevronsRight className="ml-1 h-4 w-4" />
           </Button>
-          <Button variant="secondary" size="sm" className="ml-2 hidden sm:inline-flex" onClick={() => { setCurrent({ y: today.getFullYear(), m: today.getMonth() }); setFocusDateISO(fmt(new Date(today.getFullYear(), today.getMonth(), today.getDate()))) }}>
+          <Button variant="secondary" size="sm" className="ml-2 hidden sm:inline-flex" onClick={handleTodayClick}>
             <CalendarDays className="mr-1 h-4 w-4" /> Today
           </Button>
         </div>
@@ -213,7 +328,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
               })}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="secondary" size="sm" className="ml-auto" onClick={() => { setCurrent({ y: today.getFullYear(), m: today.getMonth() }); setFocusDateISO(fmt(new Date(today.getFullYear(), today.getMonth(), today.getDate()))) }}>
+          <Button variant="secondary" size="sm" className="ml-auto" onClick={handleTodayClick}>
             <CalendarDays className="mr-1 h-4 w-4" /> Today
           </Button>
         </div>
@@ -261,14 +376,14 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
         {(() => {
           const names = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
           if (range === 'today') {
-            const d = new Date(focusDateISO + 'T00:00:00')
+            const d = toLocalMidnightDate(focusDateISO)
             return <div className="text-xs text-muted-foreground px-1">{names[d.getDay()]}</div>
           }
           return names.map((d) => (<div key={d} className="text-xs text-muted-foreground px-1">{d}</div>))
         })()}
-        {cells.map((d) => {
-          const key = fmt(d)
-          const dayEventsRaw = byDay.get(key) || []
+        {cells.map(({ iso, dateLocal }) => {
+          const key = iso
+          const dayEventsRaw = byDay.get(iso) || []
           const eventsWithPriority = dayEventsRaw.map((e) => ({
             e,
             p: e.type === 'harvest' ? 0 : e.type === 'planting' ? 1 : 2,
@@ -281,9 +396,9 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
           return (
             <DayCell
               key={key}
-              date={d}
+              date={dateLocal}
               currentMonth={current.m}
-              today={today}
+              today={toLocalMidnightDate(todayISO)}
               onOpenDetail={(dateISO) => setDetail({ open: true, date: dateISO })}
               events={dayEvents}
             />
@@ -297,15 +412,13 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
           locations={locations.filter((l) => l.latitude != null && l.longitude != null)}
           onPrev={() => {
             if (!detail.date) return
-            const dd = new Date(detail.date + 'T00:00:00')
-            dd.setDate(dd.getDate() - 1)
-            setDetail({ open: true, date: fmt(dd) })
+            const prevISO = addDaysISO(detail.date, -1)
+            setDetail({ open: true, date: prevISO })
           }}
           onNext={() => {
             if (!detail.date) return
-            const dd = new Date(detail.date + 'T00:00:00')
-            dd.setDate(dd.getDate() + 1)
-            setDetail({ open: true, date: fmt(dd) })
+            const nextISO = addDaysISO(detail.date, 1)
+            setDetail({ open: true, date: nextISO })
           }}
         />
       </Dialog>
