@@ -119,27 +119,28 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
               const street = loc.street ?? ''
               const cityState = [loc.city, loc.state].filter(Boolean).join(', ')
               const cityStateZip = [cityState, loc.zip ?? ''].filter(Boolean).join(' ')
+              const addressInline = [street, cityStateZip].filter(Boolean).join(', ')
               const locationName = loc.name ?? 'Unnamed Location'
               return (
-                <Card key={loc.id} className="flex flex-col h-full">
-                  <CardHeader className="flex flex-row items-start justify-between gap-2">
-                    <div className="space-y-1.5">
+                <Card key={loc.id} className="flex flex-col h-full overflow-hidden">
+                  <CardHeader className="flex w-full flex-row items-start justify-between gap-3 overflow-hidden">
+                    <div className="space-y-1.5 flex-1 min-w-0">
                       <h3 className="text-lg sm:text-xl font-semibold tracking-tight leading-snug break-words">{locationName}</h3>
                       <CardDescription>
-                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                          {street || cityStateZip ? (
-                            <address className="not-italic leading-relaxed break-words">
-                              {street && <div>{street}</div>}
-                              {cityStateZip && <div>{cityStateZip}</div>}
-                            </address>
-                          ) : (
-                            <span className="leading-relaxed break-words">Address not provided</span>
-                          )}
-                        </div>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+                                <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                                <span className="truncate">{addressInline || 'Address not provided'}</span>
+                              </div>
+                            </TooltipTrigger>
+                            {addressInline ? <TooltipContent>{addressInline}</TooltipContent> : null}
+                          </Tooltip>
+                        </TooltipProvider>
                       </CardDescription>
                     </div>
-                    <div className="flex items-center gap-1 ml-auto">
+                    <div className="flex items-center gap-1 ml-2 shrink-0">
                       <Button aria-label={`Edit ${locationName}`} variant="ghost" size="icon" onClick={() => handleEdit(loc)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -184,7 +185,7 @@ function HumidityDisplay({ value, className }: { value: number; className?: stri
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={cn('inline-flex items-center gap-1 cursor-help', className)} aria-label={`Humidity ${value} percent`}>
+        <span className={cn('inline-flex items-center gap-1 cursor-help', className)}>
           <Droplet className="h-4 w-4" /> Humidity {value}%
         </span>
       </TooltipTrigger>

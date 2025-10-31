@@ -48,7 +48,10 @@ export function WeatherBadge({ icon, tempF, description, inlineDescription = fal
               </TooltipContent>
             </Tooltip>
           ) : (
-            <span className="flex items-center gap-1 text-muted-foreground text-sm max-w-[10rem] min-w-0"><span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span><span className="truncate">{hawaiianMoon}</span></span>
+            <span className="flex items-center gap-1 text-muted-foreground text-sm max-w-[10rem] min-w-0">
+              <span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
+              <span className="truncate">{hawaiianMoon}</span>
+            </span>
           )
         ) : null}
       </div>
