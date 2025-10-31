@@ -17,7 +17,6 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
-import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import { cn } from '@/lib/utils';
 
 import type { Tables } from '@/lib/supabase-server';
@@ -184,14 +183,14 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
 
 function HumidityDisplay({ value, className }: { value: number; className?: string }) {
   return (
-    <TooltipPrimitive.Root>
+    <Tooltip>
       <TooltipTrigger asChild>
         <span className={cn('inline-flex items-center gap-1 cursor-help', className)}>
           <Droplet className="h-4 w-4" /> Humidity {value}%
         </span>
       </TooltipTrigger>
       <TooltipContent>Relative humidity</TooltipContent>
-    </TooltipPrimitive.Root>
+    </Tooltip>
   )
 }
 
@@ -259,23 +258,33 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
     <TooltipProvider>
       <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
-        <WeatherBadge
-          icon={current.weather?.icon}
-          tempF={tempF}
-          description={current.weather?.description || null}
-          inlineDescription
-          size="sm"
-          hawaiianMoon={state.data.moonPhaseLabel}
-          withTooltipProvider={false}
-        />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="shrink-0">
+              <WeatherBadge
+                icon={current.weather?.icon}
+                tempF={tempF}
+                description={current.weather?.description || null}
+                inlineDescription={false}
+                size="sm"
+                hawaiianMoon={state.data.moonPhaseLabel}
+              />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {current.weather?.description ? (
+              <div className="capitalize">{current.weather.description}</div>
+            ) : null}
+          </TooltipContent>
+        </Tooltip>
         {typeof current.humidity === 'number' && (
           <HumidityDisplay value={current.humidity} className="text-muted-foreground text-sm shrink-0" />
         )}
         <Button aria-label={`View weather details for ${locationName}`} variant="link" size="sm" className="px-0 h-auto shrink-0" onClick={() => setDetailsOpen(true)}>
           Details
         </Button>
-      </div>
-
+        </div>
+      
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent>
           <DialogHeader>
@@ -292,7 +301,6 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
               inlineDescription
               size="md"
               hawaiianMoon={state.data.moonPhaseLabel}
-              withTooltipProvider={false}
             />
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               {typeof current.sunrise === 'number' && (
