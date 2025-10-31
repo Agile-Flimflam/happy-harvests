@@ -5,6 +5,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Return the value if it is a positive number; otherwise null.
+ */
+export function positiveOrNull(value?: number | null): number | null {
+  return value != null && value > 0 ? value : null
+}
+
 // Area formatting helpers
 // ------------------------
 // Utilities to present square feet and acres with consistent rounding

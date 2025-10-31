@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { toast } from "sonner";
 import { addDaysUtc, formatDateLocal } from '@/lib/date';
+import { positiveOrNull } from '@/lib/utils';
 import PageHeader from '@/components/page-header';
 import {
   DropdownMenu,
@@ -89,11 +90,10 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
       const detail = ce.detail;
       if (!detail) return;
       const planting = plantings.find((x) => x.id === detail.plantingId);
-      const cv = planting?.crop_varieties ?? cropVarieties.find((v) => v.id === (planting?.crop_variety_id as number | undefined));
+      const cv = planting?.crop_varieties ?? cropVarieties.find((v) => v.id === planting?.crop_variety_id);
       if (!planting || !cv) return;
-      const nz = (n?: number | null) => (n != null && n > 0 ? n : null);
-      const min = nz(cv.dtm_transplant_min) ?? nz(cv.dtm_transplant_max) ?? nz(cv.dtm_direct_seed_min) ?? nz(cv.dtm_direct_seed_max);
-      const max = nz(cv.dtm_transplant_max) ?? nz(cv.dtm_transplant_min) ?? nz(cv.dtm_direct_seed_max) ?? nz(cv.dtm_direct_seed_min);
+      const min = positiveOrNull(cv.dtm_transplant_min) ?? positiveOrNull(cv.dtm_transplant_max) ?? positiveOrNull(cv.dtm_direct_seed_min) ?? positiveOrNull(cv.dtm_direct_seed_max);
+      const max = positiveOrNull(cv.dtm_transplant_max) ?? positiveOrNull(cv.dtm_transplant_min) ?? positiveOrNull(cv.dtm_direct_seed_max) ?? positiveOrNull(cv.dtm_direct_seed_min);
       if (min == null || max == null || min <= 0 || max <= 0) return;
       setOptimisticHarvest((prev) => ({ ...prev, [detail.plantingId]: { start: addDaysUtc(detail.eventDate, min), end: addDaysUtc(detail.eventDate, max) } }));
     };
@@ -155,12 +155,11 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
 
     // Prefer joined variety DTM; fallback to varieties list by crop_variety_id
     const joined = p.crop_varieties;
-    const fallback = cropVarieties.find((v) => v.id === (p as Planting).crop_variety_id);
-    const nz = (n?: number | null) => (n != null && n > 0 ? n : null);
-    const dsMin = nz(joined?.dtm_direct_seed_min ?? fallback?.dtm_direct_seed_min);
-    const dsMax = nz(joined?.dtm_direct_seed_max ?? fallback?.dtm_direct_seed_max);
-    const tpMin = nz(joined?.dtm_transplant_min ?? fallback?.dtm_transplant_min);
-    const tpMax = nz(joined?.dtm_transplant_max ?? fallback?.dtm_transplant_max);
+    const fallback = cropVarieties.find((v) => v.id === p.crop_variety_id);
+    const dsMin = positiveOrNull(joined?.dtm_direct_seed_min ?? fallback?.dtm_direct_seed_min);
+    const dsMax = positiveOrNull(joined?.dtm_direct_seed_max ?? fallback?.dtm_direct_seed_max);
+    const tpMin = positiveOrNull(joined?.dtm_transplant_min ?? fallback?.dtm_transplant_min);
+    const tpMax = positiveOrNull(joined?.dtm_transplant_max ?? fallback?.dtm_transplant_max);
 
     const isTransplantPath = Boolean(p.nursery_started_date);
     if (isTransplantPath) {
