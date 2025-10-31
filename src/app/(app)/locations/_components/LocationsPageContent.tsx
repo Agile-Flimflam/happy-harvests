@@ -150,7 +150,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                   </CardHeader>
                   <CardContent className="flex-1">
                     <div>
-                      <WeatherCell id={loc.id} latitude={loc.latitude} longitude={loc.longitude} />
+                      <WeatherCell id={loc.id} locationName={loc.name ?? 'location'} latitude={loc.latitude} longitude={loc.longitude} />
                     </div>
                   </CardContent>
                 </Card>
@@ -174,7 +174,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
 }
 
 
-function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number | null; longitude: number | null }) {
+function WeatherCell({ id, locationName, latitude, longitude }: { id: string; locationName: string; latitude: number | null; longitude: number | null }) {
   const [state, setState] = useState<
     | { status: 'idle' }
     | { status: 'loading' }
@@ -250,7 +250,7 @@ function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number
             <Droplet className="h-4 w-4" /> {current.humidity}%
           </span>
         )}
-        <Button aria-label={`View weather details for location ${id}`} variant="link" size="sm" className="px-0 h-auto shrink-0" onClick={() => setDetailsOpen(true)}>
+        <Button aria-label={`View weather details for ${locationName}`} variant="link" size="sm" className="px-0 h-auto shrink-0" onClick={() => setDetailsOpen(true)}>
           Details
         </Button>
       </div>
