@@ -84,6 +84,31 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
   // Optimistic projections immediately after transplant
   const [optimisticHarvest, setOptimisticHarvest] = useState<Record<number, { start: string; end: string }>>({});
 
+  const selectNormalizedRange = (
+    primaryMin?: number | null,
+    primaryMax?: number | null,
+    secondaryMin?: number | null,
+    secondaryMax?: number | null,
+  ): { min: number | null; max: number | null } => {
+    const values = [primaryMin, primaryMax, secondaryMin, secondaryMax]
+      .map((v) => positiveOrNull(v))
+      .filter((v): v is number => v != null);
+    const distinct = new Set(values);
+
+    const minCandidate = positiveOrNull(primaryMin) ?? positiveOrNull(primaryMax) ?? positiveOrNull(secondaryMin) ?? positiveOrNull(secondaryMax) ?? null;
+    const maxCandidate = positiveOrNull(primaryMax) ?? positiveOrNull(primaryMin) ?? positiveOrNull(secondaryMax) ?? positiveOrNull(secondaryMin) ?? null;
+
+    if (minCandidate == null || maxCandidate == null) return { min: null, max: null };
+
+    let minDays = minCandidate;
+    let maxDays = maxCandidate;
+    if (minDays > maxDays) {
+      const t = minDays; minDays = maxDays; maxDays = t;
+    }
+    if (distinct.size < 2) return { min: null, max: null };
+    return { min: minDays, max: maxDays };
+  };
+
   useEffect(() => {
     const handler = (e: Event) => {
       const ce = e as CustomEvent<{ plantingId: number; eventDate: string }>;
@@ -92,8 +117,12 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
       const planting = plantings.find((x) => x.id === detail.plantingId);
       const cv = planting?.crop_varieties ?? cropVarieties.find((v) => v.id === planting?.crop_variety_id);
       if (!planting || !cv) return;
-      const min = positiveOrNull(cv.dtm_transplant_min) ?? positiveOrNull(cv.dtm_transplant_max) ?? positiveOrNull(cv.dtm_direct_seed_min) ?? positiveOrNull(cv.dtm_direct_seed_max);
-      const max = positiveOrNull(cv.dtm_transplant_max) ?? positiveOrNull(cv.dtm_transplant_min) ?? positiveOrNull(cv.dtm_direct_seed_max) ?? positiveOrNull(cv.dtm_direct_seed_min);
+      const { min, max } = selectNormalizedRange(
+        cv.dtm_transplant_min,
+        cv.dtm_transplant_max,
+        cv.dtm_direct_seed_min,
+        cv.dtm_direct_seed_max,
+      );
       if (min == null || max == null) return;
       setOptimisticHarvest((prev) => ({ ...prev, [detail.plantingId]: { start: addDaysUtc(detail.eventDate, min), end: addDaysUtc(detail.eventDate, max) } }));
     };
@@ -156,18 +185,17 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     // Prefer joined variety DTM; fallback to varieties list by crop_variety_id
     const joined = p.crop_varieties;
     const fallback = cropVarieties.find((v) => v.id === p.crop_variety_id);
-    const dsMin = positiveOrNull(joined?.dtm_direct_seed_min ?? fallback?.dtm_direct_seed_min);
-    const dsMax = positiveOrNull(joined?.dtm_direct_seed_max ?? fallback?.dtm_direct_seed_max);
-    const tpMin = positiveOrNull(joined?.dtm_transplant_min ?? fallback?.dtm_transplant_min);
-    const tpMax = positiveOrNull(joined?.dtm_transplant_max ?? fallback?.dtm_transplant_max);
 
     const isTransplantPath = Boolean(p.nursery_started_date);
     if (isTransplantPath) {
       if (p.planted_date) {
         const base = p.planted_date;
-        // If transplant DTM missing, fall back to direct seed DTM so the user still sees an estimate
-        const min = (tpMin ?? tpMax ?? dsMin ?? dsMax) ?? null;
-        const max = (tpMax ?? tpMin ?? dsMax ?? dsMin) ?? null;
+        const { min, max } = selectNormalizedRange(
+          joined?.dtm_transplant_min ?? fallback?.dtm_transplant_min,
+          joined?.dtm_transplant_max ?? fallback?.dtm_transplant_max,
+          joined?.dtm_direct_seed_min ?? fallback?.dtm_direct_seed_min,
+          joined?.dtm_direct_seed_max ?? fallback?.dtm_direct_seed_max,
+        );
         if (min != null && max != null) {
           return { start: addDaysUtc(base, min), end: addDaysUtc(base, max), awaitingTransplant: false };
         }
@@ -178,8 +206,12 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     }
     // Direct seed path
     const base = p.planted_date ?? null;
-    const min = dsMin ?? dsMax ?? null;
-    const max = dsMax ?? dsMin ?? null;
+    const { min, max } = selectNormalizedRange(
+      joined?.dtm_direct_seed_min ?? fallback?.dtm_direct_seed_min,
+      joined?.dtm_direct_seed_max ?? fallback?.dtm_direct_seed_max,
+      undefined,
+      undefined,
+    );
     if (base && min != null && max != null) {
       return { start: addDaysUtc(base, min), end: addDaysUtc(base, max), awaitingTransplant: false };
     }
@@ -444,9 +476,9 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                       <p className="text-sm">
                         {p.status === PLANTING_STATUS.nursery
                           ? (p.nurseries?.name ?? 'Nursery')
-                          : (<>
-                              Bed #{p.beds?.id} @ {p.beds?.plots?.locations?.name ?? 'N/A'}
-                            </>)}
+                          : (
+                              <span>Bed #{p.beds?.id} @ {p.beds?.plots?.locations?.name ?? 'N/A'}</span>
+                            )}
                       </p>
                     </div>
                     <div>
@@ -471,9 +503,9 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                           {proj.start && proj.end ? (
                             <>Projected harvest: <span className="text-foreground font-medium">{`${formatDateLocal(proj.start)} – ${formatDateLocal(proj.end)}`}</span></>
                           ) : proj.awaitingTransplant ? (
-                            <>Projected harvest shown after transplant</>
+                            'Projected harvest shown after transplant'
                           ) : (
-                            <>Projected harvest unavailable</>
+                            'Projected harvest unavailable'
                           )}
                         </p>
                       );
@@ -593,7 +625,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                         {p.status === PLANTING_STATUS.nursery
                           ? (p.nurseries?.name ?? 'Nursery')
                           : (
-                            <>Bed #{p.beds?.id} @ {p.beds?.plots?.locations?.name ?? 'N/A'}</>
+                            <span>Bed #{p.beds?.id} @ {p.beds?.plots?.locations?.name ?? 'N/A'}</span>
                           )}
                       </TableCell>
                       <TableCell>{p.nursery_started_date ? 'Transplant' : 'Direct Seed'}</TableCell>
