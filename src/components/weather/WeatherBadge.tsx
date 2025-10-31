@@ -39,9 +39,9 @@ export function WeatherBadge({ icon, tempF, description, inlineDescription = fal
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="inline-flex items-center gap-1 text-muted-foreground text-sm cursor-help underline decoration-dotted underline-offset-2 truncate max-w-[8rem] sm:max-w-[10rem]">
-                    <span aria-hidden="true">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
-                    {hawaiianMoon}
+                  <span className="flex items-center gap-1 text-muted-foreground text-sm cursor-help underline decoration-dotted underline-offset-2 max-w-[8rem] sm:max-w-[10rem] min-w-0">
+                    <span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
+                    <span className="truncate">{hawaiianMoon}</span>
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[280px] text-sm">
@@ -50,7 +50,7 @@ export function WeatherBadge({ icon, tempF, description, inlineDescription = fal
               </Tooltip>
             </TooltipProvider>
           ) : (
-            <span className="inline-flex items-center gap-1 text-muted-foreground text-sm truncate max-w-[10rem]"><span aria-hidden="true">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>{hawaiianMoon}</span>
+            <span className="flex items-center gap-1 text-muted-foreground text-sm max-w-[10rem] min-w-0"><span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span><span className="truncate">{hawaiianMoon}</span></span>
           )
         ) : null}
       </div>

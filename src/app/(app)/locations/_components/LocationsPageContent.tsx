@@ -64,7 +64,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
   };
 
   return (
-    <div>
+    <>
       <PageHeader
         title="Locations"
         action={hasLocations ? (
@@ -109,6 +109,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
             </EmptyContent>
           </Empty>
         ) : (
+          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {locations.map((loc) => {
               const street = loc.street ?? ''
@@ -142,16 +143,6 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
-                      <ConfirmDialog
-                        open={deleteId === loc.id}
-                        onOpenChange={(open) => { if (!open) setDeleteId(null) }}
-                        title="Delete location?"
-                        description="You must reassign or delete associated plots first."
-                        confirmText="Delete"
-                        confirmVariant="destructive"
-                        confirming={deleting}
-                        onConfirm={confirmDelete}
-                      />
                     </div>
                   </CardHeader>
                   <CardContent className="flex-1">
@@ -163,9 +154,20 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
               )
             })}
           </div>
+          <ConfirmDialog
+            open={deleteId != null}
+            onOpenChange={(open) => { if (!open) setDeleteId(null); }}
+            title="Delete location?"
+            description="You must reassign or delete associated plots first."
+            confirmText="Delete"
+            confirmVariant="destructive"
+            confirming={deleting}
+            onConfirm={confirmDelete}
+          />
+          </>
         )}
       </PageContent>
-    </div>
+    </>
   );
 }
 
