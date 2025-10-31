@@ -37,31 +37,29 @@ export function WeatherBadge({ icon, tempF, description, inlineDescription = fal
         ) : null}
         {hawaiianMoon ? (
           moonTip ? (
-            withTooltipProvider ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="flex items-center gap-1 text-muted-foreground text-sm cursor-help underline decoration-dotted underline-offset-2 max-w-[8rem] sm:max-w-[10rem] min-w-0">
-                    <span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
-                    <span className="truncate">{hawaiianMoon}</span>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[280px] text-sm">
-                  {moonTip}
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              <TooltipRoot>
-                <TooltipTrigger asChild>
-                  <span className="flex items-center gap-1 text-muted-foreground text-sm cursor-help underline decoration-dotted underline-offset-2 max-w-[8rem] sm:max-w-[10rem] min-w-0">
-                    <span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
-                    <span className="truncate">{hawaiianMoon}</span>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[280px] text-sm">
-                  {moonTip}
-                </TooltipContent>
-              </TooltipRoot>
-            )
+            (() => {
+              const label = (
+                <span className="flex items-center gap-1 text-muted-foreground text-sm cursor-help underline decoration-dotted underline-offset-2 max-w-[8rem] sm:max-w-[10rem] min-w-0">
+                  <span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
+                  <span className="truncate">{hawaiianMoon}</span>
+                </span>
+              )
+              const children = (
+                <>
+                  <TooltipTrigger asChild>
+                    {label}
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[280px] text-sm">
+                    {moonTip}
+                  </TooltipContent>
+                </>
+              )
+              return withTooltipProvider ? (
+                <Tooltip>{children}</Tooltip>
+              ) : (
+                <TooltipRoot>{children}</TooltipRoot>
+              )
+            })()
           ) : (
             <span className="flex items-center gap-1 text-muted-foreground text-sm max-w-[10rem] min-w-0">
               <span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
