@@ -52,6 +52,14 @@ export default function TransplantForm({ plantingId, beds, closeDialog, formId }
       toast.error(state.message);
     } else {
       toast.success(state.message);
+      try {
+        const vals = form.getValues();
+        const eventDate = typeof vals.event_date === 'string' ? vals.event_date : undefined;
+        const plantingIdVal = typeof vals.planting_id === 'number' ? vals.planting_id : plantingId;
+        if (eventDate) {
+          window.dispatchEvent(new CustomEvent('planting:transplanted', { detail: { plantingId: plantingIdVal, eventDate } }));
+        }
+      } catch {}
       closeDialog();
     }
   }, [state, form, closeDialog]);

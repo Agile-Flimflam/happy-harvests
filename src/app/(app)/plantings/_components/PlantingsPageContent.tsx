@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
@@ -23,9 +23,11 @@ import {
   ArrowRightLeft,
   Shovel,
   Move,
-  History
+  History,
+  RotateCcw
 } from 'lucide-react';
 import { toast } from "sonner";
+import { addDaysUtc, formatDateLocal } from '@/lib/date';
 import PageHeader from '@/components/page-header';
 import {
   DropdownMenu,
@@ -44,11 +46,11 @@ import { PLANTING_STATUS } from '@/lib/plantings/constants';
 import StatusBadge from '@/components/plantings/StatusBadge';
 
 type Planting = Tables<'plantings'>;
-type CropVariety = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name'> & { crops?: { name: string } | null };
+type CropVariety = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name' | 'dtm_direct_seed_min' | 'dtm_direct_seed_max' | 'dtm_transplant_min' | 'dtm_transplant_max'> & { crops?: { name: string } | null };
 type Bed = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { locations: { name: string } | null } | null };
 
 type PlantingWithDetails = Planting & {
-  crop_varieties: { name: string; latin_name: string; crops: { name: string } | null } | null;
+  crop_varieties: { name: string; latin_name: string; dtm_direct_seed_min?: number | null; dtm_direct_seed_max?: number | null; dtm_transplant_min?: number | null; dtm_transplant_max?: number | null; crops: { name: string } | null } | null;
   beds: { id: number; length_inches: number | null; width_inches: number | null; plots: { locations: { name: string } | null } | null } | null;
   nurseries: { name: string } | null;
   planted_qty?: number | null;
@@ -71,12 +73,33 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [createMode, setCreateMode] = useState<'nursery' | 'direct' | null>(defaultCreateMode);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'nursery' | 'planted' | 'harvested'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'nursery' | 'planted' | 'harvested'>('active');
   const [actionDialog, setActionDialog] = useState<
     | { type: 'transplant' | 'move' | 'remove' | 'history'; plantingId: number }
     | { type: 'harvest'; plantingId: number; defaultQty?: number | null; defaultWeight?: number | null }
     | null
   >(null);
+
+  // Optimistic projections immediately after transplant
+  const [optimisticHarvest, setOptimisticHarvest] = useState<Record<number, { start: string; end: string }>>({});
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ plantingId: number; eventDate: string }>;
+      const detail = ce.detail;
+      if (!detail) return;
+      const planting = plantings.find((x) => x.id === detail.plantingId);
+      const cv = planting?.crop_varieties ?? cropVarieties.find((v) => v.id === (planting?.crop_variety_id as number | undefined));
+      if (!planting || !cv) return;
+      const nz = (n?: number | null) => (n != null && n > 0 ? n : null);
+      const min = nz(cv.dtm_transplant_min) ?? nz(cv.dtm_transplant_max) ?? nz(cv.dtm_direct_seed_min) ?? nz(cv.dtm_direct_seed_max);
+      const max = nz(cv.dtm_transplant_max) ?? nz(cv.dtm_transplant_min) ?? nz(cv.dtm_direct_seed_max) ?? nz(cv.dtm_direct_seed_min);
+      if (min == null || max == null || min <= 0) return;
+      setOptimisticHarvest((prev) => ({ ...prev, [detail.plantingId]: { start: addDaysUtc(detail.eventDate, min), end: addDaysUtc(detail.eventDate, max) } }));
+    };
+    window.addEventListener('planting:transplanted', handler as EventListener);
+    return () => window.removeEventListener('planting:transplanted', handler as EventListener);
+  }, [plantings, cropVarieties]);
 
   const openNurserySow = () => { setCreateMode('nursery'); setIsDialogOpen(true); };
   const openDirectSeed = () => { setCreateMode('direct'); setIsDialogOpen(true); };
@@ -107,13 +130,16 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     }
   };
 
+  // Hide removed plantings from default view and stats
+  const visiblePlantings = plantings.filter((p) => p.status !== PLANTING_STATUS.removed);
+
   const getStatusStats = () => {
-    const nurseryCount = plantings.filter(p => p.status === PLANTING_STATUS.nursery).length;
-    const plantedCount = plantings.filter(p => p.status === PLANTING_STATUS.planted).length;
-    const harvestedCount = plantings.filter(p => p.status === PLANTING_STATUS.harvested).length;
+    const nurseryCount = visiblePlantings.filter(p => p.status === PLANTING_STATUS.nursery).length;
+    const plantedCount = visiblePlantings.filter(p => p.status === PLANTING_STATUS.planted).length;
+    const harvestedCount = visiblePlantings.filter(p => p.status === PLANTING_STATUS.harvested).length;
 
     return {
-      total: plantings.length,
+      total: visiblePlantings.length,
       nursery: nurseryCount,
       planted: plantedCount,
       harvested: harvestedCount
@@ -122,12 +148,63 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
 
   const stats = getStatusStats();
 
+  const computeProjectedHarvestWindow = (p: PlantingWithDetails): { start: string | null; end: string | null; awaitingTransplant: boolean } => {
+    // If we have an optimistic projection (immediately after transplant), use it first
+    const opt = optimisticHarvest[p.id];
+    if (opt) return { start: opt.start, end: opt.end, awaitingTransplant: false };
+
+    // Prefer joined variety DTM; fallback to varieties list by crop_variety_id
+    const joined = p.crop_varieties;
+    const fallback = cropVarieties.find((v) => v.id === (p as Planting).crop_variety_id);
+    const nz = (n?: number | null) => (n != null && n > 0 ? n : null);
+    const dsMin = nz(joined?.dtm_direct_seed_min ?? fallback?.dtm_direct_seed_min);
+    const dsMax = nz(joined?.dtm_direct_seed_max ?? fallback?.dtm_direct_seed_max);
+    const tpMin = nz(joined?.dtm_transplant_min ?? fallback?.dtm_transplant_min);
+    const tpMax = nz(joined?.dtm_transplant_max ?? fallback?.dtm_transplant_max);
+
+    const isTransplantPath = Boolean(p.nursery_started_date);
+    if (isTransplantPath) {
+      if (p.planted_date) {
+        const base = p.planted_date;
+        // If transplant DTM missing, fall back to direct seed DTM so the user still sees an estimate
+        const min = (tpMin ?? tpMax ?? dsMin ?? dsMax) ?? null;
+        const max = (tpMax ?? tpMin ?? dsMax ?? dsMin) ?? null;
+        if (min != null && max != null && min > 0) {
+          return { start: addDaysUtc(base, min), end: addDaysUtc(base, max), awaitingTransplant: false };
+        }
+        return { start: null, end: null, awaitingTransplant: false };
+      }
+      // Not yet transplanted → we cannot project exact dates without a target nursery duration
+      return { start: null, end: null, awaitingTransplant: true };
+    }
+    // Direct seed path
+    const base = p.planted_date ?? null;
+    const min = dsMin ?? dsMax ?? null;
+    const max = dsMax ?? dsMin ?? null;
+    if (base && min != null && max != null && min > 0) {
+      return { start: addDaysUtc(base, min), end: addDaysUtc(base, max), awaitingTransplant: false };
+    }
+    return { start: null, end: null, awaitingTransplant: false };
+  };
+
   const filteredPlantings = (() => {
-    if (statusFilter === 'all') return plantings;
-    return plantings.filter((p) => p.status === PLANTING_STATUS[statusFilter]);
+    switch (statusFilter) {
+      case 'all':
+        return visiblePlantings;
+      case 'active':
+        return visiblePlantings.filter((p) => p.status === PLANTING_STATUS.nursery || p.status === PLANTING_STATUS.planted);
+      case 'nursery':
+        return visiblePlantings.filter((p) => p.status === PLANTING_STATUS.nursery);
+      case 'planted':
+        return visiblePlantings.filter((p) => p.status === PLANTING_STATUS.planted);
+      case 'harvested':
+        return visiblePlantings.filter((p) => p.status === PLANTING_STATUS.harvested);
+      default:
+        return visiblePlantings;
+    }
   })();
 
-  const hasPlantings = plantings.length > 0;
+  const hasPlantings = visiblePlantings.length > 0;
 
   return (
     <div>
@@ -265,10 +342,22 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
           </Empty>
         ) : (
           <div className="space-y-6">
+            <div className="flex sm:justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setStatusFilter('active')}
+                aria-label="Reset filter to default view"
+                className="w-full sm:w-auto"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Default view
+              </Button>
+            </div>
             {/* Summary Stats */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Card
-                className={`p-4 cursor-pointer transition ${statusFilter === 'nursery' ? 'ring-2 ring-blue-500' : 'hover:shadow-sm'}`}
+                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${statusFilter === 'nursery' ? 'ring-2 ring-inset ring-blue-500' : 'hover:shadow-sm'}`}
                 role="button"
                 tabIndex={0}
                 onClick={() => setStatusFilter('nursery')}
@@ -285,7 +374,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 </div>
               </Card>
               <Card
-                className={`p-4 cursor-pointer transition ${statusFilter === 'planted' ? 'ring-2 ring-green-500' : 'hover:shadow-sm'}`}
+                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${statusFilter === 'planted' ? 'ring-2 ring-inset ring-green-500' : 'hover:shadow-sm'}`}
                 role="button"
                 tabIndex={0}
                 onClick={() => setStatusFilter('planted')}
@@ -302,7 +391,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 </div>
               </Card>
               <Card
-                className={`p-4 cursor-pointer transition ${statusFilter === 'harvested' ? 'ring-2 ring-orange-500' : 'hover:shadow-sm'}`}
+                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${statusFilter === 'harvested' ? 'ring-2 ring-inset ring-orange-500' : 'hover:shadow-sm'}`}
                 role="button"
                 tabIndex={0}
                 onClick={() => setStatusFilter('harvested')}
@@ -319,7 +408,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 </div>
               </Card>
               <Card
-                className={`p-4 cursor-pointer transition ${statusFilter === 'all' ? 'ring-2 ring-gray-400' : 'hover:shadow-sm'}`}
+                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${statusFilter === 'all' ? 'ring-2 ring-inset ring-gray-400' : 'hover:shadow-sm'}`}
                 role="button"
                 tabIndex={0}
                 onClick={() => setStatusFilter('all')}
@@ -331,14 +420,157 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                   </div>
                   <div>
                     <p className="text-2xl font-bold">{stats.total}</p>
-                    <p className="text-sm text-muted-foreground">Total</p>
+                    <p className="text-sm text-muted-foreground">All</p>
                   </div>
                 </div>
               </Card>
             </div>
 
+            {/* Mobile List */}
+            <div className="sm:hidden space-y-3">
+              {filteredPlantings.map((p) => (
+                <Card key={p.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{p.crop_varieties?.name ?? 'N/A'}</p>
+                      <p className="text-sm text-muted-foreground">{p.crop_varieties?.crops?.name ?? 'N/A'}</p>
+                    </div>
+                    <div>
+                      {p.status ? <StatusBadge status={p.status} /> : <Badge variant="secondary">Unknown</Badge>}
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Location</p>
+                      <p className="text-sm">
+                        {p.status === PLANTING_STATUS.nursery
+                          ? (p.nurseries?.name ?? 'Nursery')
+                          : (<>
+                              Bed #{p.beds?.id} @ {p.beds?.plots?.locations?.name ?? 'N/A'}
+                            </>)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Type</p>
+                      <p className="text-sm">{p.nursery_started_date ? 'Transplant' : 'Direct Seed'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Qty</p>
+                      <p className="text-sm">{p.status === PLANTING_STATUS.harvested ? (p.harvest_qty ?? '-') : (p.planted_qty ?? '-')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Planted</p>
+                      <p className="text-sm">{p.planted_date ?? '-'}</p>
+                    </div>
+                  </div>
+                  {/* Projected harvest window */}
+                  <div className="mt-3">
+                    {(() => {
+                      const proj = computeProjectedHarvestWindow(p);
+                      return (
+                        <p className="text-xs text-muted-foreground">
+                          {proj.start || proj.end ? (
+                            <>Projected harvest: <span className="text-foreground font-medium">{`${formatDateLocal(proj.start)} – ${formatDateLocal(proj.end)}`}</span></>
+                          ) : proj.awaitingTransplant ? (
+                            <>Projected harvest shown after transplant</>
+                          ) : (
+                            <>Projected harvest unavailable</>
+                          )}
+                        </p>
+                      );
+                    })()}
+                  </div>
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="mr-2">
+                          <ArrowRightLeft className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {p.status === PLANTING_STATUS.nursery && (
+                          <>
+                            <DropdownMenuItem onClick={() => setActionDialog({ type: 'transplant', plantingId: p.id })}>
+                              <Sprout className="mr-2 h-4 w-4" />
+                              Transplant
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
+                        {(p.status === PLANTING_STATUS.planted || p.status === PLANTING_STATUS.harvested) && (
+                          <>
+                            {!p.nursery_started_date ? (
+                              <>
+                                <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
+                                  <ShoppingBasket className="mr-2 h-4 w-4" />
+                                  Harvest
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setActionDialog({ type: 'move', plantingId: p.id })}>
+                                  <Move className="mr-2 h-4 w-4" />
+                                  Move
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            ) : (
+                              <>
+                                <DropdownMenuItem onClick={() => setActionDialog({ type: 'move', plantingId: p.id })}>
+                                  <Move className="mr-2 h-4 w-4" />
+                                  Move
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
+                                  <ShoppingBasket className="mr-2 h-4 w-4" />
+                                  Harvest
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            {p.status === PLANTING_STATUS.harvested && (
+                              <>
+                                <DropdownMenuItem onClick={async () => {
+                                  const fd = new FormData();
+                                  fd.append('planting_id', String(p.id));
+                                  const result = await markPlantingAsPlanted(fd);
+                                  if ('ok' in result && result.ok === true) {
+                                    toast.success('Status changed to Planted');
+                                  } else if ('error' in result) {
+                                    toast.error(result.error);
+                                  } else {
+                                    toast.error('Unknown error updating status.');
+                                  }
+                                }}>
+                                  <Sprout className="mr-2 h-4 w-4" />
+                                  Mark as Planted
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                          </>
+                        )}
+                        {canBeRemoved(p.status) && (
+                          <DropdownMenuItem onClick={() => setActionDialog({ type: 'remove', plantingId: p.id })}>
+                            <Shovel className="mr-2 h-4 w-4" />
+                            Remove
+                          </DropdownMenuItem>
+                        )}
+                        
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <Button variant="ghost" size="icon" onClick={() => setActionDialog({ type: 'history', plantingId: p.id })} className="mr-2">
+                      <History className="h-4 w-4" />
+                    </Button>
+
+                    <Button variant="ghost" size="icon" onClick={() => openDelete(p.id)} className="text-red-500 hover:text-red-700">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
             {/* Plantings Table */}
-            <div className="border rounded-lg overflow-hidden">
+            <div className="hidden sm:block border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -348,6 +580,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                     <TableHead>Type</TableHead>
                     <TableHead>Qty</TableHead>
                     <TableHead>Planted</TableHead>
+                    <TableHead>Harvest Window</TableHead>
                     <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -367,6 +600,18 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                       <TableCell>{p.nursery_started_date ? 'Transplant' : 'Direct Seed'}</TableCell>
                       <TableCell>{p.status === PLANTING_STATUS.harvested ? (p.harvest_qty ?? '-') : (p.planted_qty ?? '-')}</TableCell>
                       <TableCell>{p.planted_date ?? '-'}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const proj = computeProjectedHarvestWindow(p);
+                          return (
+                            <span className="whitespace-nowrap">
+                              {proj.start || proj.end
+                                ? `${formatDateLocal(proj.start)} – ${formatDateLocal(proj.end)}`
+                                : (proj.awaitingTransplant ? 'Shown after transplant' : 'Projected harvest unavailable')}
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell>
                         {p.status ? <StatusBadge status={p.status} /> : <Badge variant="secondary">Unknown</Badge>}
                       </TableCell>
