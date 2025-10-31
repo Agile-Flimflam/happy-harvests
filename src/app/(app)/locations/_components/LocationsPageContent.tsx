@@ -134,11 +134,11 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-1 ml-auto">
-                      <Button aria-label="Edit" variant="ghost" size="icon" onClick={() => handleEdit(loc)}>
+                      <Button aria-label={`Edit ${loc.name}`} variant="ghost" size="icon" onClick={() => handleEdit(loc)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
-                        aria-label="Delete"
+                        aria-label={`Delete ${loc.name}`}
                         variant="ghost"
                         size="icon"
                         onClick={() => openDelete(loc.id)}
@@ -250,7 +250,7 @@ function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number
             <Droplet className="h-4 w-4" /> {current.humidity}%
           </span>
         )}
-        <Button aria-label="View weather details" variant="link" size="sm" className="px-0 h-auto shrink-0" onClick={() => setDetailsOpen(true)}>
+        <Button aria-label={`View weather details for location ${id}`} variant="link" size="sm" className="px-0 h-auto shrink-0" onClick={() => setDetailsOpen(true)}>
           Details
         </Button>
       </div>
