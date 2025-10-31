@@ -94,7 +94,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
       const nz = (n?: number | null) => (n != null && n > 0 ? n : null);
       const min = nz(cv.dtm_transplant_min) ?? nz(cv.dtm_transplant_max) ?? nz(cv.dtm_direct_seed_min) ?? nz(cv.dtm_direct_seed_max);
       const max = nz(cv.dtm_transplant_max) ?? nz(cv.dtm_transplant_min) ?? nz(cv.dtm_direct_seed_max) ?? nz(cv.dtm_direct_seed_min);
-      if (min == null || max == null || min <= 0) return;
+      if (min == null || max == null || min <= 0 || max <= 0) return;
       setOptimisticHarvest((prev) => ({ ...prev, [detail.plantingId]: { start: addDaysUtc(detail.eventDate, min), end: addDaysUtc(detail.eventDate, max) } }));
     };
     window.addEventListener('planting:transplanted', handler as EventListener);
@@ -169,7 +169,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
         // If transplant DTM missing, fall back to direct seed DTM so the user still sees an estimate
         const min = (tpMin ?? tpMax ?? dsMin ?? dsMax) ?? null;
         const max = (tpMax ?? tpMin ?? dsMax ?? dsMin) ?? null;
-        if (min != null && max != null && min > 0) {
+        if (min != null && max != null && min > 0 && max > 0) {
           return { start: addDaysUtc(base, min), end: addDaysUtc(base, max), awaitingTransplant: false };
         }
         return { start: null, end: null, awaitingTransplant: false };
@@ -181,7 +181,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     const base = p.planted_date ?? null;
     const min = dsMin ?? dsMax ?? null;
     const max = dsMax ?? dsMin ?? null;
-    if (base && min != null && max != null && min > 0) {
+    if (base && min != null && max != null && min > 0 && max > 0) {
       return { start: addDaysUtc(base, min), end: addDaysUtc(base, max), awaitingTransplant: false };
     }
     return { start: null, end: null, awaitingTransplant: false };
@@ -469,7 +469,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                       const proj = computeProjectedHarvestWindow(p);
                       return (
                         <p className="text-xs text-muted-foreground">
-                          {proj.start || proj.end ? (
+                          {proj.start && proj.end ? (
                             <>Projected harvest: <span className="text-foreground font-medium">{`${formatDateLocal(proj.start)} – ${formatDateLocal(proj.end)}`}</span></>
                           ) : proj.awaitingTransplant ? (
                             <>Projected harvest shown after transplant</>
@@ -605,7 +605,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                           const proj = computeProjectedHarvestWindow(p);
                           return (
                             <span className="whitespace-nowrap">
-                              {proj.start || proj.end
+                              {proj.start && proj.end
                                 ? `${formatDateLocal(proj.start)} – ${formatDateLocal(proj.end)}`
                                 : (proj.awaitingTransplant ? 'Shown after transplant' : 'Projected harvest unavailable')}
                             </span>

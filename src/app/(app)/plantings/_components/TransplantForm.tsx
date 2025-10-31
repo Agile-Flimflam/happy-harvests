@@ -59,10 +59,13 @@ export default function TransplantForm({ plantingId, beds, closeDialog, formId }
         if (eventDate) {
           window.dispatchEvent(new CustomEvent('planting:transplanted', { detail: { plantingId: plantingIdVal, eventDate } }));
         }
-      } catch {}
+      } catch (error) {
+        // Log the error to aid debugging while keeping the UI flow unchanged.
+        console.error('Failed to dispatch planting:transplanted event', error);
+      }
       closeDialog();
     }
-  }, [state, form, closeDialog]);
+  }, [state, form, closeDialog, plantingId]);
 
   const onSubmit = (values: z.input<typeof TransplantSchema>) => {
     const parsed: TransplantInput = TransplantSchema.parse(values);
