@@ -241,7 +241,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
 
   return (
     <TooltipProvider>
-    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
         <WeatherBadge
           icon={current.weather?.icon}
@@ -308,8 +308,8 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-    </TooltipProvider>
+      </div>
+  </TooltipProvider>
   )
 }
 
