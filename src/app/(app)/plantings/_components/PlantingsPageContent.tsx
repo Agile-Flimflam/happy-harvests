@@ -94,7 +94,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
       if (!planting || !cv) return;
       const min = positiveOrNull(cv.dtm_transplant_min) ?? positiveOrNull(cv.dtm_transplant_max) ?? positiveOrNull(cv.dtm_direct_seed_min) ?? positiveOrNull(cv.dtm_direct_seed_max);
       const max = positiveOrNull(cv.dtm_transplant_max) ?? positiveOrNull(cv.dtm_transplant_min) ?? positiveOrNull(cv.dtm_direct_seed_max) ?? positiveOrNull(cv.dtm_direct_seed_min);
-      if (min == null || max == null || min <= 0 || max <= 0) return;
+      if (min == null || max == null) return;
       setOptimisticHarvest((prev) => ({ ...prev, [detail.plantingId]: { start: addDaysUtc(detail.eventDate, min), end: addDaysUtc(detail.eventDate, max) } }));
     };
     window.addEventListener('planting:transplanted', handler as EventListener);
@@ -168,7 +168,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
         // If transplant DTM missing, fall back to direct seed DTM so the user still sees an estimate
         const min = (tpMin ?? tpMax ?? dsMin ?? dsMax) ?? null;
         const max = (tpMax ?? tpMin ?? dsMax ?? dsMin) ?? null;
-        if (min != null && max != null && min > 0 && max > 0) {
+        if (min != null && max != null) {
           return { start: addDaysUtc(base, min), end: addDaysUtc(base, max), awaitingTransplant: false };
         }
         return { start: null, end: null, awaitingTransplant: false };
@@ -180,7 +180,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     const base = p.planted_date ?? null;
     const min = dsMin ?? dsMax ?? null;
     const max = dsMax ?? dsMin ?? null;
-    if (base && min != null && max != null && min > 0 && max > 0) {
+    if (base && min != null && max != null) {
       return { start: addDaysUtc(base, min), end: addDaysUtc(base, max), awaitingTransplant: false };
     }
     return { start: null, end: null, awaitingTransplant: false };
