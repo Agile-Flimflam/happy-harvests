@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { WeatherBadge } from '@/components/weather/WeatherBadge';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import PageHeader from '@/components/page-header';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import PageContent from '@/components/page-content';
 // Dialog header/footer handled by FormDialog
 import FormDialog from '@/components/dialogs/FormDialog';
@@ -108,50 +109,42 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
             </EmptyContent>
           </Empty>
         ) : (
-          <div className="border rounded-md overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="font-semibold whitespace-normal">Name</TableHead>
-                  <TableHead className="font-semibold whitespace-normal">Address</TableHead>
-                  <TableHead className="font-semibold whitespace-normal">Coordinates</TableHead>
-                  <TableHead className="font-semibold whitespace-normal">Weather</TableHead>
-                  <TableHead className="text-right font-semibold whitespace-normal">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {locations.map((loc) => (
-                  <TableRow key={loc.id}>
-                    <TableCell className="font-medium whitespace-normal break-words">{loc.name}</TableCell>
-                    <TableCell className="whitespace-normal break-words">
-                      {(() => {
-                        const street = loc.street ?? ''
-                        const cityState = [loc.city, loc.state].filter(Boolean).join(', ')
-                        const cityStateZip = [cityState, loc.zip ?? ''].filter(Boolean).join(' ')
-                        const full = [street, cityStateZip].filter(Boolean).join(', ')
-                        return full || '-'
-                      })()}
-                    </TableCell>
-                    <TableCell className="whitespace-normal">
-                      {loc.latitude != null && loc.longitude != null ? `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}` : '-'}
-                    </TableCell>
-                    <TableCell className="whitespace-normal break-words">
-                      <WeatherCell
-                        id={loc.id}
-                        latitude={loc.latitude}
-                        longitude={loc.longitude}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(loc)}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {locations.map((loc) => {
+              const street = loc.street ?? ''
+              const cityState = [loc.city, loc.state].filter(Boolean).join(', ')
+              const cityStateZip = [cityState, loc.zip ?? ''].filter(Boolean).join(' ')
+              const addressStreet = street
+              const addressCityStateZip = cityStateZip
+              const addressDisplay = [addressStreet, addressCityStateZip].filter(Boolean).join('\n')
+              return (
+                <Card key={loc.id} className="flex flex-col">
+                  <CardHeader className="flex flex-row items-start justify-between gap-2">
+                    <div className="space-y-1.5">
+                      <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight leading-snug break-words">{loc.name}</CardTitle>
+                      <CardDescription>
+                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                          <span className="whitespace-pre-line leading-relaxed break-words">{addressDisplay || '—'}</span>
+                        </div>
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-1 ml-auto">
+                      <Button aria-label="Edit" variant="ghost" size="icon" onClick={() => handleEdit(loc)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => openDelete(loc.id)} className="text-red-500 hover:text-red-700">
+                      <Button
+                        aria-label="Delete"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openDelete(loc.id)}
+                        className="text-red-500 hover:text-red-700"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                       <ConfirmDialog
-                        open={deleteId != null}
-                        onOpenChange={(open) => { if (!open) setDeleteId(null); }}
+                        open={deleteId === loc.id}
+                        onOpenChange={(open) => { if (!open) setDeleteId(null) }}
                         title="Delete location?"
                         description="You must reassign or delete associated plots first."
                         confirmText="Delete"
@@ -159,11 +152,16 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                         confirming={deleting}
                         onConfirm={confirmDelete}
                       />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-1">
+                    <div>
+                      <WeatherCell id={loc.id} latitude={loc.latitude} longitude={loc.longitude} />
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </PageContent>
@@ -194,6 +192,7 @@ function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number
       }
     }
   >({ status: 'idle' })
+  const [detailsOpen, setDetailsOpen] = useState(false)
 
   useEffect(() => {
     if (latitude == null || longitude == null) return
@@ -232,33 +231,63 @@ function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number
   const tempF = current.temp
 
   return (
-    <div className="flex flex-col gap-1">
-      <WeatherBadge
-        icon={current.weather?.icon}
-        tempF={tempF}
-        description={current.weather?.description || null}
-        inlineDescription
-        size="sm"
-        hawaiianMoon={state.data.moonPhaseLabel}
-      />
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        {typeof current.sunrise === 'number' && (
-          <span className="inline-flex items-center gap-1">
-            <Sunrise className="h-3 w-3" /> {formatUnixToLocalTime(current.sunrise)}
-          </span>
-        )}
-        {typeof current.sunset === 'number' && (
-          <span className="inline-flex items-center gap-1">
-            <Sunset className="h-3 w-3" /> {formatUnixToLocalTime(current.sunset)}
-          </span>
-        )}
-        {/* Moon phase shown inline via WeatherBadge tooltip */}
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+        <WeatherBadge
+          icon={current.weather?.icon}
+          tempF={tempF}
+          description={current.weather?.description || null}
+          inlineDescription
+          size="sm"
+          hawaiianMoon={state.data.moonPhaseLabel}
+        />
         {typeof current.humidity === 'number' && (
-          <span className="inline-flex items-center gap-1">
-            <Droplet className="h-3 w-3" /> {current.humidity}%
+          <span className="inline-flex items-center gap-1 text-muted-foreground text-sm shrink-0">
+            <Droplet className="h-4 w-4" /> {current.humidity}%
           </span>
         )}
+        <Button variant="link" size="sm" className="px-0 h-auto shrink-0" onClick={() => setDetailsOpen(true)}>
+          Details
+        </Button>
       </div>
+
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Weather details</DialogTitle>
+            <DialogDescription>
+              Local conditions and solar times
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <WeatherBadge
+              icon={current.weather?.icon}
+              tempF={tempF}
+              description={current.weather?.description || null}
+              inlineDescription
+              size="md"
+              hawaiianMoon={state.data.moonPhaseLabel}
+            />
+            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+              {typeof current.sunrise === 'number' && (
+                <span className="inline-flex items-center gap-1">
+                  <Sunrise className="h-4 w-4" /> Sunrise {formatUnixToLocalTime(current.sunrise)}
+                </span>
+              )}
+              {typeof current.sunset === 'number' && (
+                <span className="inline-flex items-center gap-1">
+                  <Sunset className="h-4 w-4" /> Sunset {formatUnixToLocalTime(current.sunset)}
+                </span>
+              )}
+              {typeof current.humidity === 'number' && (
+                <span className="inline-flex items-center gap-1">
+                  <Droplet className="h-4 w-4" /> Humidity {current.humidity}%
+                </span>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
