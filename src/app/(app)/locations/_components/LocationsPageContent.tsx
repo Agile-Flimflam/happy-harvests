@@ -114,7 +114,6 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
               const street = loc.street ?? ''
               const cityState = [loc.city, loc.state].filter(Boolean).join(', ')
               const cityStateZip = [cityState, loc.zip ?? ''].filter(Boolean).join(' ')
-              const addressDisplay = [street, cityStateZip].filter(Boolean).join('\n')
               return (
                 <Card key={loc.id} className="flex flex-col">
                   <CardHeader className="flex flex-row items-start justify-between gap-2">
@@ -123,7 +122,14 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                       <CardDescription>
                         <div className="flex items-start gap-2 text-sm text-muted-foreground">
                           <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                          <span className="whitespace-pre-line leading-relaxed break-words">{addressDisplay || '—'}</span>
+                          {street || cityStateZip ? (
+                            <address className="not-italic leading-relaxed break-words">
+                              {street && <div>{street}</div>}
+                              {cityStateZip && <div>{cityStateZip}</div>}
+                            </address>
+                          ) : (
+                            <span className="leading-relaxed break-words">Address not provided</span>
+                          )}
                         </div>
                       </CardDescription>
                     </div>
