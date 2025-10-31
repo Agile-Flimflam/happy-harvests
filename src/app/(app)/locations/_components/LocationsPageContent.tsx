@@ -16,7 +16,7 @@ import { Card, CardDescription, CardFooter, CardHeader } from '@/components/ui/c
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import { Tooltip, TooltipRoot, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 import type { Tables } from '@/lib/supabase-server';
@@ -128,7 +128,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                       <h3 className="text-lg sm:text-xl font-semibold tracking-tight leading-snug break-words">{locationName}</h3>
                       <CardDescription>
                         <TooltipProvider>
-                          <Tooltip>
+                          <TooltipRoot>
                             <TooltipTrigger asChild>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
                                 <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
@@ -136,7 +136,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                               </div>
                             </TooltipTrigger>
                             {addressInline ? <TooltipContent>{addressInline}</TooltipContent> : null}
-                          </Tooltip>
+                          </TooltipRoot>
                         </TooltipProvider>
                       </CardDescription>
                     </div>
@@ -268,6 +268,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
                 inlineDescription={false}
                 size="sm"
                 hawaiianMoon={state.data.moonPhaseLabel}
+                withTooltipProvider={false}
               />
             </div>
           </TooltipTrigger>
@@ -301,6 +302,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
               inlineDescription
               size="md"
               hawaiianMoon={state.data.moonPhaseLabel}
+              withTooltipProvider={false}
             />
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               {typeof current.sunrise === 'number' && (
