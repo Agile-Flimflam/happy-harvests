@@ -115,9 +115,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
               const street = loc.street ?? ''
               const cityState = [loc.city, loc.state].filter(Boolean).join(', ')
               const cityStateZip = [cityState, loc.zip ?? ''].filter(Boolean).join(' ')
-              const addressStreet = street
-              const addressCityStateZip = cityStateZip
-              const addressDisplay = [addressStreet, addressCityStateZip].filter(Boolean).join('\n')
+              const addressDisplay = [street, cityStateZip].filter(Boolean).join('\n')
               return (
                 <Card key={loc.id} className="flex flex-col">
                   <CardHeader className="flex flex-row items-start justify-between gap-2">
@@ -248,7 +246,7 @@ function WeatherCell({ id, latitude, longitude }: { id: string; latitude: number
             <Droplet className="h-4 w-4" /> {current.humidity}%
           </span>
         )}
-        <Button variant="link" size="sm" className="px-0 h-auto shrink-0" onClick={() => setDetailsOpen(true)}>
+        <Button aria-label="View weather details" variant="link" size="sm" className="px-0 h-auto shrink-0" onClick={() => setDetailsOpen(true)}>
           Details
         </Button>
       </div>
