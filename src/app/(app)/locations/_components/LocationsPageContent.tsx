@@ -17,6 +17,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 import type { Tables } from '@/lib/supabase-server';
 import { LocationForm } from './LocationForm';
@@ -183,7 +184,7 @@ function HumidityDisplay({ value, className }: { value: number; className?: stri
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={`inline-flex items-center gap-1 cursor-help ${className ?? ''}`} aria-label="Humidity">
+        <span className={cn('inline-flex items-center gap-1 cursor-help', className)} aria-label={`Humidity ${value} percent`}>
           <Droplet className="h-4 w-4" /> Humidity {value}%
         </span>
       </TooltipTrigger>
