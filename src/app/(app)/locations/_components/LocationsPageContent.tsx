@@ -17,6 +17,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import { cn } from '@/lib/utils';
 
 import type { Tables } from '@/lib/supabase-server';
@@ -183,14 +184,14 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
 
 function HumidityDisplay({ value, className }: { value: number; className?: string }) {
   return (
-    <Tooltip>
+    <TooltipPrimitive.Root>
       <TooltipTrigger asChild>
         <span className={cn('inline-flex items-center gap-1 cursor-help', className)}>
           <Droplet className="h-4 w-4" /> Humidity {value}%
         </span>
       </TooltipTrigger>
       <TooltipContent>Relative humidity</TooltipContent>
-    </Tooltip>
+    </TooltipPrimitive.Root>
   )
 }
 
@@ -265,6 +266,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
           inlineDescription
           size="sm"
           hawaiianMoon={state.data.moonPhaseLabel}
+          withTooltipProvider={false}
         />
         {typeof current.humidity === 'number' && (
           <HumidityDisplay value={current.humidity} className="text-muted-foreground text-sm shrink-0" />
@@ -290,6 +292,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
               inlineDescription
               size="md"
               hawaiianMoon={state.data.moonPhaseLabel}
+              withTooltipProvider={false}
             />
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               {typeof current.sunrise === 'number' && (

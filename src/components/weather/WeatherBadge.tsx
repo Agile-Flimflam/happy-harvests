@@ -1,5 +1,5 @@
 import Image from 'next/image'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipRoot, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { hawaiianMoonRecommendationByName, DEFAULT_MOON_EMOJI } from '@/lib/hawaiian-moon'
 
 type WeatherBadgeProps = {
@@ -10,9 +10,10 @@ type WeatherBadgeProps = {
   hawaiianMoon?: string | null | undefined
   size?: 'sm' | 'md'
   moonEmoji?: string | null
+  withTooltipProvider?: boolean
 }
 
-export function WeatherBadge({ icon, tempF, description, inlineDescription = false, hawaiianMoon, size = 'md', moonEmoji = null }: WeatherBadgeProps) {
+export function WeatherBadge({ icon, tempF, description, inlineDescription = false, hawaiianMoon, size = 'md', moonEmoji = null, withTooltipProvider = true }: WeatherBadgeProps) {
   const px = size === 'sm' ? 28 : 40
   const moonTip = hawaiianMoonRecommendationByName(hawaiianMoon ?? undefined)
   return (
@@ -36,17 +37,31 @@ export function WeatherBadge({ icon, tempF, description, inlineDescription = fal
         ) : null}
         {hawaiianMoon ? (
           moonTip ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="flex items-center gap-1 text-muted-foreground text-sm cursor-help underline decoration-dotted underline-offset-2 max-w-[8rem] sm:max-w-[10rem] min-w-0">
-                  <span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
-                  <span className="truncate">{hawaiianMoon}</span>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[280px] text-sm">
-                {moonTip}
-              </TooltipContent>
-            </Tooltip>
+            withTooltipProvider ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="flex items-center gap-1 text-muted-foreground text-sm cursor-help underline decoration-dotted underline-offset-2 max-w-[8rem] sm:max-w-[10rem] min-w-0">
+                    <span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
+                    <span className="truncate">{hawaiianMoon}</span>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[280px] text-sm">
+                  {moonTip}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <TooltipRoot>
+                <TooltipTrigger asChild>
+                  <span className="flex items-center gap-1 text-muted-foreground text-sm cursor-help underline decoration-dotted underline-offset-2 max-w-[8rem] sm:max-w-[10rem] min-w-0">
+                    <span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
+                    <span className="truncate">{hawaiianMoon}</span>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[280px] text-sm">
+                  {moonTip}
+                </TooltipContent>
+              </TooltipRoot>
+            )
           ) : (
             <span className="flex items-center gap-1 text-muted-foreground text-sm max-w-[10rem] min-w-0">
               <span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>

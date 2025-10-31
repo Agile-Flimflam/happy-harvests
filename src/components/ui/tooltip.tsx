@@ -28,6 +28,12 @@ function Tooltip({
   )
 }
 
+function TooltipRoot({
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+}
+
 function TooltipTrigger({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
@@ -58,4 +64,4 @@ function TooltipContent({
   )
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+export { Tooltip, TooltipRoot, TooltipTrigger, TooltipContent, TooltipProvider }
