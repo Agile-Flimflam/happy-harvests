@@ -260,7 +260,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="shrink-0">
+            <div>
               <WeatherBadge
                 icon={current.weather?.icon}
                 tempF={tempF}
@@ -269,7 +269,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
                 size="sm"
                 hawaiianMoon={state.data.moonPhaseLabel}
               />
-            </span>
+            </div>
           </TooltipTrigger>
           <TooltipContent>
             {current.weather?.description ? (
