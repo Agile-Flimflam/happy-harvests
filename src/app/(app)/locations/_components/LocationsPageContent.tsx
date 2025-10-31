@@ -109,7 +109,6 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
             </EmptyContent>
           </Empty>
         ) : (
-          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {locations.map((loc) => {
               const street = loc.street ?? ''
@@ -152,18 +151,17 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
               )
             })}
           </div>
-          <ConfirmDialog
-            open={deleteId != null}
-            onOpenChange={(open) => { if (!open) setDeleteId(null); }}
-            title="Delete location?"
-            description="You must reassign or delete associated plots first."
-            confirmText="Delete"
-            confirmVariant="destructive"
-            confirming={deleting}
-            onConfirm={confirmDelete}
-          />
-          </>
         )}
+        <ConfirmDialog
+          open={deleteId != null}
+          onOpenChange={(open) => { if (!open) setDeleteId(null); }}
+          title="Delete location?"
+          description="You must reassign or delete associated plots first."
+          confirmText="Delete"
+          confirmVariant="destructive"
+          confirming={deleting}
+          onConfirm={confirmDelete}
+        />
       </PageContent>
     </>
   );
