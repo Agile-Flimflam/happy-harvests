@@ -1,22 +1,26 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { WeatherBadge } from '@/components/weather/WeatherBadge';
-import type { Tables } from '@/lib/supabase-server';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toast } from 'sonner';
+import { Pencil, Trash2, PlusCircle, Sunrise, Sunset, Droplet, MapPin, Plus } from 'lucide-react';
+
 import PageHeader from '@/components/page-header';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import PageContent from '@/components/page-content';
+import { WeatherBadge } from '@/components/weather/WeatherBadge';
 // Dialog header/footer handled by FormDialog
 import FormDialog from '@/components/dialogs/FormDialog';
+
+// UI components
+import { Button } from '@/components/ui/button';
+import { Card, CardDescription, CardFooter, CardHeader } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+
+import type { Tables } from '@/lib/supabase-server';
 import { LocationForm } from './LocationForm';
 import { deleteLocation } from '../_actions';
-import { toast } from 'sonner';
-import { Pencil, Trash2, PlusCircle, Sunrise, Sunset, Droplet } from 'lucide-react';
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { MapPin, Plus } from 'lucide-react';
 
 type Location = Tables<'locations'>;
 
@@ -114,11 +118,12 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
               const street = loc.street ?? ''
               const cityState = [loc.city, loc.state].filter(Boolean).join(', ')
               const cityStateZip = [cityState, loc.zip ?? ''].filter(Boolean).join(' ')
+              const locationName = loc.name ?? 'Unnamed Location'
               return (
-                <Card key={loc.id} className="flex flex-col">
+                <Card key={loc.id} className="flex flex-col h-full">
                   <CardHeader className="flex flex-row items-start justify-between gap-2">
                     <div className="space-y-1.5">
-                      <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight leading-snug break-words">{loc.name}</CardTitle>
+                      <h3 className="text-lg sm:text-xl font-semibold tracking-tight leading-snug break-words">{locationName}</h3>
                       <CardDescription>
                         <div className="flex items-start gap-2 text-sm text-muted-foreground">
                           <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
@@ -134,11 +139,11 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-1 ml-auto">
-                      <Button aria-label={`Edit ${loc.name}`} variant="ghost" size="icon" onClick={() => handleEdit(loc)}>
+                      <Button aria-label={`Edit ${locationName}`} variant="ghost" size="icon" onClick={() => handleEdit(loc)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
-                        aria-label={`Delete ${loc.name}`}
+                        aria-label={`Delete ${locationName}`}
                         variant="ghost"
                         size="icon"
                         onClick={() => openDelete(loc.id)}
@@ -148,11 +153,11 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent className="flex-1">
-                    <div>
-                      <WeatherCell id={loc.id} locationName={loc.name ?? 'location'} latitude={loc.latitude} longitude={loc.longitude} />
+                  <CardFooter className="mt-auto">
+                    <div className="w-full">
+                      <WeatherCell id={loc.id} locationName={locationName} latitude={loc.latitude} longitude={loc.longitude} />
                     </div>
-                  </CardContent>
+                  </CardFooter>
                 </Card>
               )
             })}
@@ -246,9 +251,14 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
           hawaiianMoon={state.data.moonPhaseLabel}
         />
         {typeof current.humidity === 'number' && (
-          <span className="inline-flex items-center gap-1 text-muted-foreground text-sm shrink-0">
-            <Droplet className="h-4 w-4" /> {current.humidity}%
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-1 text-muted-foreground text-sm shrink-0 cursor-help" aria-label="Humidity">
+                <Droplet className="h-4 w-4" /> {current.humidity}%
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Humidity</TooltipContent>
+          </Tooltip>
         )}
         <Button aria-label={`View weather details for ${locationName}`} variant="link" size="sm" className="px-0 h-auto shrink-0" onClick={() => setDetailsOpen(true)}>
           Details
@@ -284,9 +294,14 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
                 </span>
               )}
               {typeof current.humidity === 'number' && (
-                <span className="inline-flex items-center gap-1">
-                  <Droplet className="h-4 w-4" /> Humidity {current.humidity}%
-                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex items-center gap-1 cursor-help">
+                      <Droplet className="h-4 w-4" /> Humidity {current.humidity}%
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Relative humidity</TooltipContent>
+                </Tooltip>
               )}
             </div>
           </div>
