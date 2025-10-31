@@ -11,24 +11,40 @@ type WeatherBadgeProps = {
   size?: 'sm' | 'md'
   moonEmoji?: string | null
   withTooltipProvider?: boolean
+  showWeatherTooltip?: boolean
 }
 
-export function WeatherBadge({ icon, tempF, description, inlineDescription = false, hawaiianMoon, size = 'md', moonEmoji = null, withTooltipProvider = true }: WeatherBadgeProps) {
+export function WeatherBadge({ icon, tempF, description, inlineDescription = false, hawaiianMoon, size = 'md', moonEmoji = null, withTooltipProvider = true, showWeatherTooltip = false }: WeatherBadgeProps) {
   const px = size === 'sm' ? 28 : 40
   const moonTip = hawaiianMoonRecommendationByName(hawaiianMoon ?? undefined)
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
       {icon ? (
-        <span className="inline-flex items-center justify-center rounded-full p-1 bg-foreground/10 ring-1 ring-border shadow-sm">
-          <Image
-            className="drop-shadow"
-            src={`https://openweathermap.org/img/wn/${icon.replace('@2x','')}@2x.png`}
-            alt={description || 'Weather'}
-            width={px}
-            height={px}
-            unoptimized
-          />
-        </span>
+        (() => {
+          const bubble = (
+            <span className="inline-flex items-center justify-center rounded-full p-1 bg-foreground/10 ring-1 ring-border shadow-sm">
+              <Image
+                className="drop-shadow"
+                src={`https://openweathermap.org/img/wn/${icon.replace('@2x','')}@2x.png`}
+                alt={description || 'Weather'}
+                width={px}
+                height={px}
+                unoptimized
+              />
+            </span>
+          )
+          if (showWeatherTooltip && description) {
+            return (
+              <TooltipRoot>
+                <TooltipTrigger asChild>{bubble}</TooltipTrigger>
+                <TooltipContent side="top" className="capitalize">
+                  {description}
+                </TooltipContent>
+              </TooltipRoot>
+            )
+          }
+          return bubble
+        })()
       ) : null}
       <div className="flex items-center gap-2 min-w-0">
         {typeof tempF === 'number' ? <span className="font-medium shrink-0">{Math.round(tempF)}°F</span> : null}

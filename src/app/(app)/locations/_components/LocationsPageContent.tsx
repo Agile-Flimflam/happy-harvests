@@ -16,7 +16,7 @@ import { Card, CardDescription, CardFooter, CardHeader } from '@/components/ui/c
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Tooltip, TooltipRoot, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 import type { Tables } from '@/lib/supabase-server';
@@ -127,17 +127,15 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                     <div className="space-y-1.5 flex-1 min-w-0">
                       <h3 className="text-lg sm:text-xl font-semibold tracking-tight leading-snug break-words">{locationName}</h3>
                       <CardDescription>
-                        <TooltipProvider>
-                          <TooltipRoot>
-                            <TooltipTrigger asChild>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
-                                <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                                <span className="truncate">{addressInline || 'Address not provided'}</span>
-                              </div>
-                            </TooltipTrigger>
-                            {addressInline ? <TooltipContent>{addressInline}</TooltipContent> : null}
-                          </TooltipRoot>
-                        </TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+                              <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                              <span className="truncate">{addressInline || 'Address not provided'}</span>
+                            </div>
+                          </TooltipTrigger>
+                          {addressInline ? <TooltipContent>{addressInline}</TooltipContent> : null}
+                        </Tooltip>
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-1 ml-2 shrink-0">
@@ -258,26 +256,16 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
     <TooltipProvider>
       <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div>
-              <WeatherBadge
-                icon={current.weather?.icon}
-                tempF={tempF}
-                description={current.weather?.description || null}
-                inlineDescription={false}
-                size="sm"
-                hawaiianMoon={state.data.moonPhaseLabel}
-                withTooltipProvider={false}
-              />
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            {current.weather?.description ? (
-              <div className="capitalize">{current.weather.description}</div>
-            ) : null}
-          </TooltipContent>
-        </Tooltip>
+        <WeatherBadge
+          icon={current.weather?.icon}
+          tempF={tempF}
+          description={current.weather?.description || null}
+          inlineDescription={false}
+          size="sm"
+          hawaiianMoon={state.data.moonPhaseLabel}
+          withTooltipProvider={false}
+          showWeatherTooltip
+        />
         {typeof current.humidity === 'number' && (
           <HumidityDisplay value={current.humidity} className="text-muted-foreground text-sm shrink-0" />
         )}
@@ -285,8 +273,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
           Details
         </Button>
         </div>
-      
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Weather details</DialogTitle>
