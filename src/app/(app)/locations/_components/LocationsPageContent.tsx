@@ -16,7 +16,7 @@ import { Card, CardDescription, CardFooter, CardHeader } from '@/components/ui/c
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 
 import type { Tables } from '@/lib/supabase-server';
 import { LocationForm } from './LocationForm';
@@ -240,6 +240,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
   const tempF = current.temp
 
   return (
+    <TooltipProvider>
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
         <WeatherBadge
@@ -296,7 +297,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
               {typeof current.humidity === 'number' && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="inline-flex items-center gap-1 cursor-help">
+                    <span className="inline-flex items-center gap-1 cursor-help" aria-label="Humidity">
                       <Droplet className="h-4 w-4" /> Humidity {current.humidity}%
                     </span>
                   </TooltipTrigger>
@@ -308,6 +309,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   )
 }
 
