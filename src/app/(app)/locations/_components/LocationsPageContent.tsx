@@ -179,6 +179,19 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
 }
 
 
+function HumidityDisplay({ value, className }: { value: number; className?: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`inline-flex items-center gap-1 cursor-help ${className ?? ''}`} aria-label="Humidity">
+          <Droplet className="h-4 w-4" /> Humidity {value}%
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>Relative humidity</TooltipContent>
+    </Tooltip>
+  )
+}
+
 function WeatherCell({ id, locationName, latitude, longitude }: { id: string; locationName: string; latitude: number | null; longitude: number | null }) {
   const [state, setState] = useState<
     | { status: 'idle' }
@@ -252,14 +265,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
           hawaiianMoon={state.data.moonPhaseLabel}
         />
         {typeof current.humidity === 'number' && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-1 text-muted-foreground text-sm shrink-0 cursor-help" aria-label="Humidity">
-                <Droplet className="h-4 w-4" /> {current.humidity}%
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Humidity</TooltipContent>
-          </Tooltip>
+          <HumidityDisplay value={current.humidity} className="text-muted-foreground text-sm shrink-0" />
         )}
         <Button aria-label={`View weather details for ${locationName}`} variant="link" size="sm" className="px-0 h-auto shrink-0" onClick={() => setDetailsOpen(true)}>
           Details
@@ -295,14 +301,7 @@ function WeatherCell({ id, locationName, latitude, longitude }: { id: string; lo
                 </span>
               )}
               {typeof current.humidity === 'number' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex items-center gap-1 cursor-help" aria-label="Humidity">
-                      <Droplet className="h-4 w-4" /> Humidity {current.humidity}%
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>Relative humidity</TooltipContent>
-                </Tooltip>
+                <HumidityDisplay value={current.humidity} />
               )}
             </div>
           </div>

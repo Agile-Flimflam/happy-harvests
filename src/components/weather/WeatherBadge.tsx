@@ -1,5 +1,5 @@
 import Image from 'next/image'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { hawaiianMoonRecommendationByName, DEFAULT_MOON_EMOJI } from '@/lib/hawaiian-moon'
 
 type WeatherBadgeProps = {
@@ -36,19 +36,17 @@ export function WeatherBadge({ icon, tempF, description, inlineDescription = fal
         ) : null}
         {hawaiianMoon ? (
           moonTip ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="flex items-center gap-1 text-muted-foreground text-sm cursor-help underline decoration-dotted underline-offset-2 max-w-[8rem] sm:max-w-[10rem] min-w-0">
-                    <span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
-                    <span className="truncate">{hawaiianMoon}</span>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[280px] text-sm">
-                  {moonTip}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex items-center gap-1 text-muted-foreground text-sm cursor-help underline decoration-dotted underline-offset-2 max-w-[8rem] sm:max-w-[10rem] min-w-0">
+                  <span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span>
+                  <span className="truncate">{hawaiianMoon}</span>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[280px] text-sm">
+                {moonTip}
+              </TooltipContent>
+            </Tooltip>
           ) : (
             <span className="flex items-center gap-1 text-muted-foreground text-sm max-w-[10rem] min-w-0"><span aria-hidden="true" className="shrink-0">{moonEmoji ?? DEFAULT_MOON_EMOJI}</span><span className="truncate">{hawaiianMoon}</span></span>
           )
