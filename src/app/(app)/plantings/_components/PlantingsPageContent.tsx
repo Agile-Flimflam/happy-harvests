@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
@@ -58,6 +59,22 @@ type PlantingWithDetails = Planting & {
   planted_weight_grams?: number | null;
   harvest_qty?: number | null;
   harvest_weight_grams?: number | null;
+};
+
+const renderPlantingLocation = (planting: PlantingWithDetails): ReactNode => {
+  if (planting.status === PLANTING_STATUS.nursery) {
+    return planting.nurseries?.name ?? 'Nursery';
+  }
+  return (
+    <span>Bed #{planting.beds?.id} @ {planting.beds?.plots?.locations?.name ?? 'N/A'}</span>
+  );
+};
+
+const renderPlantingQuantity = (planting: PlantingWithDetails): ReactNode => {
+  if (planting.status === PLANTING_STATUS.harvested) {
+    return planting.harvest_qty ?? '-';
+  }
+  return planting.planted_qty ?? '-';
 };
 
 interface PlantingsPageContentProps {
@@ -139,6 +156,96 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
   // Allow removal even if mistakenly marked as harvested; only block when already removed
   const canBeRemoved = (status: (typeof PLANTING_STATUS)[keyof typeof PLANTING_STATUS]) =>
     status !== PLANTING_STATUS.removed;
+
+  interface PlantingActionsMenuProps {
+    planting: PlantingWithDetails;
+    onOpenActionDialog: (
+      dialog:
+        | { type: 'transplant' | 'move' | 'remove' | 'history'; plantingId: number }
+        | { type: 'harvest'; plantingId: number; defaultQty?: number | null; defaultWeight?: number | null }
+    ) => void;
+  }
+
+  function PlantingActionsMenu({ planting, onOpenActionDialog }: PlantingActionsMenuProps) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="mr-2">
+            <ArrowRightLeft className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {planting.status === PLANTING_STATUS.nursery && (
+            <>
+              <DropdownMenuItem onClick={() => onOpenActionDialog({ type: 'transplant', plantingId: planting.id })}>
+                <Sprout className="mr-2 h-4 w-4" />
+                Transplant
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+
+          {(planting.status === PLANTING_STATUS.planted || planting.status === PLANTING_STATUS.harvested) && (
+            <>
+              {!planting.nursery_started_date ? (
+                <>
+                  <DropdownMenuItem onClick={() => onOpenActionDialog({ type: 'harvest', plantingId: planting.id })}>
+                    <ShoppingBasket className="mr-2 h-4 w-4" />
+                    Harvest
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onOpenActionDialog({ type: 'move', plantingId: planting.id })}>
+                    <Move className="mr-2 h-4 w-4" />
+                    Move
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem onClick={() => onOpenActionDialog({ type: 'move', plantingId: planting.id })}>
+                    <Move className="mr-2 h-4 w-4" />
+                    Move
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => onOpenActionDialog({ type: 'harvest', plantingId: planting.id })}>
+                    <ShoppingBasket className="mr-2 h-4 w-4" />
+                    Harvest
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              {planting.status === PLANTING_STATUS.harvested && (
+                <>
+                  <DropdownMenuItem onClick={async () => {
+                    const fd = new FormData();
+                    fd.append('planting_id', String(planting.id));
+                    const result = await markPlantingAsPlanted(fd);
+                    if ('ok' in result && result.ok === true) {
+                      toast.success('Status changed to Planted');
+                    } else if ('error' in result) {
+                      toast.error(result.error);
+                    } else {
+                      toast.error('Unknown error updating status.');
+                    }
+                  }}>
+                    <Sprout className="mr-2 h-4 w-4" />
+                    Mark as Planted
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+            </>
+          )}
+
+          {canBeRemoved(planting.status) && (
+            <DropdownMenuItem onClick={() => onOpenActionDialog({ type: 'remove', plantingId: planting.id })}>
+              <Shovel className="mr-2 h-4 w-4" />
+              Remove
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   const openDelete = (id: number) => setDeleteId(id);
   const confirmDelete = async () => {
@@ -471,13 +578,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                   <div className="mt-3 grid grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs text-muted-foreground">Location</p>
-                      <p className="text-sm">
-                        {p.status === PLANTING_STATUS.nursery
-                          ? (p.nurseries?.name ?? 'Nursery')
-                          : (
-                              <span>Bed #{p.beds?.id} @ {p.beds?.plots?.locations?.name ?? 'N/A'}</span>
-                            )}
-                      </p>
+                      <p className="text-sm">{renderPlantingLocation(p)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Type</p>
@@ -485,7 +586,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Qty</p>
-                      <p className="text-sm">{p.status === PLANTING_STATUS.harvested ? (p.harvest_qty ?? '-') : (p.planted_qty ?? '-')}</p>
+                      <p className="text-sm">{renderPlantingQuantity(p)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Planted</p>
@@ -510,80 +611,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                     })()}
                   </div>
                   <div className="mt-3 flex items-center justify-end gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="mr-2">
-                          <ArrowRightLeft className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {p.status === PLANTING_STATUS.nursery && (
-                          <>
-                            <DropdownMenuItem onClick={() => setActionDialog({ type: 'transplant', plantingId: p.id })}>
-                              <Sprout className="mr-2 h-4 w-4" />
-                              Transplant
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                          </>
-                        )}
-                        {(p.status === PLANTING_STATUS.planted || p.status === PLANTING_STATUS.harvested) && (
-                          <>
-                            {!p.nursery_started_date ? (
-                              <>
-                                <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
-                                  <ShoppingBasket className="mr-2 h-4 w-4" />
-                                  Harvest
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setActionDialog({ type: 'move', plantingId: p.id })}>
-                                  <Move className="mr-2 h-4 w-4" />
-                                  Move
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            ) : (
-                              <>
-                                <DropdownMenuItem onClick={() => setActionDialog({ type: 'move', plantingId: p.id })}>
-                                  <Move className="mr-2 h-4 w-4" />
-                                  Move
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
-                                  <ShoppingBasket className="mr-2 h-4 w-4" />
-                                  Harvest
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
-                            {p.status === PLANTING_STATUS.harvested && (
-                              <>
-                                <DropdownMenuItem onClick={async () => {
-                                  const fd = new FormData();
-                                  fd.append('planting_id', String(p.id));
-                                  const result = await markPlantingAsPlanted(fd);
-                                  if ('ok' in result && result.ok === true) {
-                                    toast.success('Status changed to Planted');
-                                  } else if ('error' in result) {
-                                    toast.error(result.error);
-                                  } else {
-                                    toast.error('Unknown error updating status.');
-                                  }
-                                }}>
-                                  <Sprout className="mr-2 h-4 w-4" />
-                                  Mark as Planted
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
-                          </>
-                        )}
-                        {canBeRemoved(p.status) && (
-                          <DropdownMenuItem onClick={() => setActionDialog({ type: 'remove', plantingId: p.id })}>
-                            <Shovel className="mr-2 h-4 w-4" />
-                            Remove
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <PlantingActionsMenu planting={p} onOpenActionDialog={setActionDialog} />
 
                     <Button variant="ghost" size="icon" onClick={() => setActionDialog({ type: 'history', plantingId: p.id })} className="mr-2">
                       <History className="h-4 w-4" />
@@ -618,15 +646,9 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                     <TableRow key={p.id}>
                       <TableCell className="font-medium">{p.crop_varieties?.name ?? 'N/A'}</TableCell>
                       <TableCell>{p.crop_varieties?.crops?.name ?? 'N/A'}</TableCell>
-                      <TableCell>
-                        {p.status === PLANTING_STATUS.nursery
-                          ? (p.nurseries?.name ?? 'Nursery')
-                          : (
-                            <span>Bed #{p.beds?.id} @ {p.beds?.plots?.locations?.name ?? 'N/A'}</span>
-                          )}
-                      </TableCell>
+                      <TableCell>{renderPlantingLocation(p)}</TableCell>
                       <TableCell>{p.nursery_started_date ? 'Transplant' : 'Direct Seed'}</TableCell>
-                      <TableCell>{p.status === PLANTING_STATUS.harvested ? (p.harvest_qty ?? '-') : (p.planted_qty ?? '-')}</TableCell>
+                      <TableCell>{renderPlantingQuantity(p)}</TableCell>
                       <TableCell>{p.planted_date ?? '-'}</TableCell>
                       <TableCell>
                         {(() => {
@@ -644,81 +666,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                         {p.status ? <StatusBadge status={p.status} /> : <Badge variant="secondary">Unknown</Badge>}
                       </TableCell>
                       <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="mr-2">
-                              <ArrowRightLeft className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {p.status === PLANTING_STATUS.nursery && (
-                              <>
-                                <DropdownMenuItem onClick={() => setActionDialog({ type: 'transplant', plantingId: p.id })}>
-                                  <Sprout className="mr-2 h-4 w-4" />
-                                  Transplant
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
-                            {(p.status === PLANTING_STATUS.planted || p.status === PLANTING_STATUS.harvested) && (
-                              <>
-                                {!p.nursery_started_date ? (
-                                  <>
-                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
-                                      <ShoppingBasket className="mr-2 h-4 w-4" />
-                                      Harvest
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'move', plantingId: p.id })}>
-                                      <Move className="mr-2 h-4 w-4" />
-                                      Move
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                  </>
-                                ) : (
-                                  <>
-                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'move', plantingId: p.id })}>
-                                      <Move className="mr-2 h-4 w-4" />
-                                      Move
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => setActionDialog({ type: 'harvest', plantingId: p.id })}>
-                                      <ShoppingBasket className="mr-2 h-4 w-4" />
-                                      Harvest
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                  </>
-                                )}
-                                {p.status === PLANTING_STATUS.harvested && (
-                                  <>
-                                    <DropdownMenuItem onClick={async () => {
-                                      const fd = new FormData();
-                                      fd.append('planting_id', String(p.id));
-                                      const result = await markPlantingAsPlanted(fd);
-                                      if ('ok' in result && result.ok === true) {
-                                        toast.success('Status changed to Planted');
-                                      } else if ('error' in result) {
-                                        toast.error(result.error);
-                                      } else {
-                                        toast.error('Unknown error updating status.');
-                                      }
-                                    }}>
-                                      <Sprout className="mr-2 h-4 w-4" />
-                                      Mark as Planted
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                  </>
-                                )}
-                              </>
-                            )}
-                            {canBeRemoved(p.status) && (
-                              <DropdownMenuItem onClick={() => setActionDialog({ type: 'remove', plantingId: p.id })}>
-                                <Shovel className="mr-2 h-4 w-4" />
-                                Remove
-                              </DropdownMenuItem>
-                            )}
-                            
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <PlantingActionsMenu planting={p} onOpenActionDialog={setActionDialog} />
 
                         <Button variant="ghost" size="icon" onClick={() => setActionDialog({ type: 'history', plantingId: p.id })} className="mr-2">
                           <History className="h-4 w-4" />
