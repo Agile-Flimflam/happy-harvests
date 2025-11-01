@@ -320,20 +320,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
       return { min: null, max: null };
     }
 
-    let minDays = minCandidate;
-    let maxDays = maxCandidate;
-    if (minDays > maxDays) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[Plantings] DTM range normalized by swapping min/max', {
-          minCandidate,
-          maxCandidate,
-          afterSwap: { min: maxDays, max: minDays },
-          inputs: { primaryMin, primaryMax, secondaryMin, secondaryMax },
-        });
-      }
-      [minDays, maxDays] = [maxDays, minDays];
-    }
-    return { min: minDays, max: maxDays };
+    return { min: minCandidate, max: maxCandidate };
   }, []);
 
   useEffect(() => {
@@ -631,12 +618,13 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
             {/* Summary Stats */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Card
-                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${statusFilter === 'nursery' ? 'ring-2 ring-inset ring-blue-500' : 'hover:shadow-sm'}`}
+                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${statusFilter === 'nursery' ? 'ring-2 ring-inset ring-blue-500' : 'hover:shadow-sm'}`}
                 role="button"
                 tabIndex={0}
                 onClick={() => setStatusFilter('nursery')}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
+                  if (e.key === 'Enter' || e.key === ' ')
+                  {
                     e.preventDefault();
                     setStatusFilter('nursery');
                   }
@@ -654,12 +642,13 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 </div>
               </Card>
               <Card
-                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${statusFilter === 'planted' ? 'ring-2 ring-inset ring-green-500' : 'hover:shadow-sm'}`}
+                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${statusFilter === 'planted' ? 'ring-2 ring-inset ring-green-500' : 'hover:shadow-sm'}`}
                 role="button"
                 tabIndex={0}
                 onClick={() => setStatusFilter('planted')}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
+                  if (e.key === 'Enter' || e.key === ' ')
+                  {
                     e.preventDefault();
                     setStatusFilter('planted');
                   }
@@ -677,12 +666,13 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 </div>
               </Card>
               <Card
-                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${statusFilter === 'harvested' ? 'ring-2 ring-inset ring-orange-500' : 'hover:shadow-sm'}`}
+                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${statusFilter === 'harvested' ? 'ring-2 ring-inset ring-orange-500' : 'hover:shadow-sm'}`}
                 role="button"
                 tabIndex={0}
                 onClick={() => setStatusFilter('harvested')}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
+                  if (e.key === 'Enter' || e.key === ' ')
+                  {
                     e.preventDefault();
                     setStatusFilter('harvested');
                   }
@@ -700,12 +690,13 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 </div>
               </Card>
               <Card
-                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${statusFilter === 'all' ? 'ring-2 ring-inset ring-gray-400' : 'hover:shadow-sm'}`}
+                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${statusFilter === 'all' ? 'ring-2 ring-inset ring-gray-400' : 'hover:shadow-sm'}`}
                 role="button"
                 tabIndex={0}
                 onClick={() => setStatusFilter('all')}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
+                  if (e.key === 'Enter' || e.key === ' ')
+                  {
                     e.preventDefault();
                     setStatusFilter('all');
                   }
