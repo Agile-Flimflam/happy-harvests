@@ -95,8 +95,8 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     const sMin = positiveOrNull(secondaryMin);
     const sMax = positiveOrNull(secondaryMax);
 
-    const minCandidate = pMin ?? pMax ?? sMin ?? sMax ?? null;
-    const maxCandidate = pMax ?? pMin ?? sMax ?? sMin ?? null;
+    const minCandidate = pMin ?? sMin ?? pMax ?? sMax ?? null;
+    const maxCandidate = pMax ?? sMax ?? pMin ?? sMin ?? null;
     if (minCandidate == null || maxCandidate == null) return { min: null, max: null };
 
     let minDays = minCandidate;
