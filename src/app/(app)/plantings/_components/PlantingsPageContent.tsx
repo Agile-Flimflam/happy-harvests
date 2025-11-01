@@ -95,10 +95,6 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     const sMin = positiveOrNull(secondaryMin);
     const sMax = positiveOrNull(secondaryMax);
 
-    const values = [pMin, pMax, sMin, sMax].filter((v): v is number => v != null);
-    const distinct = new Set(values);
-    if (distinct.size < 2) return { min: null, max: null };
-
     const minCandidate = pMin ?? pMax ?? sMin ?? sMax ?? null;
     const maxCandidate = pMax ?? pMin ?? sMax ?? sMin ?? null;
     if (minCandidate == null || maxCandidate == null) return { min: null, max: null };
@@ -106,7 +102,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     let minDays = minCandidate;
     let maxDays = maxCandidate;
     if (minDays > maxDays) {
-      const t = minDays; minDays = maxDays; maxDays = t;
+      [minDays, maxDays] = [maxDays, minDays];
     }
     return { min: minDays, max: maxDays };
   };
@@ -380,6 +376,12 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 variant="outline"
                 size="sm"
                 onClick={() => setStatusFilter('active')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setStatusFilter('active');
+                  }
+                }}
                 aria-label="Reset filter to default view"
                 className="w-full sm:w-auto"
               >
