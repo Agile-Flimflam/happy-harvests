@@ -90,14 +90,17 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     secondaryMin?: number | null,
     secondaryMax?: number | null,
   ): { min: number | null; max: number | null } => {
-    const values = [primaryMin, primaryMax, secondaryMin, secondaryMax]
-      .map((v) => positiveOrNull(v))
-      .filter((v): v is number => v != null);
+    const pMin = positiveOrNull(primaryMin);
+    const pMax = positiveOrNull(primaryMax);
+    const sMin = positiveOrNull(secondaryMin);
+    const sMax = positiveOrNull(secondaryMax);
+
+    const values = [pMin, pMax, sMin, sMax].filter((v): v is number => v != null);
     const distinct = new Set(values);
+    if (distinct.size < 2) return { min: null, max: null };
 
-    const minCandidate = positiveOrNull(primaryMin) ?? positiveOrNull(primaryMax) ?? positiveOrNull(secondaryMin) ?? positiveOrNull(secondaryMax) ?? null;
-    const maxCandidate = positiveOrNull(primaryMax) ?? positiveOrNull(primaryMin) ?? positiveOrNull(secondaryMax) ?? positiveOrNull(secondaryMin) ?? null;
-
+    const minCandidate = pMin ?? pMax ?? sMin ?? sMax ?? null;
+    const maxCandidate = pMax ?? pMin ?? sMax ?? sMin ?? null;
     if (minCandidate == null || maxCandidate == null) return { min: null, max: null };
 
     let minDays = minCandidate;
@@ -105,7 +108,6 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     if (minDays > maxDays) {
       const t = minDays; minDays = maxDays; maxDays = t;
     }
-    if (distinct.size < 2) return { min: null, max: null };
     return { min: minDays, max: maxDays };
   };
 
@@ -584,7 +586,6 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                             Remove
                           </DropdownMenuItem>
                         )}
-                        
                       </DropdownMenuContent>
                     </DropdownMenu>
 
