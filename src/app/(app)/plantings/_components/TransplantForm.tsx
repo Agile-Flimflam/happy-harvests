@@ -59,9 +59,8 @@ export default function TransplantForm({ plantingId, beds, closeDialog, formId }
         if (eventDate) {
           window.dispatchEvent(new CustomEvent('planting:transplanted', { detail: { plantingId: plantingIdVal, eventDate } }));
         }
-      } catch (error) {
-        // Log the error to aid debugging while keeping the UI flow unchanged.
-        console.error('Failed to dispatch planting:transplanted event', error);
+      } catch {
+        // Intentionally ignore errors when dispatching the event; this is non-critical and should not block the UI.
       }
       closeDialog();
     }
