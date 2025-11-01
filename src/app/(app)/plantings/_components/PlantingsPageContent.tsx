@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
@@ -84,7 +84,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
   // Optimistic projections immediately after transplant
   const [optimisticHarvest, setOptimisticHarvest] = useState<Record<number, { start: string; end: string }>>({});
 
-  const selectNormalizedRange = (
+  const selectNormalizedRange = useCallback((
     primaryMin?: number | null,
     primaryMax?: number | null,
     secondaryMin?: number | null,
@@ -105,7 +105,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
       [minDays, maxDays] = [maxDays, minDays];
     }
     return { min: minDays, max: maxDays };
-  };
+  }, []);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -175,7 +175,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
 
   const stats = getStatusStats();
 
-  const computeProjectedHarvestWindow = (p: PlantingWithDetails): { start: string | null; end: string | null; awaitingTransplant: boolean } => {
+  const computeProjectedHarvestWindow = useCallback((p: PlantingWithDetails): { start: string | null; end: string | null; awaitingTransplant: boolean } => {
     // If we have an optimistic projection (immediately after transplant), use it first
     const opt = optimisticHarvest[p.id];
     if (opt) return { start: opt.start, end: opt.end, awaitingTransplant: false };
@@ -214,7 +214,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
       return { start: addDaysUtc(base, min), end: addDaysUtc(base, max), awaitingTransplant: false };
     }
     return { start: null, end: null, awaitingTransplant: false };
-  };
+  }, [optimisticHarvest, cropVarieties, selectNormalizedRange]);
 
   const filteredPlantings = (() => {
     switch (statusFilter) {
