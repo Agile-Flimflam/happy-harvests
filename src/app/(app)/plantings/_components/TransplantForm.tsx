@@ -52,9 +52,19 @@ export default function TransplantForm({ plantingId, beds, closeDialog, formId }
       toast.error(state.message);
     } else {
       toast.success(state.message);
+      try {
+        const vals = form.getValues();
+        const eventDate = typeof vals.event_date === 'string' ? vals.event_date : undefined;
+        const plantingIdVal = typeof vals.planting_id === 'number' ? vals.planting_id : plantingId;
+        if (eventDate) {
+          window.dispatchEvent(new CustomEvent('planting:transplanted', { detail: { plantingId: plantingIdVal, eventDate } }));
+        }
+      } catch {
+        // Intentionally ignore errors when dispatching the event; this is non-critical and should not block the UI.
+      }
       closeDialog();
     }
-  }, [state, form, closeDialog]);
+  }, [state, form, closeDialog, plantingId]);
 
   const onSubmit = (values: z.input<typeof TransplantSchema>) => {
     const parsed: TransplantInput = TransplantSchema.parse(values);

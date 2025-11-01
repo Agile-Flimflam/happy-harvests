@@ -3,7 +3,7 @@ import { getPlantingsWithDetails, getCropVarietiesForSelect, getBedsForSelect, g
 import type { Tables } from '@/lib/supabase-server'
 import type { PlantingWithDetails } from '@/lib/types'
 
-type CropVariety = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name'> & { crops?: { name: string } | null }
+type CropVariety = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name' | 'dtm_direct_seed_min' | 'dtm_direct_seed_max' | 'dtm_transplant_min' | 'dtm_transplant_max'> & { crops?: { name: string } | null }
 type Bed = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { locations: { name: string } | null } | null }
 type Nursery = { id: string; name: string }
 

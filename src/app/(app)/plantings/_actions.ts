@@ -157,7 +157,7 @@ export async function getPlantingsWithDetails(): Promise<{ plantings?: PlantingW
     .from('plantings')
     .select(`
       *,
-      crop_varieties ( name, latin_name, crops ( name ) ),
+      crop_varieties ( name, latin_name, dtm_direct_seed_min, dtm_direct_seed_max, dtm_transplant_min, dtm_transplant_max, crops ( name ) ),
       beds ( id, length_inches, width_inches, plots ( locations ( name ) ) ),
       nurseries ( name )
     `)
@@ -231,13 +231,13 @@ export async function getPlantingEvents(plantingId: number): Promise<{ events?: 
   return { events: (data as unknown as PlantingEventWithJoins[]) || [] };
 }
 
-type CropVarietyForSelect = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name'> & { crops?: { name: string } | null };
+type CropVarietyForSelect = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name' | 'dtm_direct_seed_min' | 'dtm_direct_seed_max' | 'dtm_transplant_min' | 'dtm_transplant_max'> & { crops?: { name: string } | null };
 
 export async function getCropVarietiesForSelect(): Promise<{ varieties?: CropVarietyForSelect[]; error?: string }> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('crop_varieties')
-    .select('id, name, latin_name, crops(name)')
+    .select('id, name, latin_name, dtm_direct_seed_min, dtm_direct_seed_max, dtm_transplant_min, dtm_transplant_max, crops(name)')
     .order('name', { ascending: true });
   if (error) return { error: error.message };
   const rows = (data as unknown as CropVarietyForSelect[]) || [];
