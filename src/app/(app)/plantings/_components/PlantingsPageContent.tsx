@@ -126,7 +126,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     };
     window.addEventListener('planting:transplanted', handler as EventListener);
     return () => window.removeEventListener('planting:transplanted', handler as EventListener);
-  }, [plantings, cropVarieties]);
+  }, [plantings, cropVarieties, selectNormalizedRange]);
 
   const openNurserySow = () => { setCreateMode('nursery'); setIsDialogOpen(true); };
   const openDirectSeed = () => { setCreateMode('direct'); setIsDialogOpen(true); };
@@ -376,12 +376,6 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 variant="outline"
                 size="sm"
                 onClick={() => setStatusFilter('active')}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setStatusFilter('active');
-                  }
-                }}
                 aria-label="Reset filter to default view"
                 className="w-full sm:w-auto"
               >
