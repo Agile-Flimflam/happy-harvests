@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { isWeightUnit, toGrams } from '@/lib/units'
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
@@ -42,30 +41,10 @@ export async function GET(req: Request) {
     }
   }
 
-  const deliveredCount = new Map<number, number>()
-  const deliveredGrams = new Map<number, number>()
-  {
-    const { data: diRows, error: diErr } = await supabase
-      .from('delivery_items')
-      .select('crop_variety_id, qty, unit')
-      .in('crop_variety_id', ids)
-    if (diErr) return NextResponse.json({ error: diErr.message }, { status: 500 })
-    for (const r of diRows || []) {
-      const vId = r.crop_variety_id
-      if (typeof vId === 'number' && typeof r.qty === 'number') {
-        if (isWeightUnit(r.unit)) {
-          deliveredGrams.set(vId, (deliveredGrams.get(vId) || 0) + toGrams(r.qty, r.unit))
-        } else {
-          deliveredCount.set(vId, (deliveredCount.get(vId) || 0) + r.qty)
-        }
-      }
-    }
-  }
-
   const availability = ids.map((vId) => ({
     crop_variety_id: vId,
-    count_available: (harvestedCount.get(vId) || 0) - (deliveredCount.get(vId) || 0),
-    grams_available: (harvestedGrams.get(vId) || 0) - (deliveredGrams.get(vId) || 0),
+    count_available: harvestedCount.get(vId) || 0,
+    grams_available: harvestedGrams.get(vId) || 0,
   }))
 
   return NextResponse.json({ availability })
