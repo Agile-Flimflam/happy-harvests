@@ -399,7 +399,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
               <DropdownMenuContent align="end" className="w-64 p-2">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-foreground">
                   <div className="inline-flex items-center gap-2"><Droplet className="size-3 text-blue-600" /> Irrigation</div>
-                  <div className="inline-flex items-center gap-2"><FlaskConical className="size-3 text-amber-700" /> Soil amend.</div>
+                  <div className="inline-flex items-center gap-2"><FlaskConical className="size-3 text-amber-700" /> Soil amendment</div>
                   <div className="inline-flex items-center gap-2"><Bug className="size-3 text-rose-700" /> Pest mgmt.</div>
                   <div className="inline-flex items-center gap-2"><Wrench className="size-3 text-violet-700" /> Maintenance</div>
                   <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-yellow-500" /> Nursery</div>

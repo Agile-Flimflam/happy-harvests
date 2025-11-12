@@ -110,7 +110,7 @@ export function DayCell({
                 showText={
                   isWeekView 
                     ? 'always' // Week view (stacked on mobile): always show full text
-                    : 'auto'   // Month view: auto (icon on small/medium, text on large)
+                    : 'auto'   // Month view: auto (icon on small, text on medium and up)
                 } 
               />
             </li>
