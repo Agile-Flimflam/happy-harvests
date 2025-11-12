@@ -50,7 +50,7 @@ function eventColorClasses(e: CalendarEvent): string {
   }
 }
 
-export function EventChip({ e }: { e: CalendarEvent }) {
+export function EventChip({ e, showText = 'auto' }: { e: CalendarEvent; showText?: 'always' | 'never' | 'auto' }) {
   const cls = eventColorClasses(e)
   function Icon() {
     if (e.type === 'activity') {
@@ -79,13 +79,24 @@ export function EventChip({ e }: { e: CalendarEvent }) {
   const metaCrop = meta && typeof meta.crop === 'string' ? meta.crop : undefined
   const baseText = e.type === 'harvest' ? (['Harvest', metaCrop].filter(Boolean) as string[]).join(' · ') : e.title
   const displayText = e.type === 'harvest' ? baseText : (range ? `${baseText} · ${range}` : baseText)
+  
+  // Determine text visibility based on showText prop
+  // 'always': Always show text (for week view on mobile when stacked)
+  // 'never': Never show text (icon only)
+  // 'auto': Show text on large screens (xl+), icon only on medium/small (for month view)
+  const textClasses = showText === 'always' 
+    ? 'inline truncate max-w-full' 
+    : showText === 'never'
+    ? 'hidden'
+    : 'hidden xl:inline truncate max-w-[10rem] 2xl:max-w-[14rem]'
+  
   return (
     <TooltipProvider delayDuration={500}>
       <Tooltip>
         <TooltipTrigger asChild>
           <span className={`inline-flex items-center gap-1 rounded-full px-1 py-0 text-[10px] sm:px-1.5 sm:py-0.5 sm:text-xs ${cls} transition-colors transition-shadow hover:shadow-sm active:shadow-md`} title={e.title}>
             <Icon />
-            <span className="hidden sm:inline truncate max-w-[9rem] sm:max-w-[12rem]">{displayText}</span>
+            <span className={textClasses}>{displayText}</span>
           </span>
         </TooltipTrigger>
         <TooltipContent side="top">{e.title}</TooltipContent>
