@@ -83,12 +83,12 @@ export function EventChip({ e, showText = 'auto' }: { e: CalendarEvent; showText
   // Determine text visibility based on showText prop
   // 'always': Always show text (for week view on mobile when stacked)
   // 'never': Never show text (icon only)
-  // 'auto': Show text on large screens (xl+), icon only on medium/small (for month view)
+  // 'auto': Show text on medium screens and up (md+), icon only on small screens (for month view)
   const textClasses = showText === 'always' 
     ? 'inline truncate max-w-full' 
     : showText === 'never'
     ? 'hidden'
-    : 'hidden xl:inline truncate max-w-[10rem] 2xl:max-w-[14rem]'
+    : 'hidden md:inline truncate max-w-[10rem] 2xl:max-w-[14rem]'
   
   return (
     <TooltipProvider delayDuration={500}>

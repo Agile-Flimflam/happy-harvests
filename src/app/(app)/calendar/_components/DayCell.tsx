@@ -5,7 +5,6 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import type { CalendarEvent } from '../types'
 import { hawaiianMoonForDate, moonEmojiForDate } from '@/lib/hawaiian-moon'
 import { EventChip } from './EventChip'
-import { useIsMobile } from '@/hooks/use-mobile'
 
 export function DayCell({
   date,
@@ -38,7 +37,6 @@ export function DayCell({
   const moon = hawaiianMoonForDate(date)
   const dayEvents = [...events]
   const showDayName = isWeekView && dayName
-  const isMobile = useIsMobile()
   
   // Simplified date display
   const dateNumber = date.getDate()
@@ -55,7 +53,7 @@ export function DayCell({
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenDetail(key) }}
     >
       {/* Inner content container with overflow control */}
-      <div className={`${isWeekView ? 'p-3 md:p-2' : 'p-2'} overflow-hidden h-full`}>
+      <div className={`${isWeekView ? 'p-2 md:p-3' : 'p-2'} overflow-hidden h-full`}>
         {/* Header: Day name and date */}
         <div className="mb-2">
           {showDayName ? (
@@ -76,7 +74,7 @@ export function DayCell({
                 {/* Moon phase - only on desktop for week view */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-muted-foreground" aria-hidden={isMobile}>
+                    <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                       <span aria-hidden="true">{moonEmojiForDate(date)}</span>
                     </span>
                   </TooltipTrigger>
@@ -93,7 +91,7 @@ export function DayCell({
               {/* Moon phase - only on desktop for month view (consistent with week view) */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-muted-foreground" aria-hidden={isMobile}>
+                  <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                     <span aria-hidden="true">{moonEmojiForDate(date)}</span>
                   </span>
                 </TooltipTrigger>

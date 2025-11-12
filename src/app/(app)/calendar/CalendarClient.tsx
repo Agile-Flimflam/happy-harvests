@@ -428,8 +428,10 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
             return <div className="text-xs text-muted-foreground px-1">{DAY_NAMES[d.getDay()]}</div>
           }
           if (range === 'week') {
-            // For week view on mobile, show day name with each cell instead of header row
-            return null
+            // For week view: show day name headers on desktop, but hide on mobile (day names shown in cells)
+            return DAY_NAMES.map((d) => (
+              <div key={d} className="hidden md:block text-xs text-muted-foreground px-1">{d}</div>
+            ))
           }
           return DAY_NAMES.map((d) => (<div key={d} className="text-xs text-muted-foreground px-1">{d}</div>))
         })()}
