@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { CropVarietyForm } from '../_components/CropVarietyForm';
 import { deleteCropVariety } from '../_actions';
-import { Pencil, Trash2, PlusCircle, Leaf } from 'lucide-react';
+import { Pencil, Trash2, Plus, Leaf } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from "sonner";
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -81,7 +81,7 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
         title="Crop Varieties"
         action={hasVarieties ? (
           <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
-            <PlusCircle className="h-4 w-4 mr-2" />
+            <Plus className="h-4 w-4 mr-2" />
             Add Crop Variety
           </Button>
         ) : undefined}
@@ -112,7 +112,7 @@ export function CropVarietiesPageContent({ cropVarieties, crops = [] }: CropVari
             </EmptyHeader>
             <EmptyContent>
               <Button onClick={handleAdd}>
-                <PlusCircle className="h-4 w-4 mr-2" />
+                <Plus className="h-4 w-4 mr-2" />
                 Add Crop Variety
               </Button>
             </EmptyContent>

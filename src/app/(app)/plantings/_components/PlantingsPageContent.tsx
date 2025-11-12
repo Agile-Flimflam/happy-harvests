@@ -16,7 +16,7 @@ import { DirectSeedForm } from './DirectSeedForm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Trash2,
-  PlusCircle,
+  Plus,
   Sprout,
   Leaf,
   ShoppingBasket,
@@ -477,7 +477,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
             className="w-full sm:w-auto"
             onClick={() => { setCreateMode('nursery'); setIsDialogOpen(true); }}
           >
-            <PlusCircle className="h-4 w-4 mr-2" />
+            <Plus className="h-4 w-4 mr-2" />
             Add Planting
           </Button>
         ) : undefined}
@@ -590,7 +590,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="lg">
-                    <PlusCircle className="h-5 w-5 mr-2" />
+                    <Plus className="h-5 w-5 mr-2" />
                     Add Your First Planting
                   </Button>
                 </DropdownMenuTrigger>
