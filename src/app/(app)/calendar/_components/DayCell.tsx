@@ -5,6 +5,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import type { CalendarEvent } from '../types'
 import { hawaiianMoonForDate, moonEmojiForDate } from '@/lib/hawaiian-moon'
 import { EventChip } from './EventChip'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 export function DayCell({
   date,
@@ -37,6 +38,7 @@ export function DayCell({
   const moon = hawaiianMoonForDate(date)
   const dayEvents = [...events]
   const showDayName = isWeekView && dayName
+  const isMobile = useIsMobile()
   
   // Simplified date display
   const dateNumber = date.getDate()
@@ -65,11 +67,22 @@ export function DayCell({
               <div className={`text-lg font-semibold ${isToday ? 'text-primary' : ''}`}>
                 {dateNumber}
               </div>
-              {!isOtherMonth && (
-                <div className="text-xs text-muted-foreground ml-auto">
-                  {monthShort}
-                </div>
-              )}
+              <div className="ml-auto flex items-center gap-2">
+                {!isOtherMonth && (
+                  <div className="text-xs text-muted-foreground">
+                    {monthShort}
+                  </div>
+                )}
+                {/* Moon phase - only on desktop for week view */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-muted-foreground" aria-hidden={isMobile}>
+                      <span aria-hidden="true">{moonEmojiForDate(date)}</span>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{moon?.recommendation ?? ''}</TooltipContent>
+                </Tooltip>
+              </div>
             </div>
           ) : (
             // Month view: Just show date number
@@ -77,10 +90,10 @@ export function DayCell({
               <div className={`text-base font-semibold ${isToday ? 'text-primary' : ''}`}>
                 {dateNumber}
               </div>
-              {/* Moon phase - only on desktop for month view */}
+              {/* Moon phase - only on desktop for month view (consistent with week view) */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-muted-foreground" aria-hidden={isMobile}>
                     <span aria-hidden="true">{moonEmojiForDate(date)}</span>
                   </span>
                 </TooltipTrigger>

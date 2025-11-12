@@ -85,6 +85,8 @@ const dateOnlyFromISO = (iso: string): string => iso.slice(0, 10)
  */
 const toLocalMidnightDate = (iso: string): Date => new Date(iso + 'T00:00:00')
 
+const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"] as const
+
 export default function CalendarClient({ events, locations = [] }: { events: CalendarEvent[]; locations?: Array<CalendarLocation> }) {
 
   // Today in UTC ISO (kept fresh by periodic checks that detect UTC day rollover)
@@ -421,20 +423,18 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
               : 'grid-cols-7'
         } ${range==='week' ? 'gap-2 md:gap-3' : 'gap-2'} ${range==='week' ? '' : 'min-w-fit'}`}>
         {(() => {
-          const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
           if (range === 'today') {
             const d = toLocalMidnightDate(focusDateISO)
-            return <div className="text-xs text-muted-foreground px-1">{dayNames[d.getDay()]}</div>
+            return <div className="text-xs text-muted-foreground px-1">{DAY_NAMES[d.getDay()]}</div>
           }
           if (range === 'week') {
             // For week view on mobile, show day name with each cell instead of header row
             return null
           }
-          return dayNames.map((d) => (<div key={d} className="text-xs text-muted-foreground px-1">{d}</div>))
+          return DAY_NAMES.map((d) => (<div key={d} className="text-xs text-muted-foreground px-1">{d}</div>))
         })()}
         {cells.map(({ iso, dateLocal }) => {
           const key = iso
-          const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
           const dayEventsRaw = byDay.get(iso) || []
           const eventsWithPriority = dayEventsRaw.map((e) => ({
             e,
@@ -445,7 +445,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
             return (a.e.title || '').localeCompare(b.e.title || '')
           })
           const dayEvents = eventsWithPriority.map(({ e }) => e)
-          const dayName = range === 'week' ? dayNames[dateLocal.getDay()] : null
+          const dayName = range === 'week' ? DAY_NAMES[dateLocal.getDay()] : null
           return (
             <DayCell
               key={key}
