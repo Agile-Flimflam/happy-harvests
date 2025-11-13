@@ -483,5 +483,3 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
     </div>
   )
 }
-
-

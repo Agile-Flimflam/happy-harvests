@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlotForm } from '../_components/PlotForm';
 import { BedForm } from '../_components/BedForm';
 import { deletePlot, deleteBed } from '../_actions';
-import { Pencil, Trash2, PlusCircle, MapPin, Sunrise, Sunset, Droplet } from 'lucide-react';
+import { Pencil, Trash2, Plus, MapPin, Sunrise, Sunset, Droplet } from 'lucide-react';
 import { toast } from "sonner";
 import PageHeader from '@/components/page-header';
 import PageContent from '@/components/page-content';
@@ -145,7 +145,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
             <CardTitle className="text-lg font-semibold">{plot.name}</CardTitle>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => handleAddBed(plot)}>
-                <PlusCircle className="h-4 w-4 mr-1" />
+                <Plus className="h-4 w-4 mr-1" />
                 Add Bed
               </Button>
               <Button variant="ghost" size="sm" onClick={() => handleEditPlot(plot)}>
@@ -294,7 +294,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
         title="Plots & Beds"
         action={hasPlots ? (
           <Button onClick={handleAddPlot} size="sm" className="w-full sm:w-auto">
-            <PlusCircle className="h-4 w-4 mr-2" />
+            <Plus className="h-4 w-4 mr-2" />
             Add Plot
           </Button>
         ) : undefined}
@@ -385,7 +385,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
             <EmptyContent>
               <Button onClick={handleAddPlot}>
                 <span className="flex items-center gap-1">
-                  <PlusCircle className="h-4 w-4" />
+                  <Plus className="h-4 w-4" />
                   Add Plot
                 </span>
               </Button>

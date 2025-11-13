@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Trash2, PlusCircle, Sunrise, Sunset, Droplet, MapPin, Plus } from 'lucide-react';
+import { Pencil, Trash2, Sunrise, Sunset, Droplet, MapPin, Plus } from 'lucide-react';
 
 import PageHeader from '@/components/page-header';
 import PageContent from '@/components/page-content';
@@ -74,7 +74,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
         title="Locations"
         action={hasLocations ? (
           <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
-            <PlusCircle className="h-4 w-4 mr-2" />
+            <Plus className="h-4 w-4 mr-2" />
             Add Location
           </Button>
         ) : undefined}

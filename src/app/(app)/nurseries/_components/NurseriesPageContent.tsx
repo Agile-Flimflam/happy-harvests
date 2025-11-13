@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { actionCreateNursery, actionUpdateNursery, actionDeleteNursery, type NurseryFormState } from '../_actions';
 import type { Tables } from '@/lib/database.types';
-import { PlusCircle, FlaskConical, Pencil, Trash2 } from 'lucide-react';
+import { Plus, FlaskConical, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 
@@ -105,7 +105,7 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
             </EmptyHeader>
             <EmptyContent>
               <Button onClick={() => { setEditing(null); setOpen(true); }}>
-                <PlusCircle className="h-4 w-4 mr-2" />
+                <Plus className="h-4 w-4 mr-2" />
                 Add Your First Nursery
               </Button>
             </EmptyContent>
