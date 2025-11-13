@@ -85,6 +85,8 @@ const dateOnlyFromISO = (iso: string): string => iso.slice(0, 10)
  */
 const toLocalMidnightDate = (iso: string): Date => new Date(iso + 'T00:00:00')
 
+const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"] as const
+
 export default function CalendarClient({ events, locations = [] }: { events: CalendarEvent[]; locations?: Array<CalendarLocation> }) {
 
   // Today in UTC ISO (kept fresh by periodic checks that detect UTC day rollover)
@@ -270,31 +272,38 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setCurrent(({ y, m }) => ({ y: y-1, m }))} aria-label="Previous year">
-            <ChevronsLeft className="mr-1 h-4 w-4" /> Year
-          </Button>
-          <Button variant="outline" size="sm" onClick={navigatePrev} aria-label="Previous">
-            <ChevronLeft className="mr-1 h-4 w-4" /> Prev
-          </Button>
-          <div className="font-semibold text-lg">{headerLabel}</div>
-          <Button variant="outline" size="sm" onClick={navigateNext} aria-label="Next">
-            Next <ChevronRight className="ml-1 h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setCurrent(({ y, m }) => ({ y: y+1, m }))} aria-label="Next year">
-            Year <ChevronsRight className="ml-1 h-4 w-4" />
-          </Button>
-          <Button variant="secondary" size="sm" className="ml-2 hidden sm:inline-flex" onClick={handleTodayClick}>
-            <CalendarDays className="mr-1 h-4 w-4" /> Today
-          </Button>
+      {/* Mobile Layout */}
+      <div className="flex flex-col md:hidden gap-2">
+        <div className="flex items-center justify-between gap-1">
+          {/* Left navigation buttons */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <Button variant="outline" size="sm" className="px-2" onClick={() => setCurrent(({ y, m }) => ({ y: y-1, m }))} aria-label="Previous year">
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" className="px-2" onClick={navigatePrev} aria-label="Previous">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          </div>
+          {/* Month/Year label - centered and flexible */}
+          <div className="font-semibold text-base sm:text-lg text-center flex-1 min-w-0 px-2">
+            {headerLabel}
+          </div>
+          {/* Right navigation buttons */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <Button variant="outline" size="sm" className="px-2" onClick={navigateNext} aria-label="Next">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" className="px-2" onClick={() => setCurrent(({ y, m }) => ({ y: y+1, m }))} aria-label="Next year">
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         {/* Mobile weather display */}
-        <div className="w-full md:hidden">
+        <div className="w-full">
           <CalendarHeaderWeather id={primaryLocation?.id ?? null} latitude={primaryLocation?.latitude ?? null} longitude={primaryLocation?.longitude ?? null} />
         </div>
         {/* Mobile compact filter menu */}
-        <div className="w-full md:hidden sticky top-0 z-10 bg-background/95 supports-[backdrop-filter]:bg-background/60 backdrop-blur rounded-md px-1 py-1 flex items-center gap-2">
+        <div className="w-full sticky top-0 z-10 bg-background/95 supports-[backdrop-filter]:bg-background/60 backdrop-blur rounded-md px-1 py-1 flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="border rounded px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40">Filters</button>
@@ -332,54 +341,99 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
             <CalendarDays className="mr-1 h-4 w-4" /> Today
           </Button>
         </div>
-        {/* Desktop/tablet filter row (wraps; no sticky to avoid overlap) */}
-        <div className="hidden md:flex w-full px-1 py-1 items-center gap-3 flex-wrap mt-1">
-          <div className="flex items-center gap-1 sm:gap-2 flex-nowrap" role="tablist" aria-label="Filter">
-            {(['all','activity','planting','harvest'] as const).map((v) => (
-              <button key={v} role="tab" aria-selected={filter===v} className={`rounded px-2 py-1 text-xs sm:text-sm whitespace-nowrap border transition-colors active:scale-95 ${filter===v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`} onClick={() => setFilter(v)}>
-                {v === 'all' ? 'All' : v === 'activity' ? 'Activities' : v === 'planting' ? 'Plantings' : 'Harvests'}
-              </button>
-            ))}
+      </div>
+      {/* Desktop Layout */}
+      <div className="hidden md:block">
+        {/* Row 1: Navigation and View Controls */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          {/* Left Group: Month/year navigation */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <Button variant="outline" size="sm" className="text-xs" onClick={() => setCurrent(({ y, m }) => ({ y: y-1, m }))} aria-label="Previous year">
+              <ChevronsLeft className="h-3 w-3" />
+            </Button>
+            <Button variant="outline" size="sm" className="text-xs" onClick={navigatePrev} aria-label="Previous">
+              <ChevronLeft className="h-3 w-3" />
+            </Button>
+            <div className="font-semibold text-sm whitespace-nowrap px-1 min-w-[120px] text-center">{headerLabel}</div>
+            <Button variant="outline" size="sm" className="text-xs" onClick={navigateNext} aria-label="Next">
+              <ChevronRight className="h-3 w-3" />
+            </Button>
+            <Button variant="outline" size="sm" className="text-xs" onClick={() => setCurrent(({ y, m }) => ({ y: y+1, m }))} aria-label="Next year">
+              <ChevronsRight className="h-3 w-3" />
+            </Button>
           </div>
-          <div className="flex items-center gap-1 sm:gap-2 flex-nowrap" role="tablist" aria-label="Range">
-            {(['month','week','today'] as const).map((v) => (
-              <button key={v} role="tab" aria-selected={range===v} className={`rounded px-2 py-1 text-xs sm:text-sm whitespace-nowrap border transition-colors active:scale-95 ${range===v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`} onClick={() => setRange(v)}>
-                {v[0].toUpperCase() + v.slice(1)}
-              </button>
-            ))}
+          {/* Middle Group: Primary view controls */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <Button variant="secondary" size="sm" className="text-xs" onClick={handleTodayClick}>
+              <CalendarDays className="h-3 w-3 mr-1" /> Today
+            </Button>
+            <div className="flex items-center gap-0.5" role="tablist" aria-label="Range">
+              {(['month','week','today'] as const).map((v) => (
+                <button key={v} role="tab" aria-selected={range===v} className={`rounded px-1.5 py-1 text-xs whitespace-nowrap border transition-colors active:scale-95 ${range===v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`} onClick={() => setRange(v)}>
+                  {v[0].toUpperCase() + v.slice(1)}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="ml-auto hidden md:flex items-center">
+        </div>
+        {/* Row 2: Filters, Weather, and Legend */}
+        <div className="flex items-center justify-between gap-2 mt-2 flex-wrap">
+          {/* Filter toggles */}
+          <div className="flex items-center gap-0.5 flex-wrap" role="tablist" aria-label="Filter">
+            {(['all','activity','planting','harvest'] as const).map((v) => {
+              const fullLabel = v === 'all' ? 'All' : v === 'activity' ? 'Activities' : v === 'planting' ? 'Plantings' : 'Harvests'
+              return (
+                <button key={v} role="tab" aria-selected={filter===v} className={`rounded px-1.5 py-1 text-xs whitespace-nowrap border transition-colors active:scale-95 ${filter===v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`} onClick={() => setFilter(v)}>
+                  {fullLabel}
+                </button>
+              )
+            })}
+          </div>
+          {/* Right Group: Weather and Legend */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             <CalendarHeaderWeather id={primaryLocation?.id ?? null} latitude={primaryLocation?.latitude ?? null} longitude={primaryLocation?.longitude ?? null} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="border rounded px-1.5 py-1 text-xs hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40 whitespace-nowrap">Legend</button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64 p-2">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-foreground">
+                  <div className="inline-flex items-center gap-2"><Droplet className="size-3 text-blue-600" /> Irrigation</div>
+                  <div className="inline-flex items-center gap-2"><FlaskConical className="size-3 text-amber-700" /> Soil amendment</div>
+                  <div className="inline-flex items-center gap-2"><Bug className="size-3 text-rose-700" /> Pest mgmt.</div>
+                  <div className="inline-flex items-center gap-2"><Wrench className="size-3 text-violet-700" /> Maintenance</div>
+                  <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-yellow-500" /> Nursery</div>
+                  <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-green-600" /> Planted</div>
+                  <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-emerald-600" /> Harvested</div>
+                  <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-slate-500" /> Removed</div>
+                  <div className="inline-flex items-center gap-2"><ShoppingBasket className="size-3 text-emerald-700" /> Harvest</div>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="border rounded px-2 py-1 text-xs sm:text-sm hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/40 hidden sm:inline-block">Legend</button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 p-2">
-              <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-foreground">
-                <div className="inline-flex items-center gap-2"><Droplet className="size-3 text-blue-600" /> Irrigation</div>
-                <div className="inline-flex items-center gap-2"><FlaskConical className="size-3 text-amber-700" /> Soil amend.</div>
-                <div className="inline-flex items-center gap-2"><Bug className="size-3 text-rose-700" /> Pest mgmt.</div>
-                <div className="inline-flex items-center gap-2"><Wrench className="size-3 text-violet-700" /> Maintenance</div>
-                <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-yellow-500" /> Nursery</div>
-                <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-green-600" /> Planted</div>
-                <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-emerald-600" /> Harvested</div>
-                <div className="inline-flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-slate-500" /> Removed</div>
-                <div className="inline-flex items-center gap-2"><ShoppingBasket className="size-3 text-emerald-700" /> Harvest</div>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
-      {/* Legend now in dropdown to reduce visual noise */}
-      <div className={`grid ${range==='week' ? 'grid-cols-7' : range==='today' ? 'grid-cols-1' : 'grid-cols-7'} gap-2`}>
+      {/* Calendar Grid */}
+      <div className={`${range==='week' ? 'md:overflow-x-auto md:-mx-1 md:px-1 md:py-1' : 'overflow-x-auto -mx-1 px-1'} pb-2`}>
+        <div className={`grid ${
+          range==='week' 
+            ? 'grid-cols-1 md:grid-cols-7' 
+            : range==='today' 
+              ? 'grid-cols-1' 
+              : 'grid-cols-7'
+        } ${range==='week' ? 'gap-2 md:gap-3' : 'gap-2'} ${range==='week' ? '' : 'min-w-fit'}`}>
         {(() => {
-          const names = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
           if (range === 'today') {
             const d = toLocalMidnightDate(focusDateISO)
-            return <div className="text-xs text-muted-foreground px-1">{names[d.getDay()]}</div>
+            return <div className="text-xs text-muted-foreground px-1">{DAY_NAMES[d.getDay()]}</div>
           }
-          return names.map((d) => (<div key={d} className="text-xs text-muted-foreground px-1">{d}</div>))
+          if (range === 'week') {
+            // For week view: show day name headers on desktop, but hide on mobile (day names shown in cells)
+            return DAY_NAMES.map((d) => (
+              <div key={d} className="hidden md:block text-xs text-muted-foreground px-1">{d}</div>
+            ))
+          }
+          return DAY_NAMES.map((d) => (<div key={d} className="text-xs text-muted-foreground px-1">{d}</div>))
         })()}
         {cells.map(({ iso, dateLocal }) => {
           const key = iso
@@ -393,6 +447,7 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
             return (a.e.title || '').localeCompare(b.e.title || '')
           })
           const dayEvents = eventsWithPriority.map(({ e }) => e)
+          const dayName = range === 'week' ? DAY_NAMES[dateLocal.getDay()] : null
           return (
             <DayCell
               key={key}
@@ -401,9 +456,12 @@ export default function CalendarClient({ events, locations = [] }: { events: Cal
               today={toLocalMidnightDate(todayISO)}
               onOpenDetail={(dateISO) => setDetail({ open: true, date: dateISO })}
               events={dayEvents}
+              dayName={dayName}
+              isWeekView={range === 'week'}
             />
           )
         })}
+        </div>
       </div>
       <Dialog open={detail.open} onOpenChange={(open) => setDetail((d) => ({ open, date: open ? d.date : null }))}>
         <DayDetailDialog
