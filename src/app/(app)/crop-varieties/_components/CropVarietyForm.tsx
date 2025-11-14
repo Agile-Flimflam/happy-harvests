@@ -34,7 +34,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 
-type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null } & { image_url?: string | null };
+type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null };
 type Crop = { id: number; name: string };
 
 interface CropVarietyFormProps {
@@ -71,9 +71,19 @@ function isValidBlobUrl(url: string): boolean {
     if (lowerOrigin.includes('javascript:') || lowerOrigin.includes('data:') || lowerOrigin.includes('vbscript:')) {
       return false;
     }
-    // For other origins, ensure they're valid HTTP/HTTPS origins
-    // The URL constructor validates the format, but we explicitly check for safe protocols
-    return true;
+    // For non-null origins, explicitly validate they use http: or https: protocols
+    // Blob URL origins are in the format "http://host" or "https://host"
+    if (!origin.startsWith('http://') && !origin.startsWith('https://')) {
+      return false;
+    }
+    try {
+      // Parse the origin as a URL to validate its protocol
+      const originUrl = new URL(origin);
+      return originUrl.protocol === 'http:' || originUrl.protocol === 'https:';
+    } catch {
+      // Invalid origin format - reject
+      return false;
+    }
   } catch {
     // Invalid URL format - reject (this catches blob:javascript:alert(1) type attacks)
     return false;
@@ -231,8 +241,9 @@ export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }
   };
 
   // Compute existing image URL safely
+  // image_url is a computed property added by getCropVarieties, not in the base database type
   const existingImageUrl = !imagePreviewUrl && !removeExistingImage && state.cropVariety
-    ? (state.cropVariety as CropVariety).image_url
+    ? (state.cropVariety as CropVariety & { image_url?: string | null }).image_url
     : null;
   const safeExistingImageUrl = existingImageUrl && isValidImageUrl(existingImageUrl) ? existingImageUrl : null;
 
