@@ -37,13 +37,6 @@ import {
 type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null } & { image_url?: string | null };
 type Crop = { id: number; name: string };
 
-/**
- * Type guard to check if an object has an image_url property.
- */
-function hasImageUrl(obj: unknown): obj is { image_url?: string | null } {
-  return typeof obj === 'object' && obj !== null && 'image_url' in obj;
-}
-
 interface CropVarietyFormProps {
   cropVariety?: CropVariety | null;
   crops?: Crop[];
@@ -204,8 +197,8 @@ export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }
   };
 
   // Compute existing image URL safely
-  const existingImageUrl = !imagePreviewUrl && !removeExistingImage && state.cropVariety && hasImageUrl(state.cropVariety)
-    ? state.cropVariety.image_url
+  const existingImageUrl = !imagePreviewUrl && !removeExistingImage && state.cropVariety
+    ? (state.cropVariety as CropVariety).image_url
     : null;
   const safeExistingImageUrl = existingImageUrl && isValidImageUrl(existingImageUrl) ? existingImageUrl : null;
 

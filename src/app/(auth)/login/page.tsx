@@ -9,9 +9,6 @@ import { Label } from "@/components/ui/label";
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-// Force dynamic rendering to avoid prerendering issues with Supabase client
-export const dynamic = 'force-dynamic';
-
 function LoginFormContent() {
   const router = useRouter();
   const [email, setEmail] = useState('');
