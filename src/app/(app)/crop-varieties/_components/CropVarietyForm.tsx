@@ -44,6 +44,30 @@ interface CropVarietyFormProps {
   formId?: string;
 }
 
+/**
+ * Validates and sanitizes an image URL to prevent XSS attacks.
+ * Only allows blob URLs (from createObjectURL) or valid HTTP/HTTPS URLs.
+ */
+function isValidImageUrl(url: string | null | undefined): url is string {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+
+  try {
+    // Allow blob URLs (from createObjectURL)
+    if (url.startsWith('blob:')) {
+      return true;
+    }
+
+    // Validate HTTP/HTTPS URLs
+    const parsedUrl = new URL(url);
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+  } catch {
+    // Invalid URL format
+    return false;
+  }
+}
+
 export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }: CropVarietyFormProps) {
   const isEditing = Boolean(cropVariety?.id);
   // Update action functions
@@ -174,6 +198,12 @@ export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }
     });
   };
 
+  // Compute existing image URL safely
+  const existingImageUrl = !imagePreviewUrl && !removeExistingImage && state.cropVariety
+    ? (state.cropVariety as unknown as { image_url?: string | null })?.image_url
+    : null;
+  const safeExistingImageUrl = existingImageUrl && isValidImageUrl(existingImageUrl) ? existingImageUrl : null;
+
   return (
     <TooltipProvider>
       <Form {...form}>
@@ -284,7 +314,7 @@ export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }
       <div>
         <Label htmlFor="image">Image</Label>
         <div className="flex items-start gap-4 mt-1">
-          {imagePreviewUrl && (
+          {imagePreviewUrl && isValidImageUrl(imagePreviewUrl) && (
             <div className="relative inline-block">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -303,11 +333,11 @@ export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }
               </Button>
             </div>
           )}
-          {!imagePreviewUrl && !removeExistingImage && state.cropVariety && (state.cropVariety as unknown as { image_url?: string | null })?.image_url && (
+          {safeExistingImageUrl && (
             <div className="relative inline-block">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={(state.cropVariety as unknown as { image_url?: string | null }).image_url as string}
+                src={safeExistingImageUrl}
                 alt="Current variety image"
                 className="h-20 w-20 rounded border object-cover"
               />

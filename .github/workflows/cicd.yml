@@ -82,4 +82,6 @@ jobs:
         uses: ./.github/actions/setup-node-pnpm
 
       - name: Vulnerability audit
+        # Intentionally fails the workflow if high-severity vulnerabilities are found
+        # This ensures security issues are addressed before merging
         run: pnpm audit --audit-level=high
