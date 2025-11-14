@@ -7,6 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 
+// Force dynamic rendering to avoid prerendering issues with Supabase client
+export const dynamic = 'force-dynamic';
+
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);

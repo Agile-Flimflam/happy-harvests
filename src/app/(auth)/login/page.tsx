@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, ChangeEvent } from 'react';
+import { Suspense, useState, ChangeEvent, useMemo } from 'react';
 import { createClient } from '@/lib/supabase';
 import { AuthApiError } from '@supabase/supabase-js';
 import { Button } from "@/components/ui/button";
@@ -17,10 +17,12 @@ function LoginFormContent() {
   const [isOAuthRedirecting, setIsOAuthRedirecting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const supabase = createClient();
   const searchParams = useSearchParams();
   const authError = searchParams.get('error');
   const nextParam = searchParams.get('next') || '/';
+  
+  // Create Supabase client inside component to avoid build-time errors
+  const supabase = useMemo(() => createClient(), []);
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -149,6 +151,9 @@ function LoginFormContent() {
     </div>
   );
 }
+
+// Force dynamic rendering to avoid prerendering issues with Supabase client
+export const dynamic = 'force-dynamic';
 
 export default function LoginPage() {
   return (
