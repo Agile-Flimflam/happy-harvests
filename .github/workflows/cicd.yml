@@ -35,7 +35,7 @@ jobs:
         uses: ./.github/actions/setup-node-pnpm
 
       - name: Run tests
-        run: echo "✓ Tests passing (no test files present)"
+        run: echo "⚠ Skipping tests (no test files present)"
 
   build:
     runs-on: ubuntu-latest
