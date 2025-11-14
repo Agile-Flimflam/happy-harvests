@@ -64,7 +64,7 @@ jobs:
           fetch-depth: 0
 
       - name: Secret scanning
-        uses: trufflesecurity/trufflehog@v3.63.0
+        uses: trufflesecurity/trufflehog@v3
         with:
           path: ./
           base: ${{ github.event.pull_request.base.sha || github.event.before }}

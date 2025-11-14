@@ -47,6 +47,7 @@ interface CropVarietyFormProps {
 /**
  * Validates and sanitizes an image URL to prevent XSS attacks.
  * Only allows blob URLs (from createObjectURL) or valid HTTP/HTTPS URLs.
+ * Uses URL constructor to validate URL structure and prevent malicious strings.
  */
 function isValidImageUrl(url: string | null | undefined): url is string {
   if (!url || typeof url !== 'string') {
@@ -54,14 +55,10 @@ function isValidImageUrl(url: string | null | undefined): url is string {
   }
 
   try {
-    // Allow blob URLs (from createObjectURL)
-    if (url.startsWith('blob:')) {
-      return true;
-    }
-
-    // Validate HTTP/HTTPS URLs
+    // Use URL constructor to validate URL structure for all types
     const parsedUrl = new URL(url);
-    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+    // Only allow blob:, http:, or https: protocols
+    return parsedUrl.protocol === 'blob:' || parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
   } catch {
     // Invalid URL format
     return false;
