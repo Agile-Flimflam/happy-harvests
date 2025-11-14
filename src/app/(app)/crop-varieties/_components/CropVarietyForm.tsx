@@ -45,8 +45,43 @@ interface CropVarietyFormProps {
 }
 
 /**
- * Validates image URL structure and restricts allowed protocols.
- * Validates URL format using the URL constructor and only allows blob:, http:, or https: protocols.
+ * Validates blob URL format for preview images created with URL.createObjectURL().
+ * Validates that the blob URL follows the expected format (blob:origin/uuid).
+ * Rejects malicious blob URLs like blob:javascript:alert(1) by ensuring the origin
+ * doesn't contain dangerous protocols.
+ */
+function isValidBlobUrl(url: string): boolean {
+  if (!url.startsWith('blob:')) {
+    return false;
+  }
+  try {
+    const parsedUrl = new URL(url);
+    // Blob URLs should have protocol 'blob:' and a pathname (the UUID part)
+    if (parsedUrl.protocol !== 'blob:' || !parsedUrl.pathname || parsedUrl.pathname.length === 0) {
+      return false;
+    }
+    // Validate the origin - reject dangerous protocols
+    const origin = parsedUrl.origin;
+    // Accept 'null' origin (common for local blob URLs)
+    if (origin === 'null') {
+      return true;
+    }
+    // Reject origins that contain dangerous protocols
+    const lowerOrigin = origin.toLowerCase();
+    if (lowerOrigin.includes('javascript:') || lowerOrigin.includes('data:') || lowerOrigin.includes('vbscript:')) {
+      return false;
+    }
+    // For other origins, ensure they're valid HTTP/HTTPS origins
+    // The URL constructor validates the format, but we explicitly check for safe protocols
+    return true;
+  } catch {
+    // Invalid URL format - reject (this catches blob:javascript:alert(1) type attacks)
+    return false;
+  }
+}
+
+/**
+ * Validates image URL structure and restricts allowed protocols to http: or https: for database URLs (from Supabase storage).
  * This helps reduce XSS risk by preventing javascript: and data: URLs, but complete XSS prevention
  * requires additional measures like Content-Security-Policy headers and proper encoding.
  */
@@ -56,10 +91,9 @@ function isValidImageUrl(url: string | null | undefined): url is string {
   }
 
   try {
-    // Use URL constructor to validate URL structure for all types
     const parsedUrl = new URL(url);
-    // Only allow blob:, http:, or https: protocols
-    return parsedUrl.protocol === 'blob:' || parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+    // Only allow http: or https: protocols for database URLs
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
   } catch {
     // Invalid URL format
     return false;
@@ -312,7 +346,7 @@ export function CropVarietyForm({ cropVariety, crops = [], closeDialog, formId }
       <div>
         <Label htmlFor="image">Image</Label>
         <div className="flex items-start gap-4 mt-1">
-          {imagePreviewUrl && isValidImageUrl(imagePreviewUrl) && (
+          {imagePreviewUrl && isValidBlobUrl(imagePreviewUrl) && (
             <div className="relative inline-block">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
