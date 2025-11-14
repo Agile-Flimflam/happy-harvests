@@ -66,9 +66,10 @@ function isValidBlobUrl(url: string): boolean {
     if (origin === 'null') {
       return true;
     }
-    // Reject origins that contain dangerous protocols
+    // Reject origins that start with dangerous protocols
+    // Check if origin starts with dangerous protocol schemes (not just contains them)
     const lowerOrigin = origin.toLowerCase();
-    if (lowerOrigin.includes('javascript:') || lowerOrigin.includes('data:') || lowerOrigin.includes('vbscript:')) {
+    if (lowerOrigin.startsWith('javascript://') || lowerOrigin.startsWith('data://') || lowerOrigin.startsWith('vbscript://')) {
       return false;
     }
     // For non-null origins, explicitly validate they use http: or https: protocols
