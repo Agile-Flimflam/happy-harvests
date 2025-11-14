@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 
 export default function UpdatePasswordPage() {
-  const supabase = createClient();
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,11 +19,12 @@ export default function UpdatePasswordPage() {
 
   useEffect(() => {
     const checkSession = async () => {
+      const supabase = createClient();
       const { data } = await supabase.auth.getSession();
       setHasSession(!!data.session);
     };
     void checkSession();
-  }, [supabase]);
+  }, []);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -43,6 +43,7 @@ export default function UpdatePasswordPage() {
       return;
     }
 
+    const supabase = createClient();
     const { error: updateError } = await supabase.auth.updateUser({ password });
     if (updateError) {
       setError(updateError.message);

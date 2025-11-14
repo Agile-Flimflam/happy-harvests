@@ -17,10 +17,10 @@ function LoginFormContent() {
   const [isOAuthRedirecting, setIsOAuthRedirecting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const supabase = createClient();
   const searchParams = useSearchParams();
   const authError = searchParams.get('error');
   const nextParam = searchParams.get('next') || '/';
+  const supabase = createClient();
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

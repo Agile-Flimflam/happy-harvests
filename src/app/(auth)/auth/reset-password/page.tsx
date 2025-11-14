@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 
 export default function ResetPasswordPage() {
-  const supabase = createClient();
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
@@ -19,6 +18,7 @@ export default function ResetPasswordPage() {
     setIsSubmitting(true);
     setMessage('');
     setError('');
+    const supabase = createClient();
     const redirectTo = `${window.location.origin}/auth/update-password`;
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo,
