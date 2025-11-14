@@ -74,22 +74,32 @@
     "*.js": [
       "eslint --fix",
       "prettier --write",
-      "jest --findRelatedTests --passWithNoTests"
+      "jest --findRelatedTests --passWithNoTests",
+      "secretlint"
     ],
     "*.ts": [
       "eslint --fix",
       "prettier --write",
-      "jest --findRelatedTests --passWithNoTests"
+      "jest --findRelatedTests --passWithNoTests",
+      "secretlint"
     ],
     "*.tsx": [
       "eslint --fix",
       "prettier --write",
-      "jest --findRelatedTests --passWithNoTests"
+      "jest --findRelatedTests --passWithNoTests",
+      "secretlint"
+    ],
+    "*.jsx": [
+      "eslint --fix",
+      "prettier --write",
+      "jest --findRelatedTests --passWithNoTests",
+      "secretlint"
     ],
     "*.{json,md,yml,yaml}": [
-      "prettier --write"
+      "prettier --write",
+      "secretlint"
     ],
-    "*.{js,ts,tsx,jsx,json,yaml,yml,toml,env,sh,bash,md,txt}": [
+    "*.{toml,env,sh,bash,txt}": [
       "secretlint"
     ],
     ".*rc": [
@@ -99,9 +109,6 @@
       "secretlint"
     ],
     "Dockerfile*": [
-      "secretlint"
-    ],
-    "*.config.{js,ts}": [
       "secretlint"
     ]
   },
