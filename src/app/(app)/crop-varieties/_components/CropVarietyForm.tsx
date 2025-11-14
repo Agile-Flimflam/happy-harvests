@@ -73,17 +73,9 @@ function isValidBlobUrl(url: string): boolean {
     }
     // For non-null origins, explicitly validate they use http: or https: protocols
     // Blob URL origins are in the format "http://host" or "https://host"
-    if (!origin.startsWith('http://') && !origin.startsWith('https://')) {
-      return false;
-    }
-    try {
-      // Parse the origin as a URL to validate its protocol
-      const originUrl = new URL(origin);
-      return originUrl.protocol === 'http:' || originUrl.protocol === 'https:';
-    } catch {
-      // Invalid origin format - reject
-      return false;
-    }
+    // Since we've already verified the origin format from the blob URL parsing,
+    // we only need to check the prefix to ensure it's HTTP/HTTPS
+    return origin.startsWith('http://') || origin.startsWith('https://');
   } catch {
     // Invalid URL format - reject (this catches blob:javascript:alert(1) type attacks)
     return false;
