@@ -167,6 +167,46 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
 - Apply the example policies provided in the migration file using the Supabase SQL editor or by adding them to a new migration file (`supabase migration new add_rls_policies`) and running `supabase db push`.
 - The example policies allow any authenticated user full CRUD access. You should refine these based on your specific authorization needs (e.g., only owners can modify certain records).
 
+## E2E Testing with Playwright
+
+This project uses [Playwright](https://playwright.dev/) for end-to-end testing.
+
+### Running E2E Tests Locally
+
+1. **Install Playwright browsers** (first time only):
+   ```bash
+   pnpm playwright:install
+   ```
+
+2. **Start the development server** (in one terminal):
+   ```bash
+   pnpm dev
+   ```
+
+3. **Run E2E tests** (in another terminal):
+   ```bash
+   # Run tests headlessly
+   pnpm test:e2e
+   
+   # Run tests with UI mode (interactive)
+   pnpm test:e2e:ui
+   ```
+
+### Test Configuration
+
+- Test files are located in `tests/e2e/`
+- Base URL defaults to `http://localhost:4000` (configurable via `PLAYWRIGHT_BASE_URL` environment variable)
+- Tests run against Chromium, Firefox, and WebKit browsers
+- Screenshots and videos are captured on test failures
+- HTML reports are generated after test runs
+
+### CI/CD Integration
+
+E2E tests run automatically in the CI/CD pipeline:
+- Tests execute after the build job completes
+- Test artifacts (videos, screenshots, HTML reports) are uploaded to GitHub Actions
+- Tests run with retries enabled for flaky test handling
+
 ## Husky Pre-commit Hook
 
 A pre-commit hook is set up using Husky and `lint-staged` (assuming `package.json` is configured) to automatically lint and format staged files before committing.
