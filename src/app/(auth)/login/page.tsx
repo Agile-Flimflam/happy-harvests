@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, ChangeEvent, useMemo } from 'react';
+import { Suspense, useState, ChangeEvent } from 'react';
 import { createClient } from '@/lib/supabase';
 import { AuthApiError } from '@supabase/supabase-js';
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,7 @@ function LoginFormContent() {
   const searchParams = useSearchParams();
   const authError = searchParams.get('error');
   const nextParam = searchParams.get('next') || '/';
-  
-  // Create Supabase client inside component to avoid build-time errors
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = createClient();
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
