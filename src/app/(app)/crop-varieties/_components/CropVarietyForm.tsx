@@ -52,9 +52,10 @@ interface CropVarietyFormProps {
 }
 
 /**
- * Validates and sanitizes an image URL to prevent XSS attacks.
- * Only allows blob URLs (from createObjectURL) or valid HTTP/HTTPS URLs.
- * Uses URL constructor to validate URL structure and prevent malicious strings.
+ * Validates image URL structure and restricts allowed protocols.
+ * Validates URL format using the URL constructor and only allows blob:, http:, or https: protocols.
+ * This helps reduce XSS risk by preventing javascript: and data: URLs, but complete XSS prevention
+ * requires additional measures like Content-Security-Policy headers and proper encoding.
  */
 function isValidImageUrl(url: string | null | undefined): url is string {
   if (!url || typeof url !== 'string') {
