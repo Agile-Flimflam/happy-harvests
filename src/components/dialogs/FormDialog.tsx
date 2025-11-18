@@ -18,20 +18,9 @@ type FormDialogProps = {
 }
 
 /**
- * Safely checks if an element's className contains a search string.
+ * Checks if an element has the data-mapbox-autofill attribute (explicitly added by our code).
  */
-function hasClassName(element: HTMLElement, search: string): boolean {
-  const className = element.className;
-  if (typeof className === 'string') {
-    return className.toLowerCase().includes(search.toLowerCase());
-  }
-  return String(className || '').toLowerCase().includes(search.toLowerCase());
-}
-
-/**
- * Checks if an element has Mapbox-related attributes.
- */
-function hasMapboxAttribute(element: HTMLElement): boolean {
+function hasMapboxAutofillAttribute(element: HTMLElement): boolean {
   return (
     element.hasAttribute('data-mapbox-autofill') ||
     element.closest('[data-mapbox-autofill]') !== null
@@ -39,55 +28,73 @@ function hasMapboxAttribute(element: HTMLElement): boolean {
 }
 
 /**
- * Checks if an element has Mapbox-related CSS classes or IDs.
+ * Checks if an element has Mapbox autofill-specific CSS classes.
+ * Only matches classes containing "mapbox-autofill" (not just "mapbox").
  */
-function hasMapboxClass(element: HTMLElement): boolean {
-  return (
-    hasClassName(element, 'mapbox') ||
-    hasClassName(element, 'autofill') ||
-    hasClassName(element, 'mbx') ||
-    element.closest('[class*="mapbox"]') !== null ||
-    element.closest('[class*="mbx"]') !== null ||
-    element.closest('[id*="mapbox"]') !== null
-  );
+function hasMapboxAutofillClass(element: HTMLElement): boolean {
+  // Check if element itself has a class containing "mapbox-autofill"
+  if (element.className && typeof element.className === 'string') {
+    const classList = element.className.split(/\s+/);
+    if (classList.some(cls => cls.toLowerCase().includes('mapbox-autofill'))) {
+      return true;
+    }
+  }
+  
+  // Check if element is within a container with mapbox-autofill class
+  return element.closest('[class*="mapbox-autofill"]') !== null;
 }
 
 /**
- * Checks if an element has a Mapbox-related ARIA role.
+ * Checks if an element has a Mapbox autofill-specific ID.
+ * Only matches IDs containing "mapbox-autofill" (not just "mapbox").
  */
-function hasMapboxRole(element: HTMLElement): boolean {
-  const role = element.getAttribute('role');
-  const isOptionOrListbox = role === 'option' || role === 'listbox';
-  return isOptionOrListbox && (
-    hasMapboxClass(element) || 
-    element.closest('[class*="mapbox"]') !== null
-  );
+function hasMapboxAutofillId(element: HTMLElement): boolean {
+  const id = element.id;
+  if (id && id.toLowerCase().includes('mapbox-autofill')) {
+    return true;
+  }
+  
+  // Check if element is within a container with mapbox-autofill ID
+  return element.closest('[id*="mapbox-autofill"]') !== null;
 }
 
 /**
- * Checks if an element is a listbox or option that's likely from Mapbox.
+ * Checks if an element is a listbox or option within a Mapbox autofill container.
+ * This is more specific than checking for any listbox/option.
  */
-function isLikelyMapboxListbox(element: HTMLElement): boolean {
+function isMapboxAutofillListbox(element: HTMLElement): boolean {
   const role = element.getAttribute('role');
   const isListboxOrOption = role === 'listbox' || role === 'option';
   
   if (!isListboxOrOption) return false;
   
-  return (
+  // Only return true if there's actually a Mapbox autofill container in the document
+  // This prevents false positives from unrelated listboxes/options
+  const hasMapboxContainer = 
     document.querySelector('[class*="mapbox-autofill"]') !== null ||
-    document.querySelector('[id*="mapbox-autofill"]') !== null
+    document.querySelector('[id*="mapbox-autofill"]') !== null ||
+    document.querySelector('[data-mapbox-autofill]') !== null;
+  
+  if (!hasMapboxContainer) return false;
+  
+  // Check if this element is within a Mapbox autofill container
+  return (
+    element.closest('[class*="mapbox-autofill"]') !== null ||
+    element.closest('[id*="mapbox-autofill"]') !== null ||
+    element.closest('[data-mapbox-autofill]') !== null
   );
 }
 
 /**
- * Determines if an element is Mapbox-related by checking attributes, classes, roles, and context.
+ * Determines if an element is Mapbox autofill-related by checking specific attributes,
+ * classes, IDs, and roles. Uses precise selectors to avoid false positives.
  */
 function isMapboxElement(element: HTMLElement): boolean {
   return (
-    hasMapboxAttribute(element) ||
-    hasMapboxClass(element) ||
-    hasMapboxRole(element) ||
-    isLikelyMapboxListbox(element)
+    hasMapboxAutofillAttribute(element) ||
+    hasMapboxAutofillClass(element) ||
+    hasMapboxAutofillId(element) ||
+    isMapboxAutofillListbox(element)
   );
 }
 
@@ -125,8 +132,8 @@ function isMapboxRelatedClick(event: MouseEvent & { __isMapboxClick?: boolean })
     return true;
   }
   
-  // Check if click is on address input field
-  return hasMapboxAttribute(target);
+  // Check if click is on address input field (has data-mapbox-autofill attribute)
+  return hasMapboxAutofillAttribute(target);
 }
 
 export default function FormDialog({

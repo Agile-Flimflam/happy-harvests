@@ -38,6 +38,42 @@ interface LocationFormProps {
 const usStates = new UsaStates();
 const states = usStates.states;
 
+// Helper function to set up form control property for browser extensions
+// Uses a getter/setter to allow both reading and writing without errors
+function setupFormControlProperty(formElement: HTMLFormElement | null): void {
+  if (!formElement) return;
+  
+  // Add a dummy control property to prevent browser extension errors
+  // Use getter/setter to allow both reading and writing without throwing errors
+  if (!('control' in formElement)) {
+    // Create a storage object that can be written to
+    // This object persists and can be modified by browser extensions
+    const controlStorage: Record<string, unknown> = {};
+    
+    Object.defineProperty(formElement, 'control', {
+      get() {
+        // Return the storage object, allowing extensions to read properties
+        return controlStorage;
+      },
+      set(value: unknown) {
+        // Silently accept writes - merge if it's an object, otherwise clear and store as 'value'
+        if (value && typeof value === 'object' && !Array.isArray(value) && value !== null) {
+          // Merge object properties into storage
+          Object.assign(controlStorage, value);
+        } else {
+          // For primitives or null/undefined, clear storage and store as 'value' property
+          Object.keys(controlStorage).forEach(key => delete controlStorage[key]);
+          if (value !== null && value !== undefined) {
+            controlStorage.value = value;
+          }
+        }
+      },
+      enumerable: false,
+      configurable: true,
+    });
+  }
+}
+
 export function LocationForm({ location, closeDialog, formId }: LocationFormProps) {
   const isEditing = Boolean(location?.id);
   const action = isEditing ? updateLocation : createLocation;
@@ -103,16 +139,8 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
       const formElement = formRef.current;
       if (!formElement) return false;
 
-      // Add a dummy control property to prevent browser extension errors
-      // This doesn't affect React Hook Form which uses its own context
-      if (!('control' in formElement)) {
-        Object.defineProperty(formElement, 'control', {
-          value: {},
-          writable: false,
-          enumerable: false,
-          configurable: true,
-        });
-      }
+      // Set up the control property using the helper function
+      setupFormControlProperty(formElement);
       return true;
     };
 
@@ -128,17 +156,15 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
       timeoutIds.push(id);
     });
 
-    // Cleanup
+    // Cleanup: only clear the timeouts
+    // Note: We do NOT delete the control property because:
+    // 1. Multiple component instances may share the same form
+    // 2. The property is harmless and doesn't cause memory leaks
+    // 3. Browser extensions may still need it after component unmounts
+    // 4. The property is defined with configurable: true, but deletion can fail
+    //    in edge cases, and silently failing cleanup is worse than leaving it
     return () => {
       timeoutIds.forEach((id) => clearTimeout(id));
-      const formElement = formRef.current;
-      if (formElement && 'control' in formElement) {
-        try {
-          delete (formElement as { control?: unknown }).control;
-        } catch {
-          // Ignore errors during cleanup
-        }
-      }
     };
   }, []);
 
@@ -177,14 +203,16 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
   const hasCoordinates = latitude != null && longitude != null;
 
   // Clear address function
+  // Preserves coordinates since we cannot reliably determine if they were set via address autocomplete
+  // or manually via map interaction. Users can manually clear coordinates via the map if needed.
   const handleClearAddress = () => {
     form.setValue('street', '');
     form.setValue('city', '');
     form.setValue('state', '');
     form.setValue('zip', '');
-    form.setValue('latitude', null);
-    form.setValue('longitude', null);
-    form.clearErrors(['street', 'city', 'state', 'zip', 'latitude', 'longitude']);
+    // Preserve coordinates - they may have been set manually via map interaction
+    // Users can clear coordinates directly on the map if needed
+    form.clearErrors(['street', 'city', 'state', 'zip']);
     toast.info('Address cleared');
   };
 
@@ -206,17 +234,7 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
 
   // Helper to set up form control property for browser extensions
   const setupFormControlOnRef = useCallback((formElement: HTMLFormElement | null) => {
-    if (!formElement) return;
-    
-    // Add a dummy control property to prevent browser extension errors
-    if (!('control' in formElement)) {
-      Object.defineProperty(formElement, 'control', {
-        value: {},
-        writable: false,
-        enumerable: false,
-        configurable: true,
-      });
-    }
+    setupFormControlProperty(formElement);
   }, []);
 
   return (

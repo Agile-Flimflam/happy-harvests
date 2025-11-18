@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useFormContext, type ControllerRenderProps } from 'react-hook-form';
 import { Loader2, AlertCircle } from 'lucide-react';
@@ -43,10 +43,32 @@ interface AddressAutofillRetrieveResponse {
   [key: string]: unknown;
 }
 
+/**
+ * Validates the Mapbox access token from environment variables.
+ * Returns a valid token string or null if the token is missing, empty, or invalid.
+ * 
+ * @returns The validated token string, or null if invalid
+ */
+function getValidatedMapboxToken(): string | null {
+  const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+  
+  // Explicitly check for undefined, null, or empty/whitespace-only strings
+  if (!token || typeof token !== 'string' || token.trim().length === 0) {
+    return null;
+  }
+  
+  return token;
+}
+
 // Module-level state to manage global styles and event listeners
-// This ensures styles are only injected once and removed when the last instance unmounts
+// Uses a Set to track active instances, making it safe for React StrictMode and concurrent rendering
 const STYLE_ID = 'mapbox-autofill-styles';
-let instanceCount = 0;
+
+// Track active component instances using a Set of unique instance IDs
+// This is more robust than a simple counter for React StrictMode and concurrent rendering
+const activeInstances = new Set<symbol>();
+
+// Track if global resources are injected
 let stylesInjected = false;
 let mapboxClickHandler: ((e: MouseEvent) => void) | null = null;
 
@@ -66,18 +88,48 @@ export function AddressAutocomplete({
   const [error, setError] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Use a ref to store a unique instance ID for this component instance
+  // This persists across re-renders and is safe for React StrictMode double-mounting
+  const instanceIdRef = useRef<symbol | null>(null);
+  
+  // Generate a unique instance ID on first render
+  if (instanceIdRef.current === null) {
+    instanceIdRef.current = Symbol('AddressAutocomplete-instance');
+  }
 
   // Helper to set up form control property for browser extensions
+  // Uses a getter/setter to allow both reading and writing without errors
   const setupFormControlProperty = useCallback((input: HTMLInputElement | null) => {
     if (!input) return;
     const form = input.form;
     if (!form) return;
     
     // Add a dummy control property to prevent browser extension errors
+    // Use getter/setter to allow both reading and writing without throwing errors
     if (!('control' in form)) {
+      // Create a storage object that can be written to
+      // This object persists and can be modified by browser extensions
+      const controlStorage: Record<string, unknown> = {};
+      
       Object.defineProperty(form, 'control', {
-        value: {},
-        writable: false,
+        get() {
+          // Return the storage object, allowing extensions to read properties
+          return controlStorage;
+        },
+        set(value: unknown) {
+          // Silently accept writes - merge if it's an object, otherwise clear and store as 'value'
+          if (value && typeof value === 'object' && !Array.isArray(value) && value !== null) {
+            // Merge object properties into storage
+            Object.assign(controlStorage, value);
+          } else {
+            // For primitives or null/undefined, clear storage and store as 'value' property
+            Object.keys(controlStorage).forEach(key => delete controlStorage[key]);
+            if (value !== null && value !== undefined) {
+              controlStorage.value = value;
+            }
+          }
+        },
         enumerable: false,
         configurable: true,
       });
@@ -105,20 +157,15 @@ export function AddressAutocomplete({
       setupFormControlProperty(inputRef.current);
     }, 10);
 
-    // Cleanup
+    // Cleanup: only clear the timeout
+    // Note: We do NOT delete the control property because:
+    // 1. Multiple component instances may share the same form
+    // 2. The property is harmless and doesn't cause memory leaks
+    // 3. Browser extensions may still need it after component unmounts
+    // 4. The property is defined with configurable: true, but deletion can fail
+    //    in edge cases, and silently failing cleanup is worse than leaving it
     return () => {
       clearTimeout(timeoutId);
-      const input = inputRef.current;
-      if (input) {
-        const form = input.form;
-        if (form && 'control' in form) {
-          try {
-            delete (form as { control?: unknown }).control;
-          } catch {
-            // Ignore errors during cleanup
-          }
-        }
-      }
     };
   }, [isMounted, setupFormControlProperty]);
   
@@ -126,17 +173,24 @@ export function AddressAutocomplete({
   // Fallback to empty string if watch is not available or component not mounted
   const addressValue = field?.value ?? (isMounted && watch ? watch('street') : '') ?? '';
 
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+  // Validate and normalize Mapbox access token once on mount
+  // Returns null if token is undefined, null, empty string, or whitespace-only
+  const mapboxToken = useMemo(() => getValidatedMapboxToken(), []);
 
-  // Sync form value to input when it changes externally (but not when user is typing)
-  useEffect(() => {
-    if (typeof window !== 'undefined' && inputRef.current && inputRef.current.value !== addressValue) {
-      // Only update if input doesn't have focus (to avoid interrupting user typing)
-      if (document.activeElement !== inputRef.current) {
-        inputRef.current.value = addressValue;
+  // Handle input changes to keep form in sync
+  // This is needed because Mapbox's AddressAutofill manages the input internally
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newValue = e.target.value;
+      // Update form value when user types
+      if (field?.onChange) {
+        field.onChange(newValue);
+      } else if (setValue && isMounted) {
+        setValue('street', newValue, { shouldValidate: false, shouldDirty: true });
       }
-    }
-  }, [addressValue]);
+    },
+    [field, setValue, isMounted]
+  );
 
   const handleRetrieve = useCallback(
     (res: AddressAutofillRetrieveResponse) => {
@@ -145,6 +199,13 @@ export function AddressAutocomplete({
 
       if (!res?.features || res.features.length === 0) {
         setError('No address found. Please try a different search.');
+        return;
+      }
+
+      // Check if component is mounted before proceeding
+      // setValue is guaranteed to exist from useFormContext (throws if not in FormProvider)
+      if (!isMounted) {
+        console.warn('AddressAutocomplete: Component not mounted, skipping form update');
         return;
       }
 
@@ -164,11 +225,7 @@ export function AddressAutocomplete({
 
       // Populate form fields - Mapbox already updated the input value
       // Use setValue directly to avoid interfering with Mapbox's event handling
-      // Check if setValue is available and component is mounted before calling it
-      if (!setValue || !isMounted) {
-        console.warn('AddressAutocomplete: setValue not available or component not mounted');
-        return;
-      }
+      // setValue is guaranteed to exist from useFormContext
 
       if (street) {
         setValue('street', street, { shouldValidate: true, shouldDirty: true });
@@ -224,15 +281,19 @@ export function AddressAutocomplete({
   }, []);
 
   // Add global styles and click handler to ensure Mapbox dropdown works correctly
-  // Uses a reference counter to ensure styles are only injected once and removed when the last instance unmounts
+  // Uses a Set to track active instances, making it safe for React StrictMode and concurrent rendering
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Increment instance counter
-    instanceCount++;
+    const instanceId = instanceIdRef.current;
+    if (!instanceId) return;
 
-    // Inject styles only if not already injected
-    if (!stylesInjected) {
+    // Add this instance to the active instances Set
+    const wasFirstInstance = activeInstances.size === 0;
+    activeInstances.add(instanceId);
+
+    // Inject styles only if this is the first instance
+    if (wasFirstInstance && !stylesInjected) {
       const style = document.createElement('style');
       style.id = STYLE_ID;
       style.textContent = `
@@ -292,18 +353,30 @@ export function AddressAutocomplete({
       document.addEventListener('mousedown', mapboxClickHandler, true);
     }
 
-    // Cleanup: decrement counter and remove styles/listeners only when last instance unmounts
+    // Cleanup: remove this instance from the Set and remove styles/listeners only when last instance unmounts
     return () => {
-      instanceCount--;
+      activeInstances.delete(instanceId);
       
       // Only remove styles and listeners when the last instance unmounts
-      if (instanceCount === 0) {
-        const styleEl = document.getElementById(STYLE_ID);
-        if (styleEl) {
-          document.head.removeChild(styleEl);
+      // Add guards to prevent race conditions when multiple instances unmount simultaneously
+      if (activeInstances.size === 0) {
+        // Guard: only remove styles if they were actually injected
+        // This prevents redundant cleanup if multiple cleanup functions run concurrently
+        if (stylesInjected) {
+          const styleEl = document.getElementById(STYLE_ID);
+          if (styleEl) {
+            try {
+              document.head.removeChild(styleEl);
+            } catch {
+              // Element may have already been removed by another concurrent cleanup
+              // This is safe to ignore
+            }
+          }
+          stylesInjected = false;
         }
-        stylesInjected = false;
 
+        // Guard: only remove listeners if they were actually set up
+        // This prevents errors from trying to remove listeners that were already removed
         if (mapboxClickHandler) {
           document.removeEventListener('click', mapboxClickHandler, true);
           document.removeEventListener('mousedown', mapboxClickHandler, true);
@@ -348,7 +421,8 @@ export function AddressAutocomplete({
             }}
             type="text"
             name="street"
-            defaultValue={addressValue}
+            value={addressValue}
+            onChange={handleInputChange}
             placeholder={placeholder}
             disabled={disabled}
             data-mapbox-autofill="true"

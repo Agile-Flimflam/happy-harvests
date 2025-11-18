@@ -31,6 +31,11 @@ export const LocationSchema = z
       return value != null && value.trim() !== '';
     };
 
+    // Helper to check if a coordinate is valid (not null, not undefined, and is a valid number)
+    const isValidCoordinate = (coord: number | null | undefined): boolean => {
+      return coord != null && typeof coord === 'number' && !Number.isNaN(coord);
+    };
+
     // Check if we have a complete address (indicating Mapbox selection)
     const hasCompleteAddress =
       hasValue(data.street) &&
@@ -40,42 +45,26 @@ export const LocationSchema = z
 
     // If complete address is provided (Mapbox selection), coordinates should be set
     if (hasCompleteAddress) {
-      // Check if coordinates are missing first
-      if (data.latitude == null || data.longitude == null) {
+      // Check if coordinates are missing (null or undefined)
+      const hasLatitude = isValidCoordinate(data.latitude);
+      const hasLongitude = isValidCoordinate(data.longitude);
+
+      if (!hasLatitude || !hasLongitude) {
+        // Add error to latitude field only to avoid duplicate messages in UI
+        // The message mentions "coordinates" (plural) so it's clear it applies to both fields
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'Coordinates are missing for the selected address. Please try selecting the address again or set coordinates manually on the map.',
-          path: ['latitude'], // Attach to latitude field
-        });
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Coordinates are missing for the selected address. Please try selecting the address again or set coordinates manually on the map.',
-          path: ['longitude'], // Also attach to longitude field
+          path: ['latitude'],
         });
         // Return early to avoid duplicate validation errors
         return;
       }
-      
-      // Only validate number format if coordinates exist
-      if (typeof data.latitude !== 'number' || Number.isNaN(data.latitude)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Latitude must be a valid number',
-          path: ['latitude'],
-        });
-      }
-      if (typeof data.longitude !== 'number' || Number.isNaN(data.longitude)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Longitude must be a valid number',
-          path: ['longitude'],
-        });
-      }
     }
 
     // Validate coordinate pairs: if one is set, the other should be set too
-    const hasLatitude = data.latitude != null && typeof data.latitude === 'number' && !Number.isNaN(data.latitude);
-    const hasLongitude = data.longitude != null && typeof data.longitude === 'number' && !Number.isNaN(data.longitude);
+    const hasLatitude = isValidCoordinate(data.latitude);
+    const hasLongitude = isValidCoordinate(data.longitude);
 
     if (hasLatitude && !hasLongitude) {
       ctx.addIssue({

@@ -25,6 +25,23 @@ const DEFAULT_LATITUDE = 39.8283;
 const DEFAULT_LONGITUDE = -98.5795;
 const DEFAULT_ZOOM = 3;
 
+/**
+ * Validates and normalizes the Mapbox access token from environment variables.
+ * Returns a valid token string or null if the token is missing, empty, or invalid.
+ * 
+ * @returns The validated token string, or null if invalid
+ */
+function getValidatedMapboxToken(): string | null {
+  const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+  
+  // Explicitly check for undefined, null, or empty/whitespace-only strings
+  if (!token || typeof token !== 'string' || token.trim().length === 0) {
+    return null;
+  }
+  
+  return token;
+}
+
 export function MapPicker({
   className,
   height = 'h-[300px] sm:h-[400px] md:h-[500px]',
@@ -53,7 +70,9 @@ export function MapPicker({
   // Track last coordinates we've attempted to reverse geocode to prevent duplicate calls
   const lastReverseGeocodedRef = useRef<{ lat: number; lng: number } | null>(null);
 
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+  // Validate and normalize Mapbox access token once on mount
+  // Returns null if token is undefined, null, empty string, or whitespace-only
+  const mapboxToken = useMemo(() => getValidatedMapboxToken(), []);
 
   // Build address string from form values
   const addressString = useMemo(() => {
@@ -172,6 +191,15 @@ export function MapPicker({
     [disabled, setValue, reverseGeocode]
   );
 
+  // Reset the reverse geocode tracking ref when coordinates are cleared
+  // This ensures that if coordinates are set again (even to the same values),
+  // reverse geocoding will trigger again
+  useEffect(() => {
+    if (latitude == null || longitude == null) {
+      lastReverseGeocodedRef.current = null;
+    }
+  }, [latitude, longitude]);
+
   // Show popup when coordinates exist and we have address info
   useEffect(() => {
     if (latitude == null || longitude == null) {
@@ -198,6 +226,9 @@ export function MapPicker({
     if (!isReverseGeocoding && coordsChanged) {
       reverseGeocode(latitude, longitude);
     }
+    // Note: reverseGeocode is included in dependencies to satisfy exhaustive-deps.
+    // It's stable because mapboxToken (its only dependency) is stable (computed once on mount).
+    // This won't cause unnecessary re-renders since mapboxToken doesn't change after initial mount.
   }, [latitude, longitude, addressString, isReverseGeocoding, reverseGeocode]);
 
   if (!mapboxToken) {
