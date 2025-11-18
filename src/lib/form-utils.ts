@@ -31,7 +31,7 @@ export function setupFormControlProperty(formElement: HTMLFormElement | null): v
       },
       set(value: unknown) {
         // Silently accept writes - merge if it's an object, otherwise clear and store as 'value'
-        if (value && typeof value === 'object' && !Array.isArray(value) && value !== null) {
+        if (value !== null && value !== undefined && typeof value === 'object' && !Array.isArray(value)) {
           // Merge object properties into storage
           Object.assign(controlStorage, value);
         } else {

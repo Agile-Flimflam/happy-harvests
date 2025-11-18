@@ -233,9 +233,11 @@ export function MapPicker({
     if (!isReverseGeocoding && coordsChanged && reverseGeocodeRef.current) {
       reverseGeocodeRef.current(latitude, longitude);
     }
-    // Note: reverseGeocode is not included in dependencies. Instead, we use a ref (reverseGeocodeRef)
-    // to store the latest function, which prevents unnecessary re-renders when the function reference changes.
-    // The ref is updated in a separate effect whenever reverseGeocode changes.
+    // Note: reverseGeocode is intentionally excluded from dependencies to break circular dependencies.
+    // Including it would create a loop: coordinates change → effect runs → reverseGeocode called →
+    // state updates (isReverseGeocoding, popupInfo, etc.) → effect runs again → infinite loop.
+    // Using a ref (reverseGeocodeRef) stores the latest function without triggering re-renders,
+    // and the ref is updated in a separate effect (line 165-167) whenever reverseGeocode changes.
   }, [latitude, longitude, addressString, isReverseGeocoding]);
 
   if (!mapboxToken) {

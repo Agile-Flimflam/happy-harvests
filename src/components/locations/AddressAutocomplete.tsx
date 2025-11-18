@@ -241,9 +241,15 @@ export function AddressAutocomplete({
   }
 
   // Helper to set up form control property for browser extensions
+  // Returns true if setup was successful, false otherwise
   // Uses the shared utility function
-  const setupFormControlProperty = useCallback((input: HTMLInputElement | null) => {
+  const setupFormControlProperty = useCallback((input: HTMLInputElement | null): boolean => {
+    if (!input) return false;
+    const form = input.form;
+    if (!form) return false;
+    
     setupFormControlPropertyFromInput(input);
+    return true;
   }, []);
   
   // Ensure component is mounted before accessing form methods
@@ -255,19 +261,35 @@ export function AddressAutocomplete({
   // Workaround for browser extensions that try to access form.control
   // Some extensions (password managers, autofill tools) expect a 'control' property
   // on the native form element. We add a dummy property to prevent errors.
-  // Using useLayoutEffect as a backup to ensure it's set up synchronously before browser paints
+  // The setup is primarily handled in the ref callback (earliest opportunity).
+  // This useLayoutEffect provides a fallback retry in case the ref callback didn't work
+  // or the form association happened asynchronously.
   useLayoutEffect(() => {
     if (typeof window === 'undefined' || !isMounted) return;
 
-    // Try to set up immediately
-    setupFormControlProperty(inputRef.current);
+    // Check if setup already succeeded (via ref callback or previous attempt)
+    // by checking if the form already has the control property
+    const input = inputRef.current;
+    const form = input?.form;
+    const alreadySetup = form && 'control' in form;
 
-    // Also try after a short delay in case form association happens asynchronously
-    const timeoutId = setTimeout(() => {
-      setupFormControlProperty(inputRef.current);
-    }, 10);
+    // Only attempt setup if it hasn't been set up yet
+    // This avoids redundant calls when the ref callback already succeeded
+    let timeoutId: NodeJS.Timeout | null = null;
+    if (!alreadySetup) {
+      // Try to set up immediately
+      const setupSuccess = setupFormControlProperty(input);
 
-    // Cleanup: only clear the timeout
+      // Schedule a single retry as a fallback if initial setup failed
+      // This handles edge cases where form association happens asynchronously
+      if (!setupSuccess) {
+        timeoutId = setTimeout(() => {
+          setupFormControlProperty(inputRef.current);
+        }, 10);
+      }
+    }
+
+    // Cleanup: only clear the timeout if it was set
     // Note: We do NOT delete the control property because:
     // 1. Multiple component instances may share the same form
     // 2. The property is harmless and doesn't cause memory leaks
@@ -275,7 +297,9 @@ export function AddressAutocomplete({
     // 4. The property is defined with configurable: true, but deletion can fail
     //    in edge cases, and silently failing cleanup is worse than leaving it
     return () => {
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [isMounted, setupFormControlProperty]);
   

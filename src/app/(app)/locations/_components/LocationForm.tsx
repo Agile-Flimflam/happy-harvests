@@ -109,11 +109,10 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
     // Try multiple times to ensure form is set up before extensions run
     const setupFormControl = () => {
       const formElement = formRef.current;
-      if (!formElement) return false;
+      if (!formElement) return;
 
       // Set up the control property using the helper function
       setupFormControlProperty(formElement);
-      return true;
     };
 
     // Try immediately
