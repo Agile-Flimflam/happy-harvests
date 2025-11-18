@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useFormContext, type ControllerRenderProps } from 'react-hook-form';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LocationFormValues } from '@/lib/validation/locations';
+import { getValidatedMapboxToken } from '@/lib/mapbox-utils';
+import { setupFormControlPropertyFromInput } from '@/lib/form-utils';
 
 // Dynamically import AddressAutofill to avoid SSR issues
 const AddressAutofill = dynamic(
@@ -43,34 +45,174 @@ interface AddressAutofillRetrieveResponse {
   [key: string]: unknown;
 }
 
-/**
- * Validates the Mapbox access token from environment variables.
- * Returns a valid token string or null if the token is missing, empty, or invalid.
- * 
- * @returns The validated token string, or null if invalid
- */
-function getValidatedMapboxToken(): string | null {
-  const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
-  
-  // Explicitly check for undefined, null, or empty/whitespace-only strings
-  if (!token || typeof token !== 'string' || token.trim().length === 0) {
-    return null;
-  }
-  
-  return token;
-}
-
-// Module-level state to manage global styles and event listeners
-// Uses a Set to track active instances, making it safe for React StrictMode and concurrent rendering
+// Constants
 const STYLE_ID = 'mapbox-autofill-styles';
 
-// Track active component instances using a Set of unique instance IDs
-// This is more robust than a simple counter for React StrictMode and concurrent rendering
-const activeInstances = new Set<symbol>();
+// Delay in milliseconds before removing the selection-complete data attribute
+// This allows Mapbox to finish processing the selection before cleanup
+const MAPBOX_SELECTION_CLEANUP_DELAY = 100;
 
-// Track if global resources are injected
-let stylesInjected = false;
-let mapboxClickHandler: ((e: MouseEvent) => void) | null = null;
+// Z-index for Mapbox autocomplete dropdown
+// Must be above dialogs (z-50 = 50) but not excessively high to avoid conflicts
+// Using 100 provides sufficient layering without being excessive
+const MAPBOX_DROPDOWN_Z_INDEX = 100;
+
+// Valid coordinate ranges (WGS84 standard)
+const MIN_LATITUDE = -90;
+const MAX_LATITUDE = 90;
+const MIN_LONGITUDE = -180;
+const MAX_LONGITUDE = 180;
+
+/**
+ * Singleton manager for global Mapbox autocomplete resources.
+ * 
+ * This manager coordinates shared resources across all AddressAutocomplete component instances:
+ * - Global CSS styles injected into the document head
+ * - Document-level event listeners for Mapbox click handling
+ * - Reference counting to ensure resources are only cleaned up when the last instance unmounts
+ * 
+ * The singleton pattern ensures:
+ * 1. Resources are shared across all instances (no duplication)
+ * 2. Resources are only injected once (first instance)
+ * 3. Resources are only removed when the last instance unmounts
+ * 4. Thread-safe operations for React StrictMode and concurrent rendering
+ */
+class MapboxAutocompleteResourceManager {
+  // Track active component instances using a Set of unique instance IDs
+  // This is more robust than a simple counter for React StrictMode and concurrent rendering
+  private readonly activeInstances = new Set<symbol>();
+  
+  // Track if global resources are injected
+  private stylesInjected = false;
+  private mapboxClickHandler: ((e: MouseEvent) => void) | null = null;
+
+  /**
+   * Register a component instance and inject global resources if this is the first instance.
+   * @param instanceId Unique identifier for this component instance
+   */
+  registerInstance(instanceId: symbol): void {
+    const wasFirstInstance = this.activeInstances.size === 0;
+    this.activeInstances.add(instanceId);
+
+    if (wasFirstInstance) {
+      this.injectStyles();
+      this.setupEventListeners();
+    }
+  }
+
+  /**
+   * Unregister a component instance and clean up global resources if this was the last instance.
+   * @param instanceId Unique identifier for this component instance
+   */
+  unregisterInstance(instanceId: symbol): void {
+    this.activeInstances.delete(instanceId);
+
+    if (this.activeInstances.size === 0) {
+      this.cleanupResources();
+    }
+  }
+
+  /**
+   * Inject global CSS styles into the document head.
+   * Safe to call multiple times - will only inject once.
+   */
+  private injectStyles(): void {
+    if (this.stylesInjected) return;
+
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = `
+      /* Ensure Mapbox dropdown is above dialog (z-50 = 50) and clickable */
+      [class*="mapbox-autofill"],
+      [id*="mapbox-autofill"],
+      [data-mapbox-autofill],
+      [role="listbox"],
+      [role="option"] {
+        z-index: ${MAPBOX_DROPDOWN_Z_INDEX} !important;
+        pointer-events: auto !important;
+      }
+      
+      /* Ensure all Mapbox suggestion elements are clickable */
+      [class*="mapbox-autofill"] *,
+      [id*="mapbox-autofill"] *,
+      [data-mapbox-autofill] *,
+      [role="listbox"] *,
+      [role="option"] * {
+        pointer-events: auto !important;
+        cursor: pointer !important;
+      }
+    `;
+    
+    document.head.appendChild(style);
+    this.stylesInjected = true;
+  }
+
+  /**
+   * Set up document-level event listeners for Mapbox click handling.
+   * Safe to call multiple times - will only set up once.
+   */
+  private setupEventListeners(): void {
+    if (this.mapboxClickHandler) return;
+
+    this.mapboxClickHandler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target) return;
+
+      // Check if this is a Mapbox element
+      const isMapboxElement = 
+        target.closest('[class*="mapbox"]') !== null ||
+        target.closest('[class*="mbx"]') !== null ||
+        target.closest('[id*="mapbox"]') !== null ||
+        target.closest('[data-mapbox-autofill]') !== null ||
+        (target.getAttribute('role') === 'option' && 
+         document.querySelector('[class*="mapbox-autofill"]') !== null) ||
+        (target.getAttribute('role') === 'listbox' && 
+         document.querySelector('[class*="mapbox-autofill"]') !== null);
+
+      if (isMapboxElement) {
+        // Mark the event so the dialog knows not to close
+        // We don't stop propagation to allow Mapbox to handle the click
+        (e as MouseEvent & { __isMapboxClick?: boolean }).__isMapboxClick = true;
+      }
+    };
+
+    // Use capture phase to catch the event early, but don't stop propagation
+    document.addEventListener('click', this.mapboxClickHandler, true);
+    document.addEventListener('mousedown', this.mapboxClickHandler, true);
+  }
+
+  /**
+   * Clean up global resources (styles and event listeners).
+   * Includes guards to prevent race conditions when multiple instances unmount simultaneously.
+   */
+  private cleanupResources(): void {
+    // Guard: only remove styles if they were actually injected
+    // This prevents redundant cleanup if multiple cleanup functions run concurrently
+    if (this.stylesInjected) {
+      const styleEl = document.getElementById(STYLE_ID);
+      if (styleEl) {
+        try {
+          document.head.removeChild(styleEl);
+        } catch {
+          // Element may have already been removed by another concurrent cleanup
+          // This is safe to ignore
+        }
+      }
+      this.stylesInjected = false;
+    }
+
+    // Guard: only remove listeners if they were actually set up
+    // This prevents errors from trying to remove listeners that were already removed
+    if (this.mapboxClickHandler) {
+      document.removeEventListener('click', this.mapboxClickHandler, true);
+      document.removeEventListener('mousedown', this.mapboxClickHandler, true);
+      this.mapboxClickHandler = null;
+    }
+  }
+}
+
+// Singleton instance - shared across all AddressAutocomplete component instances
+const mapboxResourceManager = new MapboxAutocompleteResourceManager();
 
 export function AddressAutocomplete({
   className,
@@ -99,41 +241,9 @@ export function AddressAutocomplete({
   }
 
   // Helper to set up form control property for browser extensions
-  // Uses a getter/setter to allow both reading and writing without errors
+  // Uses the shared utility function
   const setupFormControlProperty = useCallback((input: HTMLInputElement | null) => {
-    if (!input) return;
-    const form = input.form;
-    if (!form) return;
-    
-    // Add a dummy control property to prevent browser extension errors
-    // Use getter/setter to allow both reading and writing without throwing errors
-    if (!('control' in form)) {
-      // Create a storage object that can be written to
-      // This object persists and can be modified by browser extensions
-      const controlStorage: Record<string, unknown> = {};
-      
-      Object.defineProperty(form, 'control', {
-        get() {
-          // Return the storage object, allowing extensions to read properties
-          return controlStorage;
-        },
-        set(value: unknown) {
-          // Silently accept writes - merge if it's an object, otherwise clear and store as 'value'
-          if (value && typeof value === 'object' && !Array.isArray(value) && value !== null) {
-            // Merge object properties into storage
-            Object.assign(controlStorage, value);
-          } else {
-            // For primitives or null/undefined, clear storage and store as 'value' property
-            Object.keys(controlStorage).forEach(key => delete controlStorage[key]);
-            if (value !== null && value !== undefined) {
-              controlStorage.value = value;
-            }
-          }
-        },
-        enumerable: false,
-        configurable: true,
-      });
-    }
+    setupFormControlPropertyFromInput(input);
   }, []);
   
   // Ensure component is mounted before accessing form methods
@@ -173,9 +283,19 @@ export function AddressAutocomplete({
   // Fallback to empty string if watch is not available or component not mounted
   const addressValue = field?.value ?? (isMounted && watch ? watch('street') : '') ?? '';
 
-  // Validate and normalize Mapbox access token once on mount
+  // SECURITY CONSIDERATION: Mapbox access token is exposed in client-side code
+  // The token is necessary for Mapbox to work in the browser, but must be properly secured:
+  // 1. Configure URL restrictions in Mapbox dashboard to limit token usage to your domain(s)
+  // 2. Set minimal permissions - only enable geocoding and mapping APIs (not uploads, etc.)
+  // 3. Enable usage monitoring in Mapbox dashboard to detect abuse or unexpected usage patterns
+  // 4. Regularly rotate tokens and review access logs
+  // 5. Never use a token with admin or write permissions in client-side code
+  // See README.md for additional security documentation
+
+  // Validate and normalize Mapbox access token
   // Returns null if token is undefined, null, empty string, or whitespace-only
-  const mapboxToken = useMemo(() => getValidatedMapboxToken(), []);
+  // No need for useMemo since getValidatedMapboxToken() reads from process.env (constant at build time)
+  const mapboxToken = getValidatedMapboxToken();
 
   // Handle input changes to keep form in sync
   // This is needed because Mapbox's AddressAutofill manages the input internally
@@ -219,9 +339,30 @@ export function AddressAutocomplete({
       const zip = properties.postcode || '';
       
       // Handle Position type (GeoJSON Position is number[] with at least 2 elements)
+      // Validate that coordinates is an array with at least 2 numeric elements
       const coordinates = geometry.coordinates;
-      const longitude = Array.isArray(coordinates) && coordinates.length >= 2 ? coordinates[0] : null;
-      const latitude = Array.isArray(coordinates) && coordinates.length >= 2 ? coordinates[1] : null;
+      let longitude: number | null = null;
+      let latitude: number | null = null;
+      
+      if (Array.isArray(coordinates) && coordinates.length >= 2) {
+        const lon = coordinates[0];
+        const lat = coordinates[1];
+        
+        // Validate that both values are numbers, not NaN, and within valid ranges
+        if (
+          typeof lon === 'number' &&
+          !Number.isNaN(lon) &&
+          lon >= MIN_LONGITUDE &&
+          lon <= MAX_LONGITUDE &&
+          typeof lat === 'number' &&
+          !Number.isNaN(lat) &&
+          lat >= MIN_LATITUDE &&
+          lat <= MAX_LATITUDE
+        ) {
+          longitude = lon;
+          latitude = lat;
+        }
+      }
 
       // Populate form fields - Mapbox already updated the input value
       // Use setValue directly to avoid interfering with Mapbox's event handling
@@ -239,10 +380,22 @@ export function AddressAutocomplete({
       if (zip) {
         setValue('zip', zip, { shouldValidate: true, shouldDirty: true });
       }
-      if (typeof latitude === 'number' && !Number.isNaN(latitude)) {
+      // Validate latitude is within valid range before setting
+      if (
+        typeof latitude === 'number' &&
+        !Number.isNaN(latitude) &&
+        latitude >= MIN_LATITUDE &&
+        latitude <= MAX_LATITUDE
+      ) {
         setValue('latitude', latitude, { shouldValidate: true, shouldDirty: true });
       }
-      if (typeof longitude === 'number' && !Number.isNaN(longitude)) {
+      // Validate longitude is within valid range before setting
+      if (
+        typeof longitude === 'number' &&
+        !Number.isNaN(longitude) &&
+        longitude >= MIN_LONGITUDE &&
+        longitude <= MAX_LONGITUDE
+      ) {
         setValue('longitude', longitude, { shouldValidate: true, shouldDirty: true });
       }
       
@@ -262,7 +415,7 @@ export function AddressAutocomplete({
           // Remove the data attribute after a short delay
           setTimeout(() => {
             inputRef.current?.removeAttribute('data-mapbox-selection-complete');
-          }, 100);
+          }, MAPBOX_SELECTION_CLEANUP_DELAY);
         });
       }
     },
@@ -280,109 +433,20 @@ export function AddressAutocomplete({
     setError(errorMessage);
   }, []);
 
-  // Add global styles and click handler to ensure Mapbox dropdown works correctly
-  // Uses a Set to track active instances, making it safe for React StrictMode and concurrent rendering
+  // Register/unregister with the singleton resource manager
+  // This ensures global resources (styles, event listeners) are shared across all instances
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const instanceId = instanceIdRef.current;
     if (!instanceId) return;
 
-    // Add this instance to the active instances Set
-    const wasFirstInstance = activeInstances.size === 0;
-    activeInstances.add(instanceId);
+    // Register this instance - will inject global resources if this is the first instance
+    mapboxResourceManager.registerInstance(instanceId);
 
-    // Inject styles only if this is the first instance
-    if (wasFirstInstance && !stylesInjected) {
-      const style = document.createElement('style');
-      style.id = STYLE_ID;
-      style.textContent = `
-        /* Ensure Mapbox dropdown is above dialog (z-50) and clickable */
-        [class*="mapbox-autofill"],
-        [id*="mapbox-autofill"],
-        [data-mapbox-autofill],
-        [role="listbox"],
-        [role="option"] {
-          z-index: 9999 !important;
-          pointer-events: auto !important;
-        }
-        
-        /* Ensure all Mapbox suggestion elements are clickable */
-        [class*="mapbox-autofill"] *,
-        [id*="mapbox-autofill"] *,
-        [data-mapbox-autofill] *,
-        [role="listbox"] *,
-        [role="option"] * {
-          pointer-events: auto !important;
-          cursor: pointer !important;
-        }
-      `;
-      
-      document.head.appendChild(style);
-      stylesInjected = true;
-    }
-
-    // Set up event listeners only if not already set up
-    if (!mapboxClickHandler) {
-      // Add a click handler to mark Mapbox clicks so the dialog doesn't close
-      // We use a data attribute to mark the event, which the dialog can check
-      mapboxClickHandler = (e: MouseEvent) => {
-        const target = e.target as HTMLElement;
-        if (!target) return;
-
-        // Check if this is a Mapbox element
-        const isMapboxElement = 
-          target.closest('[class*="mapbox"]') !== null ||
-          target.closest('[class*="mbx"]') !== null ||
-          target.closest('[id*="mapbox"]') !== null ||
-          target.closest('[data-mapbox-autofill]') !== null ||
-          (target.getAttribute('role') === 'option' && 
-           document.querySelector('[class*="mapbox-autofill"]') !== null) ||
-          (target.getAttribute('role') === 'listbox' && 
-           document.querySelector('[class*="mapbox-autofill"]') !== null);
-
-        if (isMapboxElement) {
-          // Mark the event so the dialog knows not to close
-          // We don't stop propagation to allow Mapbox to handle the click
-          (e as MouseEvent & { __isMapboxClick?: boolean }).__isMapboxClick = true;
-        }
-      };
-
-      // Use capture phase to catch the event early, but don't stop propagation
-      document.addEventListener('click', mapboxClickHandler, true);
-      document.addEventListener('mousedown', mapboxClickHandler, true);
-    }
-
-    // Cleanup: remove this instance from the Set and remove styles/listeners only when last instance unmounts
+    // Cleanup: unregister this instance - will clean up global resources if this was the last instance
     return () => {
-      activeInstances.delete(instanceId);
-      
-      // Only remove styles and listeners when the last instance unmounts
-      // Add guards to prevent race conditions when multiple instances unmount simultaneously
-      if (activeInstances.size === 0) {
-        // Guard: only remove styles if they were actually injected
-        // This prevents redundant cleanup if multiple cleanup functions run concurrently
-        if (stylesInjected) {
-          const styleEl = document.getElementById(STYLE_ID);
-          if (styleEl) {
-            try {
-              document.head.removeChild(styleEl);
-            } catch {
-              // Element may have already been removed by another concurrent cleanup
-              // This is safe to ignore
-            }
-          }
-          stylesInjected = false;
-        }
-
-        // Guard: only remove listeners if they were actually set up
-        // This prevents errors from trying to remove listeners that were already removed
-        if (mapboxClickHandler) {
-          document.removeEventListener('click', mapboxClickHandler, true);
-          document.removeEventListener('mousedown', mapboxClickHandler, true);
-          mapboxClickHandler = null;
-        }
-      }
+      mapboxResourceManager.unregisterInstance(instanceId);
     };
   }, []);
 
@@ -398,8 +462,8 @@ export function AddressAutocomplete({
   }
 
   return (
-    <div className="w-full space-y-2" style={{ position: 'relative', zIndex: 1, overflow: 'visible' }}>
-      <div className="relative" style={{ isolation: 'isolate', pointerEvents: 'auto', overflow: 'visible' }}>
+    <div className="relative z-[1] overflow-visible w-full space-y-2">
+      <div className="isolate pointer-events-auto overflow-visible relative">
         <AddressAutofill
           accessToken={mapboxToken}
           onRetrieve={handleRetrieve as (res: unknown) => void}

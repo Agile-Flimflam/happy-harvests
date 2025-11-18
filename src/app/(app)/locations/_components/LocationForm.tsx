@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/form';
 import { AddressAutocomplete } from '@/components/locations/AddressAutocomplete';
 import { MapPicker } from '@/components/locations/MapPicker';
+import { setupFormControlProperty } from '@/lib/form-utils';
 
 type Location = Tables<'locations'>;
 
@@ -38,41 +39,12 @@ interface LocationFormProps {
 const usStates = new UsaStates();
 const states = usStates.states;
 
-// Helper function to set up form control property for browser extensions
-// Uses a getter/setter to allow both reading and writing without errors
-function setupFormControlProperty(formElement: HTMLFormElement | null): void {
-  if (!formElement) return;
-  
-  // Add a dummy control property to prevent browser extension errors
-  // Use getter/setter to allow both reading and writing without throwing errors
-  if (!('control' in formElement)) {
-    // Create a storage object that can be written to
-    // This object persists and can be modified by browser extensions
-    const controlStorage: Record<string, unknown> = {};
-    
-    Object.defineProperty(formElement, 'control', {
-      get() {
-        // Return the storage object, allowing extensions to read properties
-        return controlStorage;
-      },
-      set(value: unknown) {
-        // Silently accept writes - merge if it's an object, otherwise clear and store as 'value'
-        if (value && typeof value === 'object' && !Array.isArray(value) && value !== null) {
-          // Merge object properties into storage
-          Object.assign(controlStorage, value);
-        } else {
-          // For primitives or null/undefined, clear storage and store as 'value' property
-          Object.keys(controlStorage).forEach(key => delete controlStorage[key]);
-          if (value !== null && value !== undefined) {
-            controlStorage.value = value;
-          }
-        }
-      },
-      enumerable: false,
-      configurable: true,
-    });
-  }
-}
+// Timeout delays (in milliseconds) for setting up form control property
+// These delays ensure the form control property is set up before browser extensions try to access it
+// 0ms: immediate attempt (redundant with direct call, but ensures consistency)
+// 10ms: catches async form setup after initial render
+// 50ms: final fallback for edge cases where form association happens asynchronously
+const FORM_CONTROL_SETUP_DELAYS = [0, 10, 50] as const;
 
 export function LocationForm({ location, closeDialog, formId }: LocationFormProps) {
   const isEditing = Boolean(location?.id);
@@ -149,7 +121,7 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
 
     // Also try after microtasks to catch any async form setup
     const timeoutIds: NodeJS.Timeout[] = [];
-    [0, 10, 50].forEach((delay) => {
+    FORM_CONTROL_SETUP_DELAYS.forEach((delay) => {
       const id = setTimeout(() => {
         setupFormControl();
       }, delay);

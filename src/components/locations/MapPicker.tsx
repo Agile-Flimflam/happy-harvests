@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { MapPin, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LocationFormValues } from '@/lib/validation/locations';
+import { getValidatedMapboxToken } from '@/lib/mapbox-utils';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 interface MapPickerProps {
@@ -25,22 +26,10 @@ const DEFAULT_LATITUDE = 39.8283;
 const DEFAULT_LONGITUDE = -98.5795;
 const DEFAULT_ZOOM = 3;
 
-/**
- * Validates and normalizes the Mapbox access token from environment variables.
- * Returns a valid token string or null if the token is missing, empty, or invalid.
- * 
- * @returns The validated token string, or null if invalid
- */
-function getValidatedMapboxToken(): string | null {
-  const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
-  
-  // Explicitly check for undefined, null, or empty/whitespace-only strings
-  if (!token || typeof token !== 'string' || token.trim().length === 0) {
-    return null;
-  }
-  
-  return token;
-}
+// Threshold for coordinate comparison (in degrees)
+// 0.0001 degrees ≈ 11 meters at the equator
+// Used to determine if coordinates have changed significantly enough to trigger updates
+const COORDINATE_CHANGE_THRESHOLD = 0.0001;
 
 export function MapPicker({
   className,
@@ -70,6 +59,19 @@ export function MapPicker({
   // Track last coordinates we've attempted to reverse geocode to prevent duplicate calls
   const lastReverseGeocodedRef = useRef<{ lat: number; lng: number } | null>(null);
 
+  // Store the latest reverseGeocode function in a ref to avoid including it in effect dependencies
+  // This prevents unnecessary re-renders when the function reference changes
+  const reverseGeocodeRef = useRef<((lat: number, lng: number) => Promise<void>) | null>(null);
+
+  // SECURITY CONSIDERATION: Mapbox access token is exposed in client-side code
+  // The token is necessary for Mapbox to work in the browser, but must be properly secured:
+  // 1. Configure URL restrictions in Mapbox dashboard to limit token usage to your domain(s)
+  // 2. Set minimal permissions - only enable geocoding and mapping APIs (not uploads, etc.)
+  // 3. Enable usage monitoring in Mapbox dashboard to detect abuse or unexpected usage patterns
+  // 4. Regularly rotate tokens and review access logs
+  // 5. Never use a token with admin or write permissions in client-side code
+  // See README.md for additional security documentation
+
   // Validate and normalize Mapbox access token once on mount
   // Returns null if token is undefined, null, empty string, or whitespace-only
   const mapboxToken = useMemo(() => getValidatedMapboxToken(), []);
@@ -88,8 +90,8 @@ export function MapPicker({
       
       // Only update if coordinates actually changed
       if (
-        Math.abs(viewState.latitude - newLat) > 0.0001 ||
-        Math.abs(viewState.longitude - newLng) > 0.0001
+        Math.abs(viewState.latitude - newLat) > COORDINATE_CHANGE_THRESHOLD ||
+        Math.abs(viewState.longitude - newLng) > COORDINATE_CHANGE_THRESHOLD
       ) {
         setViewState((prev) => ({
           ...prev,
@@ -159,6 +161,11 @@ export function MapPicker({
     [mapboxToken]
   );
 
+  // Keep the ref updated with the latest reverseGeocode function
+  useEffect(() => {
+    reverseGeocodeRef.current = reverseGeocode;
+  }, [reverseGeocode]);
+
   // Handle marker drag end
   const handleMarkerDragEnd = useCallback(
     (event: { lngLat: { lat: number; lng: number } }) => {
@@ -220,16 +227,16 @@ export function MapPicker({
     const lastCoords = lastReverseGeocodedRef.current;
     const coordsChanged =
       !lastCoords ||
-      Math.abs(lastCoords.lat - latitude) > 0.0001 ||
-      Math.abs(lastCoords.lng - longitude) > 0.0001;
+      Math.abs(lastCoords.lat - latitude) > COORDINATE_CHANGE_THRESHOLD ||
+      Math.abs(lastCoords.lng - longitude) > COORDINATE_CHANGE_THRESHOLD;
 
-    if (!isReverseGeocoding && coordsChanged) {
-      reverseGeocode(latitude, longitude);
+    if (!isReverseGeocoding && coordsChanged && reverseGeocodeRef.current) {
+      reverseGeocodeRef.current(latitude, longitude);
     }
-    // Note: reverseGeocode is included in dependencies to satisfy exhaustive-deps.
-    // It's stable because mapboxToken (its only dependency) is stable (computed once on mount).
-    // This won't cause unnecessary re-renders since mapboxToken doesn't change after initial mount.
-  }, [latitude, longitude, addressString, isReverseGeocoding, reverseGeocode]);
+    // Note: reverseGeocode is not included in dependencies. Instead, we use a ref (reverseGeocodeRef)
+    // to store the latest function, which prevents unnecessary re-renders when the function reference changes.
+    // The ref is updated in a separate effect whenever reverseGeocode changes.
+  }, [latitude, longitude, addressString, isReverseGeocoding]);
 
   if (!mapboxToken) {
     return (
