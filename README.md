@@ -8,6 +8,7 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
 - **Database & Auth:** [Supabase](https://supabase.com/)
 - **UI:** [shadcn/ui](https://ui.shadcn.com/) + [Tailwind CSS](https://tailwindcss.com/)
 - **Styling:** Tailwind CSS
+- **Maps & Geocoding:** [Mapbox](https://www.mapbox.com/) (address autocomplete and interactive maps)
 - **Notifications:** [Sonner](https://sonner.emilkowal.ski/)
 - **Forms:** React Hook Form (via shadcn/ui), Zod (for validation)
 - **Linting/Formatting:** ESLint, Prettier
@@ -52,7 +53,16 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
         - Authorized redirect URIs: `https://<YOUR_PROJECT_REF>.supabase.co/auth/v1/callback` (replace with your Supabase project ref). Add one per environment if using separate Supabase projects.
       - In this app, OAuth sign-in will redirect to: `${NEXT_PUBLIC_SITE_URL}/auth/callback?next=/` which then exchanges the code and returns you to the app.
 
-4.  **Set up Supabase CLI and link project:**
+4.  **Set up Mapbox:**
+    - Create a free account at [Mapbox](https://www.mapbox.com/) or sign in to your existing account.
+    - Navigate to your [Account page](https://account.mapbox.com/) and copy your **Default public token** (or create a new access token if needed).
+    - Add the Mapbox access token to your `.env.local` file:
+      ```
+      NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN="YOUR_MAPBOX_ACCESS_TOKEN"
+      ```
+    - **Note:** The `NEXT_PUBLIC_` prefix makes this variable available to client-side code, which is required for Mapbox to work in the browser.
+
+5.  **Set up Supabase CLI and link project:**
 
     - Install the Supabase CLI: Follow instructions at [docs.supabase.com/guides/cli](https://supabase.com/docs/guides/cli)
     - Log in to the CLI:
@@ -65,14 +75,14 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       ```
       (Enter your database password when prompted - you can find/reset this in Project Settings > Database)
 
-5.  **Apply Database Migrations:**
+6.  **Apply Database Migrations:**
 
     - The initial schema is in `supabase/migrations`. Apply it to your Supabase database:
       ```bash
       supabase db push
       ```
 
-6.  **Generate TypeScript Types from Schema:**
+7.  **Generate TypeScript Types from Schema:**
 
     - This step generates accurate TypeScript types based on your database schema, which are used in the Supabase client helper (`lib/supabase.ts`) and server actions.
       ```bash
@@ -90,7 +100,7 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       // ... rest of the file
       ```
 
-7.  **Seed the database (Optional but Recommended):**
+8.  **Seed the database (Optional but Recommended):**
 
     - The `supabase/seed.sql` script contains demo data.
       ```bash
@@ -99,7 +109,7 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       _(This command first drops the existing local database (if any), applies migrations, and then runs the seed script. Use with caution if you have important local data.)_
       *Alternatively, to run *only* the seed script on an existing database:* `psql -h localhost -p 54322 -U postgres -f supabase/seed.sql` _(Adjust port if necessary, password is `postgres` by default for local Supabase dev)_
 
-8.  **Initialize shadcn/ui & Add Components:**
+9.  **Initialize shadcn/ui & Add Components:**
 
     - Run the `shadcn` init command (accept defaults or configure as needed):
       ```bash
@@ -126,7 +136,7 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       pnpm add zod
       ```
 
-9.  **Add Toaster Component:**
+10. **Add Toaster Component:**
 
     - The `sonner` library requires its `<Toaster />` component to be present in your layout to render toasts.
     - Open `app/layout.tsx` (or your root layout file) and add the import and component:
@@ -151,13 +161,13 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       }
       ```
 
-10. **Run the development server:**
+11. **Run the development server:**
 
     ```bash
     pnpm dev
     ```
 
-11. **Open the app:**
+12. **Open the app:**
     Navigate to [http://localhost:4000](http://localhost:4000) in your browser. You should be redirected to `/login`. Use the email link login to access the dashboard.
 
 ## Row Level Security (RLS)
