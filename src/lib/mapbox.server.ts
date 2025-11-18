@@ -3,14 +3,17 @@
  * These functions run on the server and keep the Mapbox access token secure.
  */
 
+import { isValidCoordinatePair } from '@/lib/validation/locations';
+
 /**
  * Gets the Mapbox access token from server-side environment variables.
  * For server-side use, prefer MAPBOX_ACCESS_TOKEN (without NEXT_PUBLIC_ prefix)
  * to keep the token secure. Falls back to NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN if needed.
  * 
- * @returns The validated token string, or null if invalid
+ * @returns The validated token string
+ * @throws Error if no valid token is configured
  */
-function getServerMapboxToken(): string | null {
+function getServerMapboxToken(): string {
   // Prefer server-only token (more secure)
   const serverToken = process.env.MAPBOX_ACCESS_TOKEN;
   if (serverToken && typeof serverToken === 'string' && serverToken.trim().length > 0) {
@@ -23,7 +26,7 @@ function getServerMapboxToken(): string | null {
     return publicToken.trim();
   }
   
-  return null;
+  throw new Error('Mapbox access token is not configured');
 }
 
 export type ReverseGeocodeResult = {
@@ -59,21 +62,9 @@ export async function reverseGeocode(
   options: { types?: string } = {}
 ): Promise<ReverseGeocodeResult | null> {
   const token = getServerMapboxToken();
-  if (!token) {
-    throw new Error('Mapbox access token is not configured');
-  }
 
-  // Validate coordinates
-  if (
-    typeof latitude !== 'number' ||
-    typeof longitude !== 'number' ||
-    Number.isNaN(latitude) ||
-    Number.isNaN(longitude) ||
-    latitude < -90 ||
-    latitude > 90 ||
-    longitude < -180 ||
-    longitude > 180
-  ) {
+  // Validate coordinates using shared validation function
+  if (!isValidCoordinatePair(latitude, longitude)) {
     throw new Error('Invalid coordinates provided');
   }
 

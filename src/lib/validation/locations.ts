@@ -1,4 +1,30 @@
 import { z } from 'zod';
+import { MIN_LATITUDE, MAX_LATITUDE, MIN_LONGITUDE, MAX_LONGITUDE } from '@/lib/geo-constants';
+
+/**
+ * Validates that a coordinate pair (latitude, longitude) is within valid WGS84 ranges.
+ * This is a shared utility to ensure consistent validation across the codebase.
+ * 
+ * @param latitude - The latitude value to validate
+ * @param longitude - The longitude value to validate
+ * @returns true if both coordinates are valid numbers within WGS84 ranges, false otherwise
+ */
+export function isValidCoordinatePair(
+  latitude: number | null | undefined,
+  longitude: number | null | undefined
+): boolean {
+  // Check that both values are numbers, not NaN, and within valid ranges
+  return (
+    typeof latitude === 'number' &&
+    !Number.isNaN(latitude) &&
+    latitude >= MIN_LATITUDE &&
+    latitude <= MAX_LATITUDE &&
+    typeof longitude === 'number' &&
+    !Number.isNaN(longitude) &&
+    longitude >= MIN_LONGITUDE &&
+    longitude <= MAX_LONGITUDE
+  );
+}
 
 // Base schema that accepts Mapbox geocoding response format
 // Mapbox returns: street (address_line1), city (address_level2), state (address_level1), 
@@ -13,13 +39,13 @@ export const LocationSchema = z
     zip: z.string().optional().nullable(),
     latitude: z
       .union([
-        z.coerce.number().min(-90, { message: 'Latitude must be >= -90' }).max(90, { message: 'Latitude must be <= 90' }),
+        z.coerce.number().min(MIN_LATITUDE, { message: `Latitude must be >= ${MIN_LATITUDE}` }).max(MAX_LATITUDE, { message: `Latitude must be <= ${MAX_LATITUDE}` }),
         z.null(),
       ])
       .optional(),
     longitude: z
       .union([
-        z.coerce.number().min(-180, { message: 'Longitude must be >= -180' }).max(180, { message: 'Longitude must be <= 180' }),
+        z.coerce.number().min(MIN_LONGITUDE, { message: `Longitude must be >= ${MIN_LONGITUDE}` }).max(MAX_LONGITUDE, { message: `Longitude must be <= ${MAX_LONGITUDE}` }),
         z.null(),
       ])
       .optional(),
@@ -36,6 +62,10 @@ export const LocationSchema = z
       return coord != null && typeof coord === 'number' && !Number.isNaN(coord);
     };
 
+    // Helper to check coordinate state
+    const hasLatitude = isValidCoordinate(data.latitude);
+    const hasLongitude = isValidCoordinate(data.longitude);
+
     // Check if we have a complete address (indicating Mapbox selection)
     const hasCompleteAddress =
       hasValue(data.street) &&
@@ -46,26 +76,21 @@ export const LocationSchema = z
     // If complete address is provided (Mapbox selection), coordinates should be set
     if (hasCompleteAddress) {
       // Check if coordinates are missing (null or undefined)
-      const hasLatitude = isValidCoordinate(data.latitude);
-      const hasLongitude = isValidCoordinate(data.longitude);
-
       if (!hasLatitude || !hasLongitude) {
-        // Add error to latitude field only to avoid duplicate messages in UI
-        // The message mentions "coordinates" (plural) so it's clear it applies to both fields
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Coordinates are missing for the selected address. Please try selecting the address again or set coordinates manually on the map.',
-          path: ['latitude'],
-        });
-        // Return early to avoid duplicate validation errors
-        return;
+        // Only show this error if both coordinates are missing to avoid duplicate messages
+        // If only one is missing, the coordinate pair validation below will handle it
+        if (!hasLatitude && !hasLongitude) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Coordinates are missing for the selected address. Please try selecting the address again or set coordinates manually on the map.',
+            path: ['latitude'],
+          });
+        }
       }
     }
 
     // Validate coordinate pairs: if one is set, the other should be set too
-    const hasLatitude = isValidCoordinate(data.latitude);
-    const hasLongitude = isValidCoordinate(data.longitude);
-
+    // This validation runs regardless of address completeness to provide complete feedback
     if (hasLatitude && !hasLongitude) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

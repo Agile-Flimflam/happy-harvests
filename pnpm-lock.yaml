@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  node-domexception: ^2.0.2
-
 importers:
 
   .:
@@ -108,7 +105,7 @@ importers:
         specifier: ^7.62.0
         version: 7.62.0(react@19.1.1)
       react-map-gl:
-        specifier: ^7.1.7
+        specifier: ^7.1.9
         version: 7.1.9(mapbox-gl@3.16.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       sonner:
         specifier: ^2.0.7
@@ -2316,9 +2313,9 @@ packages:
   no-scroll@2.1.1:
     resolution: {integrity: sha512-YTzGAJOo/B6hkodeT5SKKHpOhAzjMfkUCCXjLJwjWk2F4/InIg+HbdH9kmT7bKpleDuqLZDTRy2OdNtAj0IVyQ==}
 
-  node-domexception@2.0.2:
-    resolution: {integrity: sha512-Qf9vHK9c5MGgUXj8SnucCIS4oEPuUstjRaMplLGeZpbWMfNV1rvEcXuwoXfN51dUfD1b4muPHPQtCx/5Dj/QAA==}
-    engines: {node: '>=16'}
+  node-domexception@1.0.0:
+    resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
+    engines: {node: '>=10.5.0'}
     deprecated: Use your platform's native DOMException instead
 
   node-fetch@3.3.2:
@@ -4651,7 +4648,7 @@ snapshots:
 
   fetch-blob@3.2.0:
     dependencies:
-      node-domexception: 2.0.2
+      node-domexception: 1.0.0
       web-streams-polyfill: 3.3.3
 
   file-entry-cache@8.0.0:
@@ -5226,7 +5223,7 @@ snapshots:
 
   no-scroll@2.1.1: {}
 
-  node-domexception@2.0.2: {}
+  node-domexception@1.0.0: {}
 
   node-fetch@3.3.2:
     dependencies:

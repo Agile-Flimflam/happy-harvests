@@ -181,7 +181,10 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
     form.setValue('zip', '');
     // Preserve coordinates - they may have been set manually via map interaction
     // Users can clear coordinates directly on the map if needed
-    form.clearErrors(['street', 'city', 'state', 'zip']);
+    form.clearErrors('street');
+    form.clearErrors('city');
+    form.clearErrors('state');
+    form.clearErrors('zip');
     toast.info('Address cleared');
   };
 

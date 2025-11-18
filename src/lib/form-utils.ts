@@ -2,6 +2,9 @@
  * Utility functions for form handling, particularly workarounds for browser extensions.
  */
 
+// Global flag to track if document-level listener is set up
+let globalFormControlListenerSetup = false;
+
 /**
  * Sets up a form control property on a form element to prevent browser extension errors.
  * 
@@ -25,18 +28,31 @@
 export function setupFormControlProperty(formElement: HTMLFormElement | null): void {
   if (!formElement) return;
   
-  // Check if 'control' property already exists
-  // If it does, we don't override it to avoid conflicts with other libraries or browser APIs
+  // Check if 'control' property already exists and is properly set up
+  const descriptor = Object.getOwnPropertyDescriptor(formElement, 'control');
+  if (descriptor && (descriptor.get || descriptor.set)) {
+    // Property already exists with getter/setter - likely already set up correctly
+    return;
+  }
+  
+  // If control exists but is null, undefined, or not a proper descriptor,
+  // we need to override it to prevent extension errors
+  // This handles cases where extensions set it to null/undefined
   if ('control' in formElement) {
-    // Check if it's already our property descriptor (has getter/setter)
-    const descriptor = Object.getOwnPropertyDescriptor(formElement, 'control');
-    if (descriptor && (descriptor.get || descriptor.set)) {
-      // Property already exists with getter/setter - likely already set up or set by another library
+    const currentValue = (formElement as { control?: unknown }).control;
+    // If it's null or undefined, we definitely need to override it
+    if (currentValue === null || currentValue === undefined) {
+      // Delete the existing property so we can redefine it
+      try {
+        delete (formElement as { control?: unknown }).control;
+      } catch {
+        // If deletion fails, try to redefine anyway (might work if configurable)
+      }
+    } else {
+      // If it has a non-null value and isn't our descriptor, don't override
+      // (might be set by another library)
       return;
     }
-    // If it exists but isn't a property descriptor, it might be a regular property
-    // We still don't override it to avoid conflicts
-    return;
   }
   
   // Add a dummy control property to prevent browser extension errors
@@ -87,5 +103,84 @@ export function setupFormControlPropertyFromInput(inputElement: HTMLInputElement
   const form = inputElement.form;
   if (!form) return;
   setupFormControlProperty(form);
+}
+
+/**
+ * Sets up a global document-level listener that ensures form.control is set up
+ * for any form before browser extensions try to access it during focus events.
+ * 
+ * This runs in the capture phase to execute before extension handlers.
+ * Should be called once during app initialization.
+ */
+export function setupGlobalFormControlListener(): void {
+  if (typeof window === 'undefined') return;
+  if (globalFormControlListenerSetup) return;
+  
+  // Set up form control property for all existing forms immediately
+  // This ensures forms are ready before any focus events occur
+  const allForms = document.querySelectorAll('form');
+  allForms.forEach((form) => {
+    setupFormControlProperty(form);
+  });
+  
+  // Also watch for new forms being added to the DOM
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const element = node as HTMLElement;
+          // Check if the added node is a form
+          if (element.tagName === 'FORM') {
+            setupFormControlProperty(element as HTMLFormElement);
+          }
+          // Check if the added node contains any forms
+          const forms = element.querySelectorAll?.('form');
+          if (forms) {
+            forms.forEach((form) => {
+              setupFormControlProperty(form);
+            });
+          }
+        }
+      });
+    });
+  });
+  
+  // Observe the document body for new forms
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+  
+  const handleFocusIn = (e: FocusEvent) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    
+    // Find the form containing the focused element
+    const form = target.closest('form');
+    if (form) {
+      // Set up form control property synchronously before extension checks it
+      setupFormControlProperty(form);
+    }
+  };
+  
+  const handleInput = (e: Event) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    
+    // Find the form containing the input element
+    const form = target.closest('form');
+    if (form) {
+      // Set up form control property synchronously before extension checks it
+      // Extensions often check form.control during input events
+      setupFormControlProperty(form);
+    }
+  };
+  
+  // Use capture phase (true) to run before extension handlers
+  // This ensures form.control is set up before extensions check it
+  document.addEventListener('focusin', handleFocusIn, true);
+  document.addEventListener('input', handleInput, true);
+  
+  globalFormControlListenerSetup = true;
 }
 

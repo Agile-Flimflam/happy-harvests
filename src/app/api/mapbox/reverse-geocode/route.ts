@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { reverseGeocode } from '@/lib/mapbox.server';
+import { isValidCoordinatePair } from '@/lib/validation/locations';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,14 +37,8 @@ export async function GET(req: NextRequest) {
     const latitude = Number.parseFloat(latitudeParam);
     const longitude = Number.parseFloat(longitudeParam);
 
-    if (
-      Number.isNaN(latitude) ||
-      Number.isNaN(longitude) ||
-      latitude < -90 ||
-      latitude > 90 ||
-      longitude < -180 ||
-      longitude > 180
-    ) {
+    // Validate coordinates using shared validation function
+    if (!isValidCoordinatePair(latitude, longitude)) {
       return NextResponse.json(
         { error: 'Invalid coordinates provided' },
         { status: 400 }

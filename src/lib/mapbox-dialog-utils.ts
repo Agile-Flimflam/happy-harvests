@@ -10,9 +10,10 @@
  */
 
 /**
- * Type for MouseEvent with optional Mapbox click marker.
+ * Type for MouseEvent or PointerEvent with optional Mapbox click marker.
+ * PointerEvent is used by onPointerDownOutside, MouseEvent is used by onInteractOutside.
  */
-export type MapboxMouseEvent = MouseEvent & { __isMapboxClick?: boolean };
+export type MapboxMouseEvent = (MouseEvent | PointerEvent) & { __isMapboxClick?: boolean };
 
 /**
  * Validates that a Mapbox autofill container actually exists in the document.
@@ -131,8 +132,9 @@ export function isMapboxElement(element: HTMLElement): boolean {
 
 /**
  * Gets the element at the click coordinates (more reliable for portal-rendered elements).
+ * Works with both MouseEvent and PointerEvent.
  */
-export function getElementAtPoint(event: MouseEvent): HTMLElement | null {
+export function getElementAtPoint(event: MouseEvent | PointerEvent): HTMLElement | null {
   if (event.clientX === undefined || event.clientY === undefined) {
     return null;
   }
@@ -158,12 +160,31 @@ export function isMapboxRelatedClick(event: MapboxMouseEvent): boolean {
   }
   
   // Check element at click point (for portal-rendered dropdowns)
+  // This is critical because Mapbox renders suggestions in a portal
   const elementAtPoint = getElementAtPoint(event);
-  if (elementAtPoint && elementAtPoint !== target && isMapboxElement(elementAtPoint)) {
-    return true;
+  if (elementAtPoint) {
+    if (isMapboxElement(elementAtPoint)) {
+      return true;
+    }
+    // Also check if the element at point is within a Mapbox container
+    // This catches cases where the click is on a child element
+    const mapboxContainer = elementAtPoint.closest('[class*="mapbox-autofill"], [id*="mapbox-autofill"], [data-mapbox-autofill]');
+    if (mapboxContainer) {
+      return true;
+    }
   }
   
   // Check if click is on address input field (has data-mapbox-autofill attribute)
-  return hasMapboxAutofillAttribute(target);
+  if (hasMapboxAutofillAttribute(target)) {
+    return true;
+  }
+  
+  // Check if target is within a Mapbox container (catches nested elements)
+  const mapboxContainer = target.closest('[class*="mapbox-autofill"], [id*="mapbox-autofill"], [data-mapbox-autofill]');
+  if (mapboxContainer) {
+    return true;
+  }
+  
+  return false;
 }
 

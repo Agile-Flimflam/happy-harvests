@@ -219,10 +219,31 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
 
 2. **Configure URL Restrictions:**
 
-   - In your [Mapbox account settings](https://account.mapbox.com/), restrict your public token to specific domains:
-     - Add your production domain (e.g., `https://app.happyharvests.com`)
-     - Add your development domain (e.g., `http://localhost:4000`)
-   - This prevents unauthorized sites from using your token
+   - In your [Mapbox account settings](https://account.mapbox.com/), restrict your public token to specific domains to prevent unauthorized usage.
+   
+   **Option A: Single Token with Multiple Domains (Recommended for simplicity)**
+   
+   Add all domains where your app will run:
+   - Production domain: `https://app.happyharvests.com`
+   - Staging domain (if applicable): `https://staging.happyharvests.com`
+   - Preview deployments: Use wildcard patterns where supported (e.g., `*.vercel.app` for Vercel preview deployments)
+   - Local development: `http://localhost:*` (if Mapbox supports port wildcards) or add specific ports like `http://localhost:4000`
+   
+   **Option B: Separate Tokens per Environment (Recommended for security)**
+   
+   Create different tokens for different environments:
+   - **Production token:** Restricted to production domain only
+   - **Staging token:** Restricted to staging domain only
+   - **Development token:** Restricted to `http://localhost:*` or specific local ports
+   - **Preview token:** Restricted to preview deployment patterns (e.g., `*.vercel.app`)
+   
+   Use environment-specific tokens in your deployment configuration (e.g., Vercel environment variables).
+   
+   **Important Notes:**
+   - Mapbox URL restrictions support wildcard patterns for subdomains (e.g., `*.vercel.app`)
+   - Port wildcards may not be supported - you may need to add specific ports or use `localhost` without port restrictions for development
+   - Preview deployments (e.g., Vercel preview URLs) change with each PR, so wildcard patterns are essential
+   - If you have multiple developers, consider using a shared development token with localhost restrictions or individual tokens per developer
 
 3. **Set Minimal Token Scopes:**
 

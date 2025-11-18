@@ -6,6 +6,7 @@ import { useFormContext, type ControllerRenderProps } from 'react-hook-form';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LocationFormValues } from '@/lib/validation/locations';
+import { isValidCoordinatePair } from '@/lib/validation/locations';
 import { getValidatedMapboxToken } from '@/lib/mapbox-utils';
 import { setupFormControlPropertyFromInput } from '@/lib/form-utils';
 import { Z_INDEX } from '@/lib/ui-constants';
@@ -53,12 +54,6 @@ const STYLE_ID = 'mapbox-autofill-styles';
 // This allows Mapbox to finish processing the selection before cleanup
 const MAPBOX_SELECTION_CLEANUP_DELAY = 100;
 
-// Valid coordinate ranges (WGS84 standard)
-const MIN_LATITUDE = -90;
-const MAX_LATITUDE = 90;
-const MIN_LONGITUDE = -180;
-const MAX_LONGITUDE = 180;
-
 /**
  * Singleton manager for global Mapbox autocomplete resources.
  * 
@@ -72,23 +67,47 @@ const MAX_LONGITUDE = 180;
  * 2. Resources are only injected once (first instance)
  * 3. Resources are only removed when the last instance unmounts
  * 4. Thread-safe operations for React StrictMode and concurrent rendering
+ * 
+ * Memory leak protection:
+ * - Tracks registration timestamps to detect stale instances
+ * - Automatically cleans up instances that have been registered for an unreasonably long time
+ * - This handles edge cases where components crash or unmount without proper cleanup
+ *   (e.g., during error boundary catches, browser crashes, or React tree destruction)
  */
 class MapboxAutocompleteResourceManager {
   // Track active component instances using a Set of unique instance IDs
   // This is more robust than a simple counter for React StrictMode and concurrent rendering
   private readonly activeInstances = new Set<symbol>();
   
+  // Track registration timestamps for stale instance detection
+  // Using WeakMap allows automatic garbage collection of metadata when Symbol is GC'd
+  // However, since Symbols are unique and referenced by the Set, they won't be GC'd until removed from Set
+  private readonly instanceTimestamps = new WeakMap<symbol, number>();
+  
   // Track if global resources are injected
   private stylesInjected = false;
-  private mapboxClickHandler: ((e: MouseEvent) => void) | null = null;
+  private mapboxClickHandler: ((e: MouseEvent | PointerEvent) => void) | null = null;
+  
+  // Maximum age for an instance before it's considered stale (5 minutes)
+  // This is a safety mechanism for edge cases where cleanup doesn't run
+  // Normal component lifecycle should be much shorter than this
+  private static readonly MAX_INSTANCE_AGE_MS = 5 * 60 * 1000;
 
   /**
    * Register a component instance and inject global resources if this is the first instance.
+   * Also performs defensive cleanup of stale instances to prevent memory leaks.
    * @param instanceId Unique identifier for this component instance
    */
   registerInstance(instanceId: symbol): void {
+    // Clean up any stale instances before registering a new one
+    // This is a defensive measure to prevent memory leaks from crashed/unmounted components
+    this.cleanupStaleInstances();
+
     const wasFirstInstance = this.activeInstances.size === 0;
     this.activeInstances.add(instanceId);
+    
+    // Track registration timestamp for stale instance detection
+    this.instanceTimestamps.set(instanceId, Date.now());
 
     if (wasFirstInstance) {
       this.injectStyles();
@@ -102,8 +121,56 @@ class MapboxAutocompleteResourceManager {
    */
   unregisterInstance(instanceId: symbol): void {
     this.activeInstances.delete(instanceId);
+    // Note: We don't explicitly delete from WeakMap as it will be automatically cleaned up
+    // when the Symbol is garbage collected (though in practice, the Symbol may persist
+    // if referenced elsewhere, which is fine since WeakMap doesn't prevent GC)
 
     if (this.activeInstances.size === 0) {
+      this.cleanupResources();
+    }
+  }
+
+  /**
+   * Clean up stale instances that have been registered for an unreasonably long time.
+   * This is a defensive measure to prevent memory leaks from components that crash
+   * or unmount without proper cleanup (e.g., during error boundary catches).
+   * 
+   * Note: In normal React operation, useEffect cleanup functions are guaranteed to run,
+   * so this primarily handles edge cases like browser crashes or React tree destruction.
+   */
+  private cleanupStaleInstances(): void {
+    const now = Date.now();
+    const staleInstances: symbol[] = [];
+
+    // Check all active instances for staleness
+    // We iterate over the Set to check each instance's age
+    for (const instanceId of this.activeInstances) {
+      const registrationTime = this.instanceTimestamps.get(instanceId);
+      
+      // If we can't find a timestamp, consider it stale (shouldn't happen in normal operation)
+      // If the instance is older than MAX_INSTANCE_AGE_MS, consider it stale
+      if (!registrationTime || (now - registrationTime) > MapboxAutocompleteResourceManager.MAX_INSTANCE_AGE_MS) {
+        staleInstances.push(instanceId);
+      }
+    }
+
+    // Remove stale instances
+    // This prevents memory leaks from components that never properly unregistered
+    for (const staleInstance of staleInstances) {
+      this.activeInstances.delete(staleInstance);
+      // Log for debugging in development (helps identify if this is actually happening)
+      if (process.env.NODE_ENV === 'development') {
+        const registrationTime = this.instanceTimestamps.get(staleInstance);
+        const ageSeconds = registrationTime ? Math.round((now - registrationTime) / 1000) : null;
+        console.debug(
+          '[AddressAutocomplete] Cleaned up stale instance that was registered for',
+          ageSeconds !== null ? `${ageSeconds}s` : 'unknown time'
+        );
+      }
+    }
+
+    // If we removed all instances, clean up global resources
+    if (this.activeInstances.size === 0 && staleInstances.length > 0) {
       this.cleanupResources();
     }
   }
@@ -150,7 +217,7 @@ class MapboxAutocompleteResourceManager {
   private setupEventListeners(): void {
     if (this.mapboxClickHandler) return;
 
-    this.mapboxClickHandler = (e: MouseEvent) => {
+    this.mapboxClickHandler = (e: MouseEvent | PointerEvent) => {
       const target = e.target as HTMLElement;
       if (!target) return;
 
@@ -168,13 +235,15 @@ class MapboxAutocompleteResourceManager {
       if (isMapboxElement) {
         // Mark the event so the dialog knows not to close
         // We don't stop propagation to allow Mapbox to handle the click
-        (e as MouseEvent & { __isMapboxClick?: boolean }).__isMapboxClick = true;
+        (e as (MouseEvent | PointerEvent) & { __isMapboxClick?: boolean }).__isMapboxClick = true;
       }
     };
 
     // Use capture phase to catch the event early, but don't stop propagation
+    // Handle both mouse and pointer events to catch all interaction types
     document.addEventListener('click', this.mapboxClickHandler, true);
     document.addEventListener('mousedown', this.mapboxClickHandler, true);
+    document.addEventListener('pointerdown', this.mapboxClickHandler, true);
   }
 
   /**
@@ -206,6 +275,7 @@ class MapboxAutocompleteResourceManager {
     if (this.mapboxClickHandler) {
       document.removeEventListener('click', this.mapboxClickHandler, true);
       document.removeEventListener('mousedown', this.mapboxClickHandler, true);
+      document.removeEventListener('pointerdown', this.mapboxClickHandler, true);
       this.mapboxClickHandler = null;
     }
   }
@@ -278,15 +348,12 @@ export function AddressAutocomplete({
     let timeoutId: NodeJS.Timeout | null = null;
     if (!alreadySetup) {
       // Try to set up immediately
-      const setupSuccess = setupFormControlProperty(input);
+      setupFormControlPropertyFromInput(input);
 
-      // Schedule a single retry as a fallback if initial setup failed
-      // This handles edge cases where form association happens asynchronously
-      if (!setupSuccess) {
-        timeoutId = setTimeout(() => {
-          setupFormControlProperty(inputRef.current);
-        }, 10);
-      }
+      // Schedule a single retry as a fallback if form association happens asynchronously
+      timeoutId = setTimeout(() => {
+        setupFormControlPropertyFromInput(inputRef.current);
+      }, 10);
     }
 
     // Cleanup: only clear the timeout if it was set
@@ -300,6 +367,43 @@ export function AddressAutocomplete({
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
+    };
+  }, [isMounted]);
+
+  // Set up form control property on focus events to ensure it's available
+  // before browser extensions try to access it during focus handlers
+  // This is critical because extensions check form.control synchronously during focus events
+  const handleFocus = useCallback(
+    (e: React.FocusEvent<HTMLInputElement>) => {
+      // Ensure form control property is set up before extension checks it
+      // This must happen synchronously before the extension's focus handler runs
+      setupFormControlPropertyFromInput(e.target);
+    },
+    []
+  );
+
+  // Also set up on focusin (capture phase) to catch it even earlier
+  // This ensures the property is set up before any extension focus handlers run
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isMounted) return;
+
+    const input = inputRef.current;
+    if (!input) return;
+
+    const handleFocusIn = (e: FocusEvent) => {
+      // Only handle focus events for our input
+      if (e.target !== input && !input.contains(e.target as Node)) return;
+      
+      // Ensure form control property is set up synchronously
+      // This must happen before the extension's focus handler runs
+      setupFormControlPropertyFromInput(input);
+    };
+
+    // Use capture phase to run before extension handlers
+    input.addEventListener('focusin', handleFocusIn, true);
+
+    return () => {
+      input.removeEventListener('focusin', handleFocusIn, true);
     };
   }, [isMounted, setupFormControlProperty]);
   
@@ -365,6 +469,19 @@ export function AddressAutocomplete({
         return;
       }
 
+      // Ensure form control property is set up before processing selection
+      // This prevents browser extension errors when they check form.control during focus events
+      // that may occur when Mapbox processes the selection
+      // Set it up immediately and also schedule it for the next microtask to catch async extension checks
+      const input = inputRef.current;
+      if (input) {
+        setupFormControlPropertyFromInput(input);
+        // Also set it up in a microtask to catch Promise-based extension checks
+        Promise.resolve().then(() => {
+          setupFormControlPropertyFromInput(input);
+        });
+      }
+
       const feature = res.features[0];
       const { properties, geometry } = feature;
 
@@ -384,17 +501,9 @@ export function AddressAutocomplete({
         const lon = coordinates[0];
         const lat = coordinates[1];
         
-        // Validate that both values are numbers, not NaN, and within valid ranges
-        if (
-          typeof lon === 'number' &&
-          !Number.isNaN(lon) &&
-          lon >= MIN_LONGITUDE &&
-          lon <= MAX_LONGITUDE &&
-          typeof lat === 'number' &&
-          !Number.isNaN(lat) &&
-          lat >= MIN_LATITUDE &&
-          lat <= MAX_LATITUDE
-        ) {
+        // Validate that both values are numbers, not NaN, and within valid WGS84 ranges
+        // Using shared validation utility to ensure consistency with LocationSchema
+        if (isValidCoordinatePair(lat, lon)) {
           longitude = lon;
           latitude = lat;
         }
@@ -425,22 +534,62 @@ export function AddressAutocomplete({
         setValue('longitude', longitude, { shouldValidate: true, shouldDirty: true });
       }
       
-      // Close the dropdown by blurring the input after Mapbox processes the selection
-      // Mark the input with a data attribute to indicate programmatic blur
-      // This allows the dialog to distinguish between user clicks and programmatic actions
+      // Close the dropdown and manage focus after Mapbox processes the selection
+      // CRITICAL: We must keep focus within the dialog to prevent it from closing
       if (inputRef.current) {
+        // Ensure form control property is set up one more time
+        setupFormControlPropertyFromInput(inputRef.current);
+        
         // Mark that we're programmatically closing the dropdown
         inputRef.current.setAttribute('data-mapbox-selection-complete', 'true');
         
+        // Find the dialog and mark it as processing Mapbox selection
+        // Set this IMMEDIATELY (synchronously) before any async operations
+        const form = inputRef.current.form;
+        const dialog = form?.closest('[data-slot="dialog-content"]');
+        if (dialog) {
+          // Set both flags immediately to prevent dialog closing
+          dialog.setAttribute('data-mapbox-selection-in-progress', 'true');
+        }
+        
+        // Find the next focusable element BEFORE blurring
+        // This ensures we can focus it immediately to prevent focus from leaving the dialog
+        let nextFocusableElement: HTMLElement | null = null;
+        if (form) {
+          const focusableElements = form.querySelectorAll<HTMLElement>(
+            'input:not([disabled]):not([readonly]):not([data-mapbox-autofill]), textarea:not([disabled]):not([readonly]), select:not([disabled]), button:not([disabled])'
+          );
+          
+          for (const element of focusableElements) {
+            if (element !== inputRef.current && element.offsetParent !== null) {
+              nextFocusableElement = element;
+              break;
+            }
+          }
+        }
+        
         // Use requestAnimationFrame to ensure Mapbox has finished processing the selection
         requestAnimationFrame(() => {
-          // Blur the input to close the dropdown naturally
-          // This is more reliable than DOM manipulation and works with Mapbox's internal state
+          // Ensure form control property is still set up
+          setupFormControlPropertyFromInput(inputRef.current);
+          
+          // CRITICAL: Focus the next element BEFORE blurring to prevent focus from leaving the dialog
+          // This must happen synchronously to prevent onFocusOutside from firing
+          if (nextFocusableElement) {
+            nextFocusableElement.focus();
+          }
+          
+          // Now blur the input to close the dropdown
+          // Since we've already moved focus, this blur won't cause focus to leave the dialog
           inputRef.current?.blur();
           
-          // Remove the data attribute after a short delay
+          // Clean up data attributes after a short delay
           setTimeout(() => {
             inputRef.current?.removeAttribute('data-mapbox-selection-complete');
+            if (dialog) {
+              dialog.removeAttribute('data-mapbox-selection-in-progress');
+              dialog.removeAttribute('data-mapbox-dropdown-open');
+            }
           }, MAPBOX_SELECTION_CLEANUP_DELAY);
         });
       }
@@ -451,6 +600,16 @@ export function AddressAutocomplete({
   const handleSuggest = useCallback(() => {
     setIsLoading(true);
     setError(null);
+    
+    // Mark the dialog as having an active Mapbox dropdown
+    // This prevents the dialog from closing when clicking on suggestions
+    if (inputRef.current) {
+      const form = inputRef.current.form;
+      const dialog = form?.closest('[data-slot="dialog-content"]');
+      if (dialog) {
+        dialog.setAttribute('data-mapbox-dropdown-open', 'true');
+      }
+    }
   }, []);
 
   const handleSuggestError = useCallback((err: Error) => {
@@ -513,6 +672,7 @@ export function AddressAutocomplete({
             name="street"
             value={addressValue}
             onChange={handleInputChange}
+            onFocus={handleFocus}
             placeholder={placeholder}
             disabled={disabled}
             data-mapbox-autofill="true"
