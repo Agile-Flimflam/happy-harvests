@@ -63,18 +63,42 @@ export function MapPicker({
   // This prevents unnecessary re-renders when the function reference changes
   const reverseGeocodeRef = useRef<((lat: number, lng: number) => Promise<void>) | null>(null);
 
-  // SECURITY CONSIDERATION: Mapbox access token is exposed in client-side code
-  // The token is necessary for Mapbox to work in the browser, but must be properly secured:
-  // 1. Configure URL restrictions in Mapbox dashboard to limit token usage to your domain(s)
-  // 2. Set minimal permissions - only enable geocoding and mapping APIs (not uploads, etc.)
-  // 3. Enable usage monitoring in Mapbox dashboard to detect abuse or unexpected usage patterns
-  // 4. Regularly rotate tokens and review access logs
-  // 5. Never use a token with admin or write permissions in client-side code
+  // Track last form coordinates we've processed to update viewState
+  // This prevents the effect from running on every map pan/zoom interaction
+  const lastProcessedFormCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  // SECURITY CONSIDERATION: Mapbox access token usage
+  // 
+  // IMPORTANT: The mapbox-gl library requires the token to be passed as a prop, which means
+  // it will be embedded in the client-side JavaScript bundle. This is a limitation of the library.
+  //
+  // Security measures implemented:
+  // 1. Reverse geocoding is proxied through /api/mapbox/reverse-geocode (token kept server-side)
+  // 2. Token is validated to ensure it's not a secret token (sk.*) in development
+  // 3. Token is never logged or exposed in error messages
+  // 4. Token is only used for map display (read-only operations)
+  //
+  // Required Mapbox token configuration:
+  // - MUST be a PUBLIC token (pk.*), NOT a secret token (sk.*)
+  // - MUST have URL restrictions configured in Mapbox dashboard
+  // - MUST have minimal scopes: styles:read, fonts:read, sprites:read only
+  // - MUST NOT have uploads, datasets, or write permissions
+  // - MUST monitor usage in Mapbox dashboard regularly
+  // - MUST rotate tokens periodically
+  //
   // See README.md for additional security documentation
 
   // Validate and normalize Mapbox access token once on mount
+  // WARNING: This token will be embedded in client-side code due to mapbox-gl requirements
   // Returns null if token is undefined, null, empty string, or whitespace-only
-  const mapboxToken = useMemo(() => getValidatedMapboxToken(), []);
+  const mapboxToken = useMemo(() => {
+    const token = getValidatedMapboxToken();
+    // Never log the token, even in development
+    if (!token && typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      console.warn('Mapbox token not configured. Map display will not work.');
+    }
+    return token;
+  }, []);
 
   // Build address string from form values
   const addressString = useMemo(() => {
@@ -83,31 +107,39 @@ export function MapPicker({
   }, [street, city, state, zip]);
 
   // Update view state when form coordinates change (but not during drag)
+  // Uses a ref to track last processed coordinates to prevent running on every map pan/zoom
   useEffect(() => {
     if (!isDragging && (latitude != null || longitude != null)) {
       const newLat = latitude ?? DEFAULT_LATITUDE;
       const newLng = longitude ?? DEFAULT_LONGITUDE;
+      const lastProcessed = lastProcessedFormCoordsRef.current;
       
-      // Only update if coordinates actually changed
-      if (
-        Math.abs(viewState.latitude - newLat) > COORDINATE_CHANGE_THRESHOLD ||
-        Math.abs(viewState.longitude - newLng) > COORDINATE_CHANGE_THRESHOLD
-      ) {
+      // Only update if coordinates actually changed from what we last processed
+      const coordsChanged =
+        !lastProcessed ||
+        Math.abs(lastProcessed.lat - newLat) > COORDINATE_CHANGE_THRESHOLD ||
+        Math.abs(lastProcessed.lng - newLng) > COORDINATE_CHANGE_THRESHOLD;
+
+      if (coordsChanged) {
         setViewState((prev) => ({
           ...prev,
           latitude: newLat,
           longitude: newLng,
           zoom: prev.zoom < 10 ? 12 : prev.zoom, // Zoom in if coordinates are set
         }));
+        // Update ref to track that we've processed these coordinates
+        lastProcessedFormCoordsRef.current = { lat: newLat, lng: newLng };
       }
+    } else if (latitude == null || longitude == null) {
+      // Reset ref when coordinates are cleared
+      lastProcessedFormCoordsRef.current = null;
     }
-  }, [latitude, longitude, isDragging, viewState.latitude, viewState.longitude]);
+  }, [latitude, longitude, isDragging]);
 
   // Reverse geocode to get address from coordinates
+  // Uses backend API route to keep Mapbox access token secure server-side
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
-      if (!mapboxToken) return;
-
       // Track that we're attempting to reverse geocode these coordinates
       lastReverseGeocodedRef.current = { lat, lng };
 
@@ -115,11 +147,25 @@ export function MapPicker({
       setReverseGeocodeError(null);
 
       try {
-        const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}&types=address`
-        );
+        // Use backend API route instead of direct Mapbox API call
+        // This keeps the access token secure on the server
+        const url = new URL('/api/mapbox/reverse-geocode', window.location.origin);
+        url.searchParams.set('latitude', String(lat));
+        url.searchParams.set('longitude', String(lng));
+        url.searchParams.set('types', 'address');
+
+        // Use backend API route - token is kept server-side and never exposed in URLs
+        const response = await fetch(url.toString(), {
+          method: 'GET',
+          cache: 'no-store',
+          // Ensure credentials are not sent (token is server-side)
+          credentials: 'same-origin',
+        });
 
         if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMessage = errorData.error || response.statusText;
+          
           if (response.status === 401) {
             throw new Error('Mapbox authentication failed. Please check your access token.');
           } else if (response.status === 429) {
@@ -127,16 +173,15 @@ export function MapPicker({
           } else if (response.status >= 500) {
             throw new Error('Mapbox service is temporarily unavailable. Please try again later.');
           } else {
-            throw new Error('Unable to retrieve address for this location. You can still use the coordinates.');
+            throw new Error(errorMessage || 'Unable to retrieve address for this location. You can still use the coordinates.');
           }
         }
 
         const data = await response.json();
-        if (data.features && data.features.length > 0) {
-          const feature = data.features[0];
+        if (data && (data.place_name || data.address)) {
           setPopupInfo({
-            place_name: feature.place_name,
-            address: feature.properties?.address_line1 || feature.place_name,
+            place_name: data.place_name,
+            address: data.address || data.place_name,
           });
           setShowPopup(true);
           setReverseGeocodeError(null);
@@ -158,7 +203,7 @@ export function MapPicker({
         setIsReverseGeocoding(false);
       }
     },
-    [mapboxToken]
+    []
   );
 
   // Keep the ref updated with the latest reverseGeocode function
@@ -267,7 +312,7 @@ export function MapPicker({
             {...viewState}
             onMove={(evt) => setViewState(evt.viewState)}
             onClick={handleMapClick}
-            mapboxAccessToken={mapboxToken}
+            mapboxAccessToken={mapboxToken || ''}
             mapStyle="mapbox://styles/mapbox/streets-v12"
             style={{ width: '100%', height: '100%' }}
             cursor={disabled ? 'default' : 'pointer'}

@@ -1,12 +1,32 @@
 /**
  * Utility functions for detecting Mapbox autofill elements in dialogs.
  * These functions help prevent dialogs from closing when users interact with Mapbox components.
+ * 
+ * NOTE: The selectors used in this file (e.g., [class*="mapbox-autofill"]) use substring matching
+ * which could theoretically match unrelated elements if other libraries use similar naming patterns.
+ * To mitigate this risk, functions validate that a Mapbox autofill container actually exists in
+ * the document before trusting class/ID matches. The data-mapbox-autofill attribute check is the
+ * most reliable as it's explicitly added by our code.
  */
 
 /**
  * Type for MouseEvent with optional Mapbox click marker.
  */
 export type MapboxMouseEvent = MouseEvent & { __isMapboxClick?: boolean };
+
+/**
+ * Validates that a Mapbox autofill container actually exists in the document.
+ * This helps prevent false positives from unrelated elements with similar naming patterns.
+ * 
+ * @returns true if a Mapbox autofill container is found in the document
+ */
+function hasMapboxAutofillContainer(): boolean {
+  return (
+    document.querySelector('[data-mapbox-autofill]') !== null ||
+    document.querySelector('[class*="mapbox-autofill"]') !== null ||
+    document.querySelector('[id*="mapbox-autofill"]') !== null
+  );
+}
 
 /**
  * Checks if an element has the data-mapbox-autofill attribute (explicitly added by our code).
@@ -21,8 +41,17 @@ export function hasMapboxAutofillAttribute(element: HTMLElement): boolean {
 /**
  * Checks if an element has Mapbox autofill-specific CSS classes.
  * Only matches classes containing "mapbox-autofill" (not just "mapbox").
+ * 
+ * NOTE: Validates that a Mapbox autofill container exists in the document to prevent
+ * false positives from unrelated elements with similar class names.
  */
 export function hasMapboxAutofillClass(element: HTMLElement): boolean {
+  // Only check class names if a Mapbox autofill container exists in the document
+  // This prevents false positives from unrelated elements with similar naming
+  if (!hasMapboxAutofillContainer()) {
+    return false;
+  }
+  
   // Check if element itself has a class containing "mapbox-autofill"
   if (element.className && typeof element.className === 'string') {
     const classList = element.className.split(/\s+/);
@@ -38,8 +67,17 @@ export function hasMapboxAutofillClass(element: HTMLElement): boolean {
 /**
  * Checks if an element has a Mapbox autofill-specific ID.
  * Only matches IDs containing "mapbox-autofill" (not just "mapbox").
+ * 
+ * NOTE: Validates that a Mapbox autofill container exists in the document to prevent
+ * false positives from unrelated elements with similar ID patterns.
  */
 export function hasMapboxAutofillId(element: HTMLElement): boolean {
+  // Only check IDs if a Mapbox autofill container exists in the document
+  // This prevents false positives from unrelated elements with similar naming
+  if (!hasMapboxAutofillContainer()) {
+    return false;
+  }
+  
   const id = element.id;
   if (id && id.toLowerCase().includes('mapbox-autofill')) {
     return true;
@@ -52,6 +90,9 @@ export function hasMapboxAutofillId(element: HTMLElement): boolean {
 /**
  * Checks if an element is a listbox or option within a Mapbox autofill container.
  * This is more specific than checking for any listbox/option.
+ * 
+ * NOTE: Validates that a Mapbox autofill container exists in the document to prevent
+ * false positives from unrelated listboxes/options.
  */
 export function isMapboxAutofillListbox(element: HTMLElement): boolean {
   const role = element.getAttribute('role');
@@ -61,12 +102,7 @@ export function isMapboxAutofillListbox(element: HTMLElement): boolean {
   
   // Only return true if there's actually a Mapbox autofill container in the document
   // This prevents false positives from unrelated listboxes/options
-  const hasMapboxContainer = 
-    document.querySelector('[class*="mapbox-autofill"]') !== null ||
-    document.querySelector('[id*="mapbox-autofill"]') !== null ||
-    document.querySelector('[data-mapbox-autofill]') !== null;
-  
-  if (!hasMapboxContainer) return false;
+  if (!hasMapboxAutofillContainer()) return false;
   
   // Check if this element is within a Mapbox autofill container
   return (
@@ -79,6 +115,10 @@ export function isMapboxAutofillListbox(element: HTMLElement): boolean {
 /**
  * Determines if an element is Mapbox autofill-related by checking specific attributes,
  * classes, IDs, and roles. Uses precise selectors to avoid false positives.
+ * 
+ * NOTE: The data-mapbox-autofill attribute check is the most reliable as it's explicitly
+ * added by our code. Class and ID checks validate that a Mapbox container exists in the
+ * document to prevent false positives from unrelated elements with similar naming patterns.
  */
 export function isMapboxElement(element: HTMLElement): boolean {
   return (

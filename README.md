@@ -54,13 +54,27 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       - In this app, OAuth sign-in will redirect to: `${NEXT_PUBLIC_SITE_URL}/auth/callback?next=/` which then exchanges the code and returns you to the app.
 
 4.  **Set up Mapbox:**
+
     - Create a free account at [Mapbox](https://www.mapbox.com/) or sign in to your existing account.
     - Navigate to your [Account page](https://account.mapbox.com/) and copy your **Default public token** (or create a new access token if needed).
     - Add the Mapbox access token to your `.env.local` file:
+
       ```
-      NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN="YOUR_MAPBOX_ACCESS_TOKEN"
+      # Required: Public token for client-side map display and address autocomplete
+      NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN="YOUR_MAPBOX_PUBLIC_TOKEN"
+
+      # Optional: Server-only token for reverse geocoding (more secure)
+      # If not provided, the API route will fall back to NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+      MAPBOX_ACCESS_TOKEN="YOUR_MAPBOX_SERVER_TOKEN"
       ```
-    - **Note:** The `NEXT_PUBLIC_` prefix makes this variable available to client-side code, which is required for Mapbox to work in the browser.
+
+    - **⚠️ Security Warning:** The `NEXT_PUBLIC_` prefix makes this variable available to client-side code, which is required for Mapbox to work in the browser. **This means your Mapbox access token will be visible in the browser's source code and network requests.**
+      - Use a **public token** (typically starts with `pk.`), NOT a secret token (starts with `sk.`)
+      - Configure **URL restrictions** in your Mapbox account to limit token usage to your domain(s)
+      - Set **minimal scopes** (only styles:read, fonts:read, sprites:read for maps; geocoding for autocomplete)
+      - Set up **rate limiting** and **usage quotas** in Mapbox to prevent abuse
+      - Monitor your Mapbox usage regularly for unexpected activity
+      - See the [Security Best Practices](#security-best-practices) section below for more information
 
 5.  **Set up Supabase CLI and link project:**
 
@@ -176,6 +190,75 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
 - You **must** enable RLS for each table in the Supabase dashboard (**Table Editor > Select Table > Table Settings > Enable Row Level Security (RLS)**) or via SQL (`alter table <table_name> enable row level security;`).
 - Apply the example policies provided in the migration file using the Supabase SQL editor or by adding them to a new migration file (`supabase migration new add_rls_policies`) and running `supabase db push`.
 - The example policies allow any authenticated user full CRUD access. You should refine these based on your specific authorization needs (e.g., only owners can modify certain records).
+
+## Security Best Practices
+
+### Environment Variables
+
+- **Client-Side Exposure:** Any environment variable prefixed with `NEXT_PUBLIC_` will be bundled into your client-side JavaScript and is visible to anyone who views your website's source code or network requests. Never use `NEXT_PUBLIC_` for sensitive credentials like API secrets, database passwords, or private keys.
+- **Server-Side Only:** Use environment variables without the `NEXT_PUBLIC_` prefix for sensitive values that should only be accessible on the server (e.g., Supabase service role key, OAuth client secrets).
+
+### Mapbox Access Tokens
+
+**Important Security Note:** The `mapbox-gl` and `@mapbox/search-js-react` libraries require the access token to be passed as a prop, which means it will be embedded in the client-side JavaScript bundle. This is a limitation of these libraries.
+
+**Security Measures Implemented:**
+
+- ✅ Reverse geocoding requests are proxied through `/api/mapbox/reverse-geocode` to keep the token server-side
+- ✅ Token validation warns in development if a secret token (sk.\*) is detected (though the code will still run - you must use a public token)
+- ✅ Token is never logged or exposed in error messages
+- ✅ Token is only used for read-only operations (map display via `mapbox-gl` and address autocomplete via `@mapbox/search-js-react`)
+
+**Required Security Practices:**
+
+1. **Use Public Tokens Only:**
+
+   - Always use Mapbox **public tokens** (typically start with `pk.`) for client-side applications
+   - **NEVER** use secret tokens (start with `sk.`) in client-side code
+   - Public tokens are designed to be exposed in the browser, but must still be properly secured
+
+2. **Configure URL Restrictions:**
+
+   - In your [Mapbox account settings](https://account.mapbox.com/), restrict your public token to specific domains:
+     - Add your production domain (e.g., `https://app.happyharvests.com`)
+     - Add your development domain (e.g., `http://localhost:4000`)
+   - This prevents unauthorized sites from using your token
+
+3. **Set Minimal Token Scopes:**
+
+   - For map display: Only enable `styles:read`, `fonts:read`, `sprites:read`
+   - For address autocomplete: Only enable geocoding API access
+   - **DO NOT** enable uploads, datasets, or any write permissions
+
+4. **Set Usage Limits:**
+
+   - Configure rate limits and usage quotas in Mapbox to prevent abuse and unexpected charges:
+     - Set daily/monthly request limits
+     - Enable usage alerts
+     - Monitor usage regularly in the Mapbox dashboard
+
+5. **Rotate Tokens:**
+
+   - If you suspect a token has been compromised, immediately revoke it in Mapbox and generate a new one
+   - Rotate tokens periodically as a security best practice
+
+6. **Server-Side Token (Optional but Recommended):**
+   - For reverse geocoding, you can optionally use `MAPBOX_ACCESS_TOKEN` (without `NEXT_PUBLIC_` prefix) in your `.env.local`
+   - The API route will prefer the server-only token over the public token
+   - This provides an additional layer of security for server-side operations
+
+### Supabase Keys
+
+- **Anon Key:** The `NEXT_PUBLIC_SUPABASE_ANON_KEY` is safe to expose client-side as it's designed for public use. However, RLS policies must be properly configured to secure your data.
+- **Service Role Key:** Never expose the Supabase service role key. It should only be used in server-side code and must never have the `NEXT_PUBLIC_` prefix.
+
+### General Security Recommendations
+
+- Regularly review and update your dependencies for security vulnerabilities
+- Keep your Supabase RLS policies up to date and follow the principle of least privilege
+- Use HTTPS in production to encrypt data in transit
+- Never commit `.env.local` or `.env` files to version control (they should be in `.gitignore`)
+- Use different credentials for development, staging, and production environments
 
 ## Husky Pre-commit Hook
 

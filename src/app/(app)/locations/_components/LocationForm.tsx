@@ -119,12 +119,10 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
     setupFormControl();
 
     // Also try after microtasks to catch any async form setup
-    const timeoutIds: NodeJS.Timeout[] = [];
-    FORM_CONTROL_SETUP_DELAYS.forEach((delay) => {
-      const id = setTimeout(() => {
+    const timeoutIds = FORM_CONTROL_SETUP_DELAYS.map((delay) => {
+      return setTimeout(() => {
         setupFormControl();
       }, delay);
-      timeoutIds.push(id);
     });
 
     // Cleanup: only clear the timeouts

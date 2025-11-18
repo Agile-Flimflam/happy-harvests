@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  node-domexception: ^2.0.2
+
 importers:
 
   .:
@@ -78,13 +81,13 @@ importers:
         specifier: ^5.3.4
         version: 5.3.4
       googleapis:
-        specifier: ^157.0.0
-        version: 157.0.0
+        specifier: ^166.0.0
+        version: 166.0.0
       lucide-react:
         specifier: ^0.501.0
         version: 0.501.0(react@19.1.1)
       mapbox-gl:
-        specifier: ^3.0.0
+        specifier: ^3.16.0
         version: 3.16.0
       next:
         specifier: 15.3.1
@@ -1879,8 +1882,8 @@ packages:
     resolution: {integrity: sha512-66if47It7y+Sab3HMkwEXx1kCq9qUC9px8ZXoj1CMrmLmUw81GpbnsNlXnlyZyGbGPGcj+tDD9XsZ23m7GLaJQ==}
     engines: {node: '>=18.0.0'}
 
-  googleapis@157.0.0:
-    resolution: {integrity: sha512-0q6V93amJANRu1BRkeG6eftrAxweM7ZLbgRshmRg2zLSPpPLaRiDFCckHpEOFspXGglfw8l+hZql7NgWPwAwfQ==}
+  googleapis@166.0.0:
+    resolution: {integrity: sha512-Xz7yG+ihVvYMwSULKIMeTp6vDX95rrSbsaR3xUmgYjwQdAkchMQ5ndFeG5QZwcBOIyvJFvG7ZLIZE7mKW2X/hw==}
     engines: {node: '>=18'}
 
   gopd@1.2.0:
@@ -2313,9 +2316,9 @@ packages:
   no-scroll@2.1.1:
     resolution: {integrity: sha512-YTzGAJOo/B6hkodeT5SKKHpOhAzjMfkUCCXjLJwjWk2F4/InIg+HbdH9kmT7bKpleDuqLZDTRy2OdNtAj0IVyQ==}
 
-  node-domexception@1.0.0:
-    resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
-    engines: {node: '>=10.5.0'}
+  node-domexception@2.0.2:
+    resolution: {integrity: sha512-Qf9vHK9c5MGgUXj8SnucCIS4oEPuUstjRaMplLGeZpbWMfNV1rvEcXuwoXfN51dUfD1b4muPHPQtCx/5Dj/QAA==}
+    engines: {node: '>=16'}
     deprecated: Use your platform's native DOMException instead
 
   node-fetch@3.3.2:
@@ -4648,7 +4651,7 @@ snapshots:
 
   fetch-blob@3.2.0:
     dependencies:
-      node-domexception: 1.0.0
+      node-domexception: 2.0.2
       web-streams-polyfill: 3.3.3
 
   file-entry-cache@8.0.0:
@@ -4789,7 +4792,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  googleapis@157.0.0:
+  googleapis@166.0.0:
     dependencies:
       google-auth-library: 10.2.1
       googleapis-common: 8.0.0
@@ -5223,7 +5226,7 @@ snapshots:
 
   no-scroll@2.1.1: {}
 
-  node-domexception@1.0.0: {}
+  node-domexception@2.0.2: {}
 
   node-fetch@3.3.2:
     dependencies:

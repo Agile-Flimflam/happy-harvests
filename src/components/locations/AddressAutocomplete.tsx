@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import type { LocationFormValues } from '@/lib/validation/locations';
 import { getValidatedMapboxToken } from '@/lib/mapbox-utils';
 import { setupFormControlPropertyFromInput } from '@/lib/form-utils';
+import { Z_INDEX } from '@/lib/ui-constants';
 
 // Dynamically import AddressAutofill to avoid SSR issues
 const AddressAutofill = dynamic(
@@ -51,11 +52,6 @@ const STYLE_ID = 'mapbox-autofill-styles';
 // Delay in milliseconds before removing the selection-complete data attribute
 // This allows Mapbox to finish processing the selection before cleanup
 const MAPBOX_SELECTION_CLEANUP_DELAY = 100;
-
-// Z-index for Mapbox autocomplete dropdown
-// Must be above dialogs (z-50 = 50) but not excessively high to avoid conflicts
-// Using 100 provides sufficient layering without being excessive
-const MAPBOX_DROPDOWN_Z_INDEX = 100;
 
 // Valid coordinate ranges (WGS84 standard)
 const MIN_LATITUDE = -90;
@@ -122,13 +118,13 @@ class MapboxAutocompleteResourceManager {
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
-      /* Ensure Mapbox dropdown is above dialog (z-50 = 50) and clickable */
+      /* Ensure Mapbox dropdown is above dialogs (z-${Z_INDEX.dropdown} = ${Z_INDEX.dropdown}) and clickable */
       [class*="mapbox-autofill"],
       [id*="mapbox-autofill"],
       [data-mapbox-autofill],
       [role="listbox"],
       [role="option"] {
-        z-index: ${MAPBOX_DROPDOWN_Z_INDEX} !important;
+        z-index: ${Z_INDEX.autocomplete} !important;
         pointer-events: auto !important;
       }
       
@@ -193,9 +189,13 @@ class MapboxAutocompleteResourceManager {
       if (styleEl) {
         try {
           document.head.removeChild(styleEl);
-        } catch {
+        } catch (error) {
           // Element may have already been removed by another concurrent cleanup
-          // This is safe to ignore
+          // This is safe to ignore, but log for debugging purposes
+          console.debug(
+            '[AddressAutocomplete] Style element removal failed (expected in concurrent cleanup):',
+            error instanceof Error ? error.message : String(error)
+          );
         }
       }
       this.stylesInjected = false;
@@ -307,16 +307,28 @@ export function AddressAutocomplete({
   // Fallback to empty string if watch is not available or component not mounted
   const addressValue = field?.value ?? (isMounted && watch ? watch('street') : '') ?? '';
 
-  // SECURITY CONSIDERATION: Mapbox access token is exposed in client-side code
-  // The token is necessary for Mapbox to work in the browser, but must be properly secured:
-  // 1. Configure URL restrictions in Mapbox dashboard to limit token usage to your domain(s)
-  // 2. Set minimal permissions - only enable geocoding and mapping APIs (not uploads, etc.)
-  // 3. Enable usage monitoring in Mapbox dashboard to detect abuse or unexpected usage patterns
-  // 4. Regularly rotate tokens and review access logs
-  // 5. Never use a token with admin or write permissions in client-side code
+  // SECURITY CONSIDERATION: Mapbox access token usage
+  // 
+  // IMPORTANT: The @mapbox/search-js-react library requires the token to be passed as a prop,
+  // which means it will be embedded in the client-side JavaScript bundle. This is a limitation of the library.
+  //
+  // Security measures implemented:
+  // 1. Token is validated to ensure it's not a secret token (sk.*) in development
+  // 2. Token is never logged or exposed in error messages
+  // 3. Token is only used for address autocomplete (read-only operations)
+  //
+  // Required Mapbox token configuration:
+  // - MUST be a PUBLIC token (pk.*), NOT a secret token (sk.*)
+  // - MUST have URL restrictions configured in Mapbox dashboard
+  // - MUST have minimal scopes: geocoding API access only
+  // - MUST NOT have uploads, datasets, or write permissions
+  // - MUST monitor usage in Mapbox dashboard regularly
+  // - MUST rotate tokens periodically
+  //
   // See README.md for additional security documentation
 
   // Validate and normalize Mapbox access token
+  // WARNING: This token will be embedded in client-side code due to @mapbox/search-js-react requirements
   // Returns null if token is undefined, null, empty string, or whitespace-only
   // No need for useMemo since getValidatedMapboxToken() reads from process.env (constant at build time)
   const mapboxToken = getValidatedMapboxToken();
@@ -404,22 +416,12 @@ export function AddressAutocomplete({
       if (zip) {
         setValue('zip', zip, { shouldValidate: true, shouldDirty: true });
       }
-      // Validate latitude is within valid range before setting
-      if (
-        typeof latitude === 'number' &&
-        !Number.isNaN(latitude) &&
-        latitude >= MIN_LATITUDE &&
-        latitude <= MAX_LATITUDE
-      ) {
+      // Coordinates are already validated when extracted from the geometry
+      // Only set if they were successfully validated (not null)
+      if (latitude !== null) {
         setValue('latitude', latitude, { shouldValidate: true, shouldDirty: true });
       }
-      // Validate longitude is within valid range before setting
-      if (
-        typeof longitude === 'number' &&
-        !Number.isNaN(longitude) &&
-        longitude >= MIN_LONGITUDE &&
-        longitude <= MAX_LONGITUDE
-      ) {
+      if (longitude !== null) {
         setValue('longitude', longitude, { shouldValidate: true, shouldDirty: true });
       }
       
