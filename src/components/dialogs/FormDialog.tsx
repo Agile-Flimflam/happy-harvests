@@ -17,6 +17,118 @@ type FormDialogProps = {
   className?: string
 }
 
+/**
+ * Safely checks if an element's className contains a search string.
+ */
+function hasClassName(element: HTMLElement, search: string): boolean {
+  const className = element.className;
+  if (typeof className === 'string') {
+    return className.toLowerCase().includes(search.toLowerCase());
+  }
+  return String(className || '').toLowerCase().includes(search.toLowerCase());
+}
+
+/**
+ * Checks if an element has Mapbox-related attributes.
+ */
+function hasMapboxAttribute(element: HTMLElement): boolean {
+  return (
+    element.hasAttribute('data-mapbox-autofill') ||
+    element.closest('[data-mapbox-autofill]') !== null
+  );
+}
+
+/**
+ * Checks if an element has Mapbox-related CSS classes or IDs.
+ */
+function hasMapboxClass(element: HTMLElement): boolean {
+  return (
+    hasClassName(element, 'mapbox') ||
+    hasClassName(element, 'autofill') ||
+    hasClassName(element, 'mbx') ||
+    element.closest('[class*="mapbox"]') !== null ||
+    element.closest('[class*="mbx"]') !== null ||
+    element.closest('[id*="mapbox"]') !== null
+  );
+}
+
+/**
+ * Checks if an element has a Mapbox-related ARIA role.
+ */
+function hasMapboxRole(element: HTMLElement): boolean {
+  const role = element.getAttribute('role');
+  const isOptionOrListbox = role === 'option' || role === 'listbox';
+  return isOptionOrListbox && (
+    hasMapboxClass(element) || 
+    element.closest('[class*="mapbox"]') !== null
+  );
+}
+
+/**
+ * Checks if an element is a listbox or option that's likely from Mapbox.
+ */
+function isLikelyMapboxListbox(element: HTMLElement): boolean {
+  const role = element.getAttribute('role');
+  const isListboxOrOption = role === 'listbox' || role === 'option';
+  
+  if (!isListboxOrOption) return false;
+  
+  return (
+    document.querySelector('[class*="mapbox-autofill"]') !== null ||
+    document.querySelector('[id*="mapbox-autofill"]') !== null
+  );
+}
+
+/**
+ * Determines if an element is Mapbox-related by checking attributes, classes, roles, and context.
+ */
+function isMapboxElement(element: HTMLElement): boolean {
+  return (
+    hasMapboxAttribute(element) ||
+    hasMapboxClass(element) ||
+    hasMapboxRole(element) ||
+    isLikelyMapboxListbox(element)
+  );
+}
+
+/**
+ * Gets the element at the click coordinates (more reliable for portal-rendered elements).
+ */
+function getElementAtPoint(event: MouseEvent): HTMLElement | null {
+  if (event.clientX === undefined || event.clientY === undefined) {
+    return null;
+  }
+  const element = document.elementFromPoint(event.clientX, event.clientY);
+  return element as HTMLElement | null;
+}
+
+/**
+ * Determines if a click event is related to Mapbox components and should prevent dialog closing.
+ */
+function isMapboxRelatedClick(event: MouseEvent & { __isMapboxClick?: boolean }): boolean {
+  // Check if event was explicitly marked as a Mapbox click
+  if (event.__isMapboxClick) {
+    return true;
+  }
+  
+  const target = event.target as HTMLElement | null;
+  if (!target) return false;
+  
+  // Check if target is a Mapbox element
+  if (isMapboxElement(target)) {
+    return true;
+  }
+  
+  // Check element at click point (for portal-rendered dropdowns)
+  const elementAtPoint = getElementAtPoint(event);
+  if (elementAtPoint && elementAtPoint !== target && isMapboxElement(elementAtPoint)) {
+    return true;
+  }
+  
+  // Check if click is on address input field
+  return hasMapboxAttribute(target);
+}
+
 export default function FormDialog({
   open,
   onOpenChange,
@@ -32,83 +144,7 @@ export default function FormDialog({
   const handleInteractOutside = (event: Event) => {
     const mouseEvent = event as MouseEvent & { __isMapboxClick?: boolean };
     
-    // If the event was marked as a Mapbox click, prevent dialog from closing
-    if (mouseEvent.__isMapboxClick) {
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
-    
-    const target = (mouseEvent.target || event.target) as HTMLElement;
-    if (!target) return;
-    
-    // Helper to safely check className
-    const hasClassName = (element: HTMLElement, search: string): boolean => {
-      const className = element.className;
-      if (typeof className === 'string') {
-        return className.toLowerCase().includes(search.toLowerCase());
-      }
-      return String(className || '').toLowerCase().includes(search.toLowerCase());
-    };
-    
-    // Get the element at the actual click point (more reliable for portals)
-    let elementAtPoint: HTMLElement | null = null;
-    if (mouseEvent.clientX !== undefined && mouseEvent.clientY !== undefined) {
-      const element = document.elementFromPoint(mouseEvent.clientX, mouseEvent.clientY);
-      elementAtPoint = element as HTMLElement;
-    }
-    
-    // Check both the target and element at point
-    const elementsToCheck = [target];
-    if (elementAtPoint && elementAtPoint !== target) {
-      elementsToCheck.push(elementAtPoint);
-    }
-    
-    // Check if any of the elements are Mapbox-related
-    for (const element of elementsToCheck) {
-      if (!element) continue;
-      
-      // Check for Mapbox autofill attributes and classes
-      const hasMapboxAttribute = 
-        element.hasAttribute('data-mapbox-autofill') ||
-        element.closest('[data-mapbox-autofill]') !== null;
-      
-      const hasMapboxClass = 
-        hasClassName(element, 'mapbox') ||
-        hasClassName(element, 'autofill') ||
-        hasClassName(element, 'mbx') ||
-        element.closest('[class*="mapbox"]') !== null ||
-        element.closest('[class*="mbx"]') !== null ||
-        element.closest('[id*="mapbox"]') !== null;
-      
-      const hasMapboxRole = 
-        (element.getAttribute('role') === 'option' || element.getAttribute('role') === 'listbox') &&
-        (hasMapboxClass || element.closest('[class*="mapbox"]') !== null);
-      
-      // Check if it's a listbox or option that's likely from Mapbox
-      const isListboxOrOption = 
-        element.getAttribute('role') === 'listbox' ||
-        element.getAttribute('role') === 'option';
-      
-      // If it's a listbox/option and we can find Mapbox containers nearby, it's likely Mapbox
-      const isLikelyMapbox = isListboxOrOption && (
-        document.querySelector('[class*="mapbox-autofill"]') !== null ||
-        document.querySelector('[id*="mapbox-autofill"]') !== null
-      );
-      
-      if (hasMapboxAttribute || hasMapboxClass || hasMapboxRole || isLikelyMapbox) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-    }
-    
-    // Also check if the click is on the address input field
-    const isAddressInput = 
-      target.hasAttribute('data-mapbox-autofill') || 
-      target.closest('[data-mapbox-autofill]') !== null;
-    
-    if (isAddressInput) {
+    if (isMapboxRelatedClick(mouseEvent)) {
       event.preventDefault();
       event.stopPropagation();
     }

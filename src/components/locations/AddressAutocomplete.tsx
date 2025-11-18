@@ -43,6 +43,13 @@ interface AddressAutofillRetrieveResponse {
   [key: string]: unknown;
 }
 
+// Module-level state to manage global styles and event listeners
+// This ensures styles are only injected once and removed when the last instance unmounts
+const STYLE_ID = 'mapbox-autofill-styles';
+let instanceCount = 0;
+let stylesInjected = false;
+let mapboxClickHandler: ((e: MouseEvent) => void) | null = null;
+
 export function AddressAutocomplete({
   className,
   placeholder = 'Start typing an address...',
@@ -182,30 +189,22 @@ export function AddressAutocomplete({
         setValue('longitude', longitude, { shouldValidate: true, shouldDirty: true });
       }
       
-      // Close the dropdown after Mapbox processes the selection
-      // Don't blur the input as it causes the dialog to close
+      // Close the dropdown by blurring the input after Mapbox processes the selection
+      // Mark the input with a data attribute to indicate programmatic blur
+      // This allows the dialog to distinguish between user clicks and programmatic actions
       if (inputRef.current) {
-        // Use requestAnimationFrame to ensure Mapbox has finished processing
+        // Mark that we're programmatically closing the dropdown
+        inputRef.current.setAttribute('data-mapbox-selection-complete', 'true');
+        
+        // Use requestAnimationFrame to ensure Mapbox has finished processing the selection
         requestAnimationFrame(() => {
+          // Blur the input to close the dropdown naturally
+          // This is more reliable than DOM manipulation and works with Mapbox's internal state
+          inputRef.current?.blur();
+          
+          // Remove the data attribute after a short delay
           setTimeout(() => {
-            // Hide the dropdown by finding and hiding the listbox
-            const listbox = document.querySelector('[role="listbox"]');
-            if (listbox && listbox instanceof HTMLElement) {
-              listbox.style.display = 'none';
-            }
-            
-            // Also try to find any Mapbox autofill containers and hide them
-            const mapboxContainers = document.querySelectorAll('[class*="mapbox-autofill"], [id*="mapbox-autofill"]');
-            mapboxContainers.forEach((container) => {
-              if (container instanceof HTMLElement) {
-                const suggestions = container.querySelectorAll('[role="listbox"], [role="option"]');
-                suggestions.forEach((suggestion) => {
-                  if (suggestion instanceof HTMLElement) {
-                    suggestion.style.display = 'none';
-                  }
-                });
-              }
-            });
+            inputRef.current?.removeAttribute('data-mapbox-selection-complete');
           }, 100);
         });
       }
@@ -225,76 +224,92 @@ export function AddressAutocomplete({
   }, []);
 
   // Add global styles and click handler to ensure Mapbox dropdown works correctly
+  // Uses a reference counter to ensure styles are only injected once and removed when the last instance unmounts
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const style = document.createElement('style');
-    style.id = 'mapbox-autofill-styles';
-    style.textContent = `
-      /* Ensure Mapbox dropdown is above dialog (z-50) and clickable */
-      [class*="mapbox-autofill"],
-      [id*="mapbox-autofill"],
-      [data-mapbox-autofill],
-      [role="listbox"],
-      [role="option"] {
-        z-index: 9999 !important;
-        pointer-events: auto !important;
-      }
+    // Increment instance counter
+    instanceCount++;
+
+    // Inject styles only if not already injected
+    if (!stylesInjected) {
+      const style = document.createElement('style');
+      style.id = STYLE_ID;
+      style.textContent = `
+        /* Ensure Mapbox dropdown is above dialog (z-50) and clickable */
+        [class*="mapbox-autofill"],
+        [id*="mapbox-autofill"],
+        [data-mapbox-autofill],
+        [role="listbox"],
+        [role="option"] {
+          z-index: 9999 !important;
+          pointer-events: auto !important;
+        }
+        
+        /* Ensure all Mapbox suggestion elements are clickable */
+        [class*="mapbox-autofill"] *,
+        [id*="mapbox-autofill"] *,
+        [data-mapbox-autofill] *,
+        [role="listbox"] *,
+        [role="option"] * {
+          pointer-events: auto !important;
+          cursor: pointer !important;
+        }
+      `;
       
-      /* Ensure all Mapbox suggestion elements are clickable */
-      [class*="mapbox-autofill"] *,
-      [id*="mapbox-autofill"] *,
-      [data-mapbox-autofill] *,
-      [role="listbox"] *,
-      [role="option"] * {
-        pointer-events: auto !important;
-        cursor: pointer !important;
-      }
-    `;
-    
-    // Remove existing style if present
-    const existing = document.getElementById('mapbox-autofill-styles');
-    if (existing) {
-      existing.remove();
+      document.head.appendChild(style);
+      stylesInjected = true;
     }
-    
-    document.head.appendChild(style);
 
-    // Add a click handler to mark Mapbox clicks so the dialog doesn't close
-    // We use a data attribute to mark the event, which the dialog can check
-    const handleMapboxClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target) return;
+    // Set up event listeners only if not already set up
+    if (!mapboxClickHandler) {
+      // Add a click handler to mark Mapbox clicks so the dialog doesn't close
+      // We use a data attribute to mark the event, which the dialog can check
+      mapboxClickHandler = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (!target) return;
 
-      // Check if this is a Mapbox element
-      const isMapboxElement = 
-        target.closest('[class*="mapbox"]') !== null ||
-        target.closest('[class*="mbx"]') !== null ||
-        target.closest('[id*="mapbox"]') !== null ||
-        target.closest('[data-mapbox-autofill]') !== null ||
-        (target.getAttribute('role') === 'option' && 
-         document.querySelector('[class*="mapbox-autofill"]') !== null) ||
-        (target.getAttribute('role') === 'listbox' && 
-         document.querySelector('[class*="mapbox-autofill"]') !== null);
+        // Check if this is a Mapbox element
+        const isMapboxElement = 
+          target.closest('[class*="mapbox"]') !== null ||
+          target.closest('[class*="mbx"]') !== null ||
+          target.closest('[id*="mapbox"]') !== null ||
+          target.closest('[data-mapbox-autofill]') !== null ||
+          (target.getAttribute('role') === 'option' && 
+           document.querySelector('[class*="mapbox-autofill"]') !== null) ||
+          (target.getAttribute('role') === 'listbox' && 
+           document.querySelector('[class*="mapbox-autofill"]') !== null);
 
-      if (isMapboxElement) {
-        // Mark the event so the dialog knows not to close
-        // We don't stop propagation to allow Mapbox to handle the click
-        (e as MouseEvent & { __isMapboxClick?: boolean }).__isMapboxClick = true;
-      }
-    };
+        if (isMapboxElement) {
+          // Mark the event so the dialog knows not to close
+          // We don't stop propagation to allow Mapbox to handle the click
+          (e as MouseEvent & { __isMapboxClick?: boolean }).__isMapboxClick = true;
+        }
+      };
 
-    // Use capture phase to catch the event early, but don't stop propagation
-    document.addEventListener('click', handleMapboxClick, true);
-    document.addEventListener('mousedown', handleMapboxClick, true);
+      // Use capture phase to catch the event early, but don't stop propagation
+      document.addEventListener('click', mapboxClickHandler, true);
+      document.addEventListener('mousedown', mapboxClickHandler, true);
+    }
 
+    // Cleanup: decrement counter and remove styles/listeners only when last instance unmounts
     return () => {
-      const styleEl = document.getElementById('mapbox-autofill-styles');
-      if (styleEl) {
-        document.head.removeChild(styleEl);
+      instanceCount--;
+      
+      // Only remove styles and listeners when the last instance unmounts
+      if (instanceCount === 0) {
+        const styleEl = document.getElementById(STYLE_ID);
+        if (styleEl) {
+          document.head.removeChild(styleEl);
+        }
+        stylesInjected = false;
+
+        if (mapboxClickHandler) {
+          document.removeEventListener('click', mapboxClickHandler, true);
+          document.removeEventListener('mousedown', mapboxClickHandler, true);
+          mapboxClickHandler = null;
+        }
       }
-      document.removeEventListener('click', handleMapboxClick, true);
-      document.removeEventListener('mousedown', handleMapboxClick, true);
     };
   }, []);
 

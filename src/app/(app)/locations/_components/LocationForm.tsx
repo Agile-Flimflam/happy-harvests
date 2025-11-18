@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 // (Dialog footer handled by parent FormDialog)
-import { ExternalLink, X, MapPin, CheckCircle2 } from 'lucide-react';
+import { ExternalLink, X, CheckCircle2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UsaStates } from 'usa-states';
 import { useForm, type SubmitHandler, type Resolver } from 'react-hook-form';
@@ -276,7 +276,7 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
                 </FormControl>
                 <FormMessage />
                 <p className="text-xs text-muted-foreground">
-                  Start typing to search for an address. Selected address will auto-populate all fields below.
+                  Start typing a street address (suggestions appear after a few characters). Selected address will auto-populate all fields below.
                 </p>
               </FormItem>
             )}
@@ -356,21 +356,7 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
           <legend className="text-sm font-medium px-1">Location & Coordinates</legend>
           
           <div className="space-y-3">
-            {hasCoordinates ? (
-              <MapPicker height="h-[300px] sm:h-[400px]" />
-            ) : (
-              <div className="relative">
-                <Skeleton className="h-[300px] sm:h-[400px] w-full rounded-md" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center space-y-2 p-4">
-                    <MapPin className="h-8 w-8 mx-auto text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      Select an address above or click the map to set location
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+            <MapPicker height="h-[300px] sm:h-[400px]" />
             <p className="text-xs text-muted-foreground">
               {hasCoordinates
                 ? 'Drag the marker or click on the map to update coordinates. Coordinates will auto-update when you select an address above.'

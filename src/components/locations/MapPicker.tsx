@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Map, Marker, Popup } from 'react-map-gl';
 import { useFormContext } from 'react-hook-form';
 import { Card, CardContent } from '@/components/ui/card';
@@ -50,6 +50,9 @@ export function MapPicker({
   const [popupInfo, setPopupInfo] = useState<ReverseGeocodeResult | null>(null);
   const [showPopup, setShowPopup] = useState(false);
 
+  // Track last coordinates we've attempted to reverse geocode to prevent duplicate calls
+  const lastReverseGeocodedRef = useRef<{ lat: number; lng: number } | null>(null);
+
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
 
   // Build address string from form values
@@ -83,6 +86,9 @@ export function MapPicker({
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
       if (!mapboxToken) return;
+
+      // Track that we're attempting to reverse geocode these coordinates
+      lastReverseGeocodedRef.current = { lat, lng };
 
       setIsReverseGeocoding(true);
       setReverseGeocodeError(null);
@@ -168,11 +174,28 @@ export function MapPicker({
 
   // Show popup when coordinates exist and we have address info
   useEffect(() => {
-    if (latitude != null && longitude != null && addressString) {
+    if (latitude == null || longitude == null) {
+      return;
+    }
+
+    // If we have an address string, use it for the popup
+    if (addressString) {
       setPopupInfo({ address: addressString });
       setShowPopup(true);
-    } else if (latitude != null && longitude != null && !addressString && !isReverseGeocoding) {
-      // If we have coordinates but no address, try to reverse geocode
+      return;
+    }
+
+    // If we don't have an address, try to reverse geocode
+    // Only call if:
+    // 1. We're not already reverse geocoding
+    // 2. These coordinates are different from the last ones we tried
+    const lastCoords = lastReverseGeocodedRef.current;
+    const coordsChanged =
+      !lastCoords ||
+      Math.abs(lastCoords.lat - latitude) > 0.0001 ||
+      Math.abs(lastCoords.lng - longitude) > 0.0001;
+
+    if (!isReverseGeocoding && coordsChanged) {
       reverseGeocode(latitude, longitude);
     }
   }, [latitude, longitude, addressString, isReverseGeocoding, reverseGeocode]);

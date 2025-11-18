@@ -40,33 +40,36 @@ export const LocationSchema = z
 
     // If complete address is provided (Mapbox selection), coordinates should be set
     if (hasCompleteAddress) {
+      // Check if coordinates are missing first
       if (data.latitude == null || data.longitude == null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Coordinates are required when a complete address is selected. Please select an address or set coordinates on the map.',
+          message: 'Coordinates are missing for the selected address. Please try selecting the address again or set coordinates manually on the map.',
           path: ['latitude'], // Attach to latitude field
         });
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Coordinates are required when a complete address is selected. Please select an address or set coordinates on the map.',
+          message: 'Coordinates are missing for the selected address. Please try selecting the address again or set coordinates manually on the map.',
           path: ['longitude'], // Also attach to longitude field
         });
-      } else {
-        // Validate that both coordinates are valid numbers
-        if (typeof data.latitude !== 'number' || Number.isNaN(data.latitude)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Latitude must be a valid number',
-            path: ['latitude'],
-          });
-        }
-        if (typeof data.longitude !== 'number' || Number.isNaN(data.longitude)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Longitude must be a valid number',
-            path: ['longitude'],
-          });
-        }
+        // Return early to avoid duplicate validation errors
+        return;
+      }
+      
+      // Only validate number format if coordinates exist
+      if (typeof data.latitude !== 'number' || Number.isNaN(data.latitude)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Latitude must be a valid number',
+          path: ['latitude'],
+        });
+      }
+      if (typeof data.longitude !== 'number' || Number.isNaN(data.longitude)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Longitude must be a valid number',
+          path: ['longitude'],
+        });
       }
     }
 
