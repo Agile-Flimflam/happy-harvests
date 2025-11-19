@@ -50,7 +50,7 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'pnpm dev',
+    command: 'pnpm dev -p 4000',
     url: 'http://localhost:4000',
     reuseExistingServer: true,
   },
