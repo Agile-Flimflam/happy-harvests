@@ -2,14 +2,10 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: ["main"]
+    branches: ['main']
   pull_request:
-    branches: ["main"]
+    branches: ['main']
 
-jobs:
-  build:
-    name: Build
-    
 permissions:
   contents: read
   pull-requests: read
@@ -17,38 +13,48 @@ permissions:
 
 jobs:
   lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 8
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
+      - name: Run lint
+        run: pnpm lint
 
-      - name: Cache node_modules
-        id: cache-node-modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node_modules-${{ hashFiles('**/pnpm-lock.yaml') }}
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run tests
+        run: echo "⚠ Skipping tests (no test files present)"
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
 
       - name: Build application
         run: pnpm build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
           ANALYZE: true
 
       - name: Upload build artifacts
@@ -83,39 +89,12 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: build
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-
-      - name: Run lint
-        run: pnpm lint
-
-  test:
-    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 8
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Cache node_modules
-        id: cache-node-modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node_modules-${{ hashFiles('**/pnpm-lock.yaml') }}
-
-      - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
@@ -223,68 +202,16 @@ jobs:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
     needs: [build, e2e-tests, check-sonar-secrets]
-    # Optional job - won't block pipeline if it fails
     continue-on-error: true
-    # Only run if all SonarCloud secrets are configured and previous jobs succeeded
     if: needs.check-sonar-secrets.outputs.should-run == 'true' && success()
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-
-      - name: Run tests
-        run: echo "⚠ Skipping tests (no test files present)"
-
-  build:
-    runs-on: ubuntu-latest
-    needs: [lint, test]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-
-      - name: Build
-        # Required secrets must be configured in repository settings:
-        # Settings > Secrets and variables > Actions
-        # - NEXT_PUBLIC_SUPABASE_URL: Supabase project URL
-        # - NEXT_PUBLIC_SUPABASE_ANON_KEY: Supabase anonymous/public key
-        # - NEXT_PUBLIC_SITE_URL: Application site URL
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
-        run: pnpm build
-
-  secret-scanning:
-    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # Fetch full history for accurate analysis
           fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 8
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Cache node_modules
-        id: cache-node-modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node_modules-${{ hashFiles('**/pnpm-lock.yaml') }}
-
-      - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
 
       - name: Run SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
@@ -292,12 +219,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
-          # Configure these secrets in GitHub repository settings:
-          # - SONAR_TOKEN: Generate from SonarCloud (User > My Account > Security)
-          # - SONAR_PROJECT_KEY: Found in SonarCloud project settings (format: org_key:project_key)
-          # - SONAR_ORGANIZATION: Your SonarCloud organization key
           projectKey: ${{ secrets.SONAR_PROJECT_KEY }}
           organization: ${{ secrets.SONAR_ORGANIZATION }}
+
+  secret-scanning:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
           fetch-depth: 0
 
       - name: Secret scanning
@@ -309,6 +240,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
   security-audit:
+    name: Security Audit
     runs-on: ubuntu-latest
     needs: [lint, test]
     steps:
@@ -319,8 +251,5 @@ jobs:
         uses: ./.github/actions/setup-node-pnpm
 
       - name: Vulnerability audit
-        # Reports high-severity vulnerabilities without blocking the workflow
-        # This prevents blocking legitimate changes when new vulnerabilities are discovered
-        # in dependencies, while still making security issues visible
         continue-on-error: true
-        run: pnpm audit #--audit-level=high
+        run: pnpm audit
