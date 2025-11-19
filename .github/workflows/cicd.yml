@@ -59,6 +59,7 @@ jobs:
           path: .next
           retention-days: 1
           if-no-files-found: error
+          include-hidden-files: true
 
       - name: Upload bundle analysis reports
         uses: actions/upload-artifact@v4
@@ -69,6 +70,7 @@ jobs:
             .next/BUILD_ID
           retention-days: 30
           if-no-files-found: warn
+          include-hidden-files: true
 
       - name: Generate bundle size summary
         run: |
