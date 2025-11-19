@@ -109,9 +109,9 @@ jobs:
           STATUS=$(supabase status -o json)
           echo "Supabase Status Output: $STATUS"
 
-          API_URL=$(echo $STATUS | jq -r .apiUrl)
-          ANON_KEY=$(echo $STATUS | jq -r .anonKey)
-          SERVICE_KEY=$(echo $STATUS | jq -r .serviceRoleKey)
+          API_URL=$(echo $STATUS | jq -r .API_URL)
+          ANON_KEY=$(echo $STATUS | jq -r .ANON_KEY)
+          SERVICE_KEY=$(echo $STATUS | jq -r .SERVICE_ROLE_KEY)
 
           if [ "$API_URL" == "null" ] || [ -z "$API_URL" ]; then
             echo "Error: Failed to extract Supabase API URL. Status output was: $STATUS"
