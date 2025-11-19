@@ -275,6 +275,7 @@ jobs:
             -Dsonar.projectKey=happylaufarms_happy-harvests
             -Dsonar.organization=happylaufarms
             -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+            -Dsonar.branch.name=${{ github.head_ref || github.ref_name }}
 
   secret-scanning:
     name: Secret Scanning
