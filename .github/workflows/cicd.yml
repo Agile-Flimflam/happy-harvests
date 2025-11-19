@@ -1,5 +1,10 @@
 name: CI/CD Pipeline
 
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
 on:
   push:
     branches: ['main']
@@ -104,7 +109,7 @@ jobs:
 
       - name: Start Supabase
         run: |
-          supabase start -x studio,migra,deno-relay --ignore-health-check
+          supabase start -x studio,migra,deno-relay
           # Export keys to GITHUB_ENV
           STATUS=$(supabase status -o json)
           echo "Supabase Status Output: $STATUS"
@@ -113,8 +118,10 @@ jobs:
           ANON_KEY=$(echo $STATUS | jq -r .ANON_KEY)
           SERVICE_KEY=$(echo $STATUS | jq -r .SERVICE_ROLE_KEY)
 
-          if [ "$API_URL" == "null" ] || [ -z "$API_URL" ]; then
-            echo "Error: Failed to extract Supabase API URL. Status output was: $STATUS"
+          if [ "$API_URL" == "null" ] || [ -z "$API_URL" ] || \
+             [ "$ANON_KEY" == "null" ] || [ -z "$ANON_KEY" ] || \
+             [ "$SERVICE_KEY" == "null" ] || [ -z "$SERVICE_KEY" ]; then
+            echo "Error: Failed to extract Supabase configuration. Status output was: $STATUS"
             exit 1
           fi
 
@@ -123,15 +130,16 @@ jobs:
           echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY" >> $GITHUB_ENV
           echo "NEXT_PUBLIC_SITE_URL=http://localhost:4000" >> $GITHUB_ENV
 
-      - name: Build application
-        run: pnpm build
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: next-build
+          path: .next
 
       - name: Start Next.js server
         run: |
           pnpm start -p 4000 > server.log 2>&1 &
           echo $! > server.pid
-        env:
-          PORT: 4000
 
       - name: Wait for server to be ready
         run: |
@@ -199,8 +207,8 @@ jobs:
         run: |
           if [ -f server.log ]; then
             # Redact sensitive keys from logs
-            sed -i "s|$NEXT_PUBLIC_SUPABASE_ANON_KEY|[REDACTED_ANON_KEY]|g" server.log
-            sed -i "s|$SUPABASE_SERVICE_ROLE_KEY|[REDACTED_SERVICE_ROLE_KEY]|g" server.log
+            sed -e "s|$NEXT_PUBLIC_SUPABASE_ANON_KEY|[REDACTED_ANON_KEY]|g" \
+                -e "s|$SUPABASE_SERVICE_ROLE_KEY|[REDACTED_SERVICE_ROLE_KEY]|g" server.log > server.log.tmp && mv server.log.tmp server.log
           fi
 
       - name: Upload server logs
@@ -224,7 +232,7 @@ jobs:
           version: latest
 
       - name: Push migrations to production
-        run: supabase db push
+        run: supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -235,7 +243,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build, e2e-tests]
     continue-on-error: true
-    if: secrets.SONAR_TOKEN != '' && secrets.SONAR_PROJECT_KEY != '' && secrets.SONAR_ORGANIZATION != '' && success()
+    if: ${{ github.actor != 'dependabot[bot]' && success() }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -251,8 +259,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
-          projectKey: ${{ secrets.SONAR_PROJECT_KEY }}
-          organization: ${{ secrets.SONAR_ORGANIZATION }}
+          args: >
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
 
   secret-scanning:
     name: Secret Scanning
@@ -284,4 +293,4 @@ jobs:
 
       - name: Vulnerability audit
         continue-on-error: true
-        run: pnpm audit
+        run: pnpm audit --audit-level=high
