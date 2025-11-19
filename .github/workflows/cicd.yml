@@ -6,11 +6,6 @@ on:
   pull_request:
     branches: ['main']
 
-permissions:
-  contents: read
-  pull-requests: read
-  actions: read
-
 jobs:
   lint:
     name: Lint
@@ -63,6 +58,7 @@ jobs:
           name: next-build
           path: .next
           retention-days: 1
+          if-no-files-found: error
 
       - name: Upload bundle analysis reports
         uses: actions/upload-artifact@v4
