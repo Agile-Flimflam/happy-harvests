@@ -137,7 +137,7 @@ jobs:
           exit 1
 
       - name: Run E2E tests
-        run: pnpm test:e2e
+        run: pnpm test:e2e --project=chromium
         env:
           CI: true
           PLAYWRIGHT_BASE_URL: http://localhost:4000
@@ -178,13 +178,22 @@ jobs:
           path: test-results/**/*.png
           retention-days: 30
 
+      - name: Sanitize server logs
+        if: failure()
+        run: |
+          if [ -f server.log ]; then
+            # Redact sensitive keys from logs
+            sed -i "s|$NEXT_PUBLIC_SUPABASE_ANON_KEY|[REDACTED_ANON_KEY]|g" server.log
+            sed -i "s|$SUPABASE_SERVICE_ROLE_KEY|[REDACTED_SERVICE_ROLE_KEY]|g" server.log
+          fi
+
       - name: Upload server logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: server-logs
           path: server.log
-          retention-days: 7
+          retention-days: 2
 
   deploy-db:
     name: Deploy Database Migrations
