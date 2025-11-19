@@ -202,6 +202,7 @@ jobs:
             test-results/**/*.webm
             test-results/**/*.mp4
           retention-days: 14
+          if-no-files-found: ignore
 
       - name: Upload test screenshots
         if: always()
@@ -210,6 +211,7 @@ jobs:
           name: playwright-screenshots
           path: test-results/**/*.png
           retention-days: 14
+          if-no-files-found: ignore
 
       - name: Sanitize server logs
         if: failure()
@@ -227,6 +229,7 @@ jobs:
           name: server-logs
           path: server.log
           retention-days: 1
+          if-no-files-found: ignore
 
   deploy-db:
     name: Deploy Database Migrations
