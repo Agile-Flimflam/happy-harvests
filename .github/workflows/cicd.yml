@@ -115,6 +115,7 @@ jobs:
           supabase start -x studio,migra,deno-relay
           # Export keys to GITHUB_ENV
           STATUS=$(supabase status -o json)
+          echo "Supabase Status Output: $STATUS"
 
           API_URL=$(echo $STATUS | jq -r .API_URL)
           ANON_KEY=$(echo $STATUS | jq -r .ANON_KEY)
@@ -274,7 +275,6 @@ jobs:
           args: >
             -Dsonar.projectKey=happylaufarms_happy-harvests
             -Dsonar.organization=happylaufarms
-            -Dsonar.token=${{ secrets.SONAR_TOKEN }}
             -Dsonar.branch.name=${{ github.head_ref || github.ref_name }}
 
   secret-scanning:
