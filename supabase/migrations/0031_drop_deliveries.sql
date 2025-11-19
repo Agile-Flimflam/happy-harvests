@@ -4,13 +4,7 @@ begin;
     drop trigger if exists set_deliveries_updated_at
     on public.deliveries;
 
--- Drop policies for delivery_item_images
-drop policy
-if exists "Allow authenticated user to view own delivery item images" on public.delivery_item_images;
-drop policy
-if exists "Allow authenticated user to insert delivery item images" on public.delivery_item_images;
-drop policy
-if exists "Allow authenticated user to delete own delivery item images" on public.delivery_item_images;
+
 
 -- Drop policies for deliveries and delivery_items
 drop policy
