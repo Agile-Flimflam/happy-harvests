@@ -66,7 +66,7 @@
     "@types/node": "^20.19.11",
     "@types/react": "^19.1.11",
     "@types/react-dom": "^19.1.7",
-    "eslint": "^9.34.0",
+    "eslint": "^9.39.1",
     "eslint-config-next": "15.4.7",
     "eslint-config-prettier": "^9.1.0",
     "husky": "^9.1.7",
@@ -106,7 +106,8 @@
     "overrides": {
       "glob": "^10.4.5",
       "node-domexception": "^2.0.2",
-      "jsdom": "^23.0.0"
+      "jsdom": "^23.0.0",
+      "js-yaml@^4.0.0": "^4.1.1"
     },
     "allowedDeprecatedVersions": {
       "node-domexception": "^2.0.2"
