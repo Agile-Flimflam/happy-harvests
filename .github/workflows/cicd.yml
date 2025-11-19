@@ -97,11 +97,22 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
         with:
-          name: next-build
-          path: .next
+          version: latest
+
+      - name: Start Supabase
+        run: |
+          supabase start -x studio,migra,deno-relay --ignore-health-check
+          # Export keys to GITHUB_ENV
+          STATUS=$(supabase status -o json)
+          echo "NEXT_PUBLIC_SUPABASE_URL=$(echo $STATUS | jq -r .apiUrl)" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(echo $STATUS | jq -r .anonKey)" >> $GITHUB_ENV
+          echo "SUPABASE_SERVICE_ROLE_KEY=$(echo $STATUS | jq -r .serviceRoleKey)" >> $GITHUB_ENV
+
+      - name: Build application
+        run: pnpm build
 
       - name: Start Next.js server
         run: |
@@ -109,8 +120,6 @@ jobs:
           echo $! > server.pid
         env:
           PORT: 4000
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Wait for server to be ready
         run: |
@@ -132,8 +141,6 @@ jobs:
         env:
           CI: true
           PLAYWRIGHT_BASE_URL: http://localhost:4000
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Stop Next.js server
         if: always()
@@ -178,6 +185,25 @@ jobs:
           name: server-logs
           path: server.log
           retention-days: 7
+
+  deploy-db:
+    name: Deploy Database Migrations
+    runs-on: ubuntu-latest
+    needs: [test, build, e2e-tests]
+    if: github.ref == 'refs/heads/main' && success()
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Push migrations to production
+        run: supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
 
   check-sonar-secrets:
     runs-on: ubuntu-latest
