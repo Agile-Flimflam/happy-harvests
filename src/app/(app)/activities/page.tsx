@@ -1,73 +1,95 @@
-import Link from 'next/link'
-import { getActivitiesGrouped, getActivitiesFlat, deleteActivitiesBulk } from './_actions'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { WeatherBadge } from '@/components/weather/WeatherBadge'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
-import type { Tables } from '@/lib/database.types'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ActivitiesTable } from '@/components/activities/ActivitiesTable'
-import { Badge } from '@/components/ui/badge'
-import { ActivitiesFilters } from '@/components/activities/ActivitiesFilters'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Download } from 'lucide-react'
-import { isActivityType, prettyActivityType, type ActivityType } from '@/lib/activities/types'
-import { DeleteActivityDialog } from '@/components/activities/DeleteActivityDialog'
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
-import { Droplets, Plus } from 'lucide-react'
+import Link from 'next/link';
+import { getActivitiesGrouped, getActivitiesFlat, deleteActivitiesBulk } from './_actions';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { WeatherBadge } from '@/components/weather/WeatherBadge';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
+import type { Tables } from '@/lib/database.types';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ActivitiesTable } from '@/components/activities/ActivitiesTable';
+import { Badge } from '@/components/ui/badge';
+import { ActivitiesFilters } from '@/components/activities/ActivitiesFilters';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Download, Droplets, Plus } from 'lucide-react';
+import { isActivityType, prettyActivityType, type ActivityType } from '@/lib/activities/types';
+import { DeleteActivityDialog } from '@/components/activities/DeleteActivityDialog';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 //
 
-
 function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null
+  return typeof v === 'object' && v !== null;
 }
 
 function parseWeather(a: { weather?: unknown } | null | undefined) {
-  let icon: string | null = null
-  let tempF: number | null = null
-  let description: string | null = null
-  const w = a && isRecord(a) ? a.weather : undefined
-  const wrec = isRecord(w) ? (w as Record<string, unknown>) : undefined
-  const current = wrec && isRecord(wrec.current) ? (wrec.current as Record<string, unknown>) : undefined
-  const temp = current?.temp
-  if (typeof temp === 'number') tempF = temp
-  const weather = current && isRecord(current.weather) ? (current.weather as Record<string, unknown>) : undefined
-  const iconMaybe = weather?.icon
-  if (typeof iconMaybe === 'string') icon = iconMaybe
-  const descMaybe = weather?.description
-  if (typeof descMaybe === 'string') description = descMaybe
-  return { icon, tempF, description }
+  let icon: string | null = null;
+  let tempF: number | null = null;
+  let description: string | null = null;
+  const w = a && isRecord(a) ? a.weather : undefined;
+  const wrec = isRecord(w) ? w : undefined;
+  const current = wrec && isRecord(wrec.current) ? wrec.current : undefined;
+  const temp = current?.temp;
+  if (typeof temp === 'number') tempF = temp;
+  const weather = current && isRecord(current.weather) ? current.weather : undefined;
+  const iconMaybe = weather?.icon;
+  if (typeof iconMaybe === 'string') icon = iconMaybe;
+  const descMaybe = weather?.description;
+  if (typeof descMaybe === 'string') description = descMaybe;
+  return { icon, tempF, description };
 }
 
-type ActivityRow = Tables<'activities'> & { locations?: { name?: string | null } | null }
+type ActivityRow = Tables<'activities'> & { locations?: { name?: string | null } | null };
 
-export default async function ActivitiesPage({ searchParams }: { searchParams?: Promise<{ type?: string; from?: string; to?: string; location_id?: string }> }) {
-  const supabase = await createSupabaseServerClient()
-  const { data: locations } = await supabase.from('locations').select('id,name').order('name', { ascending: true })
-  const sp = searchParams ? await searchParams : undefined
-  const type = isActivityType(sp?.type) ? sp?.type : undefined
-  const { grouped, error } = await getActivitiesGrouped({ type, from: sp?.from, to: sp?.to, location_id: sp?.location_id })
+export default async function ActivitiesPage({
+  searchParams,
+}: Readonly<{
+  searchParams?: Promise<{ type?: string; from?: string; to?: string; location_id?: string }>;
+}>) {
+  const supabase = await createSupabaseServerClient();
+  const { data: locations } = await supabase
+    .from('locations')
+    .select('id,name')
+    .order('name', { ascending: true });
+  const sp = searchParams ? await searchParams : undefined;
+  const type = isActivityType(sp?.type) ? sp?.type : undefined;
+  const { grouped, error } = await getActivitiesGrouped({
+    type,
+    from: sp?.from,
+    to: sp?.to,
+    location_id: sp?.location_id,
+  });
   if (error) {
-    return <div className="text-red-500">{error}</div>
+    return <div className="text-red-500">{error}</div>;
   }
   const types: ActivityType[] = Object.keys(grouped || {})
     .filter(isActivityType)
-    .sort((a, b) => prettyActivityType(a).localeCompare(prettyActivityType(b)))
-  const allRows = Object.values(grouped || {}).flat().sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''))
-  const typeToCount = Object.fromEntries(types.map((t) => [t, (grouped?.[t] || []).length])) as Record<ActivityType, number>
+    .sort((a, b) => prettyActivityType(a).localeCompare(prettyActivityType(b)));
+  const allRows = Object.values(grouped || {})
+    .flat()
+    .sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
+  const typeToCount = Object.fromEntries(
+    types.map((t) => [t, (grouped?.[t] || []).length])
+  ) as Record<ActivityType, number>;
   const { rows: flatRows = [], error: flatErr } = await getActivitiesFlat({
     type,
     from: sp?.from,
     to: sp?.to,
     location_id: sp?.location_id,
-  })
-  const exportParams = new URLSearchParams()
-  if (type) exportParams.set('type', type)
-  if (sp?.from) exportParams.set('from', sp.from)
-  if (sp?.to) exportParams.set('to', sp.to)
-  if (sp?.location_id) exportParams.set('location_id', sp.location_id)
-  const exportHref = `/api/activities/export${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
-  const hasActivities = types.length > 0
+  });
+  const exportParams = new URLSearchParams();
+  if (type) exportParams.set('type', type);
+  if (sp?.from) exportParams.set('from', sp.from);
+  if (sp?.to) exportParams.set('to', sp.to);
+  if (sp?.location_id) exportParams.set('location_id', sp.location_id);
+  const exportParamsString = exportParams.toString();
+  const exportHref = `/api/activities/export${exportParamsString ? `?${exportParamsString}` : ''}`;
+  const hasActivities = types.length > 0;
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -100,34 +122,22 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
         }}
       />
       <div>
-        {!hasActivities ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Droplets className="size-10" />
-              </EmptyMedia>
-              <EmptyTitle>No activities yet</EmptyTitle>
-              <EmptyDescription>
-                Track your first activity to get started.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button asChild>
-                <Link href="/activities/new">
-                  <span className="flex items-center gap-1">
-                    <Plus className="w-4 h-4" />
-                    Track an Activity
-                  </span>
-                </Link>
-              </Button>
-            </EmptyContent>
-          </Empty>
-        ) : (
+        {hasActivities ? (
           <Tabs defaultValue="all">
             <TabsList>
-              <TabsTrigger value="all">All <Badge className="ml-2" variant="secondary">{allRows.length}</Badge></TabsTrigger>
+              <TabsTrigger value="all">
+                All{' '}
+                <Badge className="ml-2" variant="secondary">
+                  {allRows.length}
+                </Badge>
+              </TabsTrigger>
               {types.map((t) => (
-                <TabsTrigger key={t} value={t}>{prettyActivityType(t)} <Badge className="ml-2" variant="secondary">{typeToCount[t] || 0}</Badge></TabsTrigger>
+                <TabsTrigger key={t} value={t}>
+                  {prettyActivityType(t)}{' '}
+                  <Badge className="ml-2" variant="secondary">
+                    {typeToCount[t] || 0}
+                  </Badge>
+                </TabsTrigger>
               ))}
               <TabsTrigger value="table">Table</TabsTrigger>
             </TabsList>
@@ -140,7 +150,10 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
                   {flatErr ? (
                     <div className="text-red-500 text-sm">{flatErr}</div>
                   ) : (
-                    <ActivitiesTable rows={flatRows as ActivityRow[]} bulkDeleteAction={deleteActivitiesBulk} />
+                    <ActivitiesTable
+                      rows={flatRows as ActivityRow[]}
+                      bulkDeleteAction={deleteActivitiesBulk}
+                    />
                   )}
                 </CardContent>
               </Card>
@@ -158,8 +171,12 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="capitalize">{String(a.activity_type).replace('_',' ')}</Badge>
-                              <span className="font-medium">{a.started_at?.slice(0,16).replace('T',' ')}</span>
+                              <Badge variant="secondary" className="capitalize">
+                                {String(a.activity_type).replace('_', ' ')}
+                              </Badge>
+                              <span className="font-medium">
+                                {a.started_at?.slice(0, 16).replace('T', ' ')}
+                              </span>
                             </div>
                             <div className="flex items-center gap-3 text-muted-foreground">
                               <WeatherBadge {...parseWeather(a)} size="sm" inlineDescription />
@@ -173,14 +190,26 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
                               {a.labor_hours ? <span>Hours: {a.labor_hours}</span> : null}
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button asChild size="sm" variant="outline"><Link href={`/activities/${a.id}/edit`}>Edit</Link></Button>
-                              <form id={`delete-activity-${a.id}`} action={async (fd) => { 'use server'; const { deleteActivity } = await import('./_actions'); await deleteActivity(fd) }} className="hidden">
+                              <Button asChild size="sm" variant="outline">
+                                <Link href={`/activities/${a.id}/edit`}>Edit</Link>
+                              </Button>
+                              <form
+                                id={`delete-activity-${a.id}`}
+                                action={async (fd) => {
+                                  'use server';
+                                  const { deleteActivity } = await import('./_actions');
+                                  await deleteActivity(fd);
+                                }}
+                                className="hidden"
+                              >
                                 <input type="hidden" name="id" value={a.id} />
                               </form>
                               <DeleteActivityDialog formId={`delete-activity-${a.id}`} />
                             </div>
                           </div>
-                          {a.notes ? <div className="text-xs text-muted-foreground mt-1">{a.notes}</div> : null}
+                          {a.notes ? (
+                            <div className="text-xs text-muted-foreground mt-1">{a.notes}</div>
+                          ) : null}
                         </div>
                       </li>
                     ))}
@@ -201,8 +230,12 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
                         <li key={a.id} className="py-3">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium">{a.started_at?.slice(0,16).replace('T',' ')}</span>
-                              {a.labor_hours ? <Badge variant="secondary">{a.labor_hours}h</Badge> : null}
+                              <span className="font-medium">
+                                {a.started_at?.slice(0, 16).replace('T', ' ')}
+                              </span>
+                              {a.labor_hours ? (
+                                <Badge variant="secondary">{a.labor_hours}h</Badge>
+                              ) : null}
                             </div>
                             <div className="flex items-center gap-3 text-muted-foreground">
                               <WeatherBadge {...parseWeather(a)} size="sm" inlineDescription />
@@ -215,14 +248,26 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
                               {a.asset_name ? <span>Asset: {a.asset_name}</span> : null}
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button asChild size="sm" variant="outline"><Link href={`/activities/${a.id}/edit`}>Edit</Link></Button>
-                              <form id={`delete-activity-${a.id}`} action={async (fd) => { 'use server'; const { deleteActivity } = await import('./_actions'); await deleteActivity(fd) }} className="hidden">
+                              <Button asChild size="sm" variant="outline">
+                                <Link href={`/activities/${a.id}/edit`}>Edit</Link>
+                              </Button>
+                              <form
+                                id={`delete-activity-${a.id}`}
+                                action={async (fd) => {
+                                  'use server';
+                                  const { deleteActivity } = await import('./_actions');
+                                  await deleteActivity(fd);
+                                }}
+                                className="hidden"
+                              >
                                 <input type="hidden" name="id" value={a.id} />
                               </form>
                               <DeleteActivityDialog formId={`delete-activity-${a.id}`} />
                             </div>
                           </div>
-                          {a.notes ? <div className="text-xs text-muted-foreground mt-1">{a.notes}</div> : null}
+                          {a.notes ? (
+                            <div className="text-xs text-muted-foreground mt-1">{a.notes}</div>
+                          ) : null}
                         </li>
                       ))}
                     </ul>
@@ -231,8 +276,28 @@ export default async function ActivitiesPage({ searchParams }: { searchParams?: 
               </TabsContent>
             ))}
           </Tabs>
+        ) : (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Droplets className="size-10" />
+              </EmptyMedia>
+              <EmptyTitle>No activities yet</EmptyTitle>
+              <EmptyDescription>Track your first activity to get started.</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button asChild>
+                <Link href="/activities/new">
+                  <span className="flex items-center gap-1">
+                    <Plus className="w-4 h-4" />
+                    Track an Activity
+                  </span>
+                </Link>
+              </Button>
+            </EmptyContent>
+          </Empty>
         )}
       </div>
     </div>
-  )
+  );
 }
