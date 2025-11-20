@@ -305,7 +305,6 @@ jobs:
           path: ./
           base: ${{ github.event.pull_request.base.sha || github.event.before }}
           head: HEAD
-          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   security-audit:
     name: Security Audit

@@ -126,7 +126,7 @@ export function setupFormControlPropertyFromInput(inputElement: HTMLInputElement
  * Should be called once during app initialization.
  */
 export function setupGlobalFormControlListener(): void {
-  if (typeof globalThis.window === 'undefined') return;
+  if (globalThis.window === undefined) return;
   if (globalFormControlListenerSetup) return;
 
   // Set up form control property for all existing forms immediately
