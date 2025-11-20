@@ -3,6 +3,7 @@
 import { useEffect, useState, startTransition } from 'react';
 import type { ChangeEvent } from 'react';
 import { useActionState } from 'react';
+import Image from 'next/image';
 import {
   createCropVariety,
   updateCropVariety,
@@ -385,12 +386,13 @@ export function CropVarietyForm({
             <Label htmlFor="image">Image</Label>
             <div className="flex items-start gap-4 mt-1">
               {imagePreviewUrl && isValidBlobUrl(imagePreviewUrl) && (
-                <div className="relative inline-block">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                <div className="relative inline-block h-20 w-20">
+                  <Image
                     src={imagePreviewUrl}
                     alt="Selected image preview"
-                    className="h-20 w-20 rounded border object-cover"
+                    fill
+                    className="rounded border object-cover"
+                    unoptimized
                   />
                   <Button
                     type="button"
@@ -404,12 +406,13 @@ export function CropVarietyForm({
                 </div>
               )}
               {safeExistingImageUrl && (
-                <div className="relative inline-block">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                <div className="relative inline-block h-20 w-20">
+                  <Image
                     src={safeExistingImageUrl}
                     alt="Current variety image"
-                    className="h-20 w-20 rounded border object-cover"
+                    fill
+                    className="rounded border object-cover"
+                    unoptimized
                   />
                   <Button
                     type="button"
