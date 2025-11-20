@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ThemeSwitcherMount } from "@/components/theme/ThemeSwitcherMount";
+import { FormControlSetup } from "@/components/form/FormControlSetup";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,6 +39,8 @@ export default async function RootLayout({
           <Toaster richColors />
           {/* Theme switcher state, mounted once at app root */}
           <ThemeSwitcherMount />
+          {/* Form control property setup for browser extensions */}
+          <FormControlSetup />
         </ThemeProvider>
       </body>
     </html>

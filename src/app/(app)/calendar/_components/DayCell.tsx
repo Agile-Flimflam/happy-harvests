@@ -1,10 +1,10 @@
-'use client'
+'use client';
 
-import * as React from 'react'
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import type { CalendarEvent } from '../types'
-import { hawaiianMoonForDate, moonEmojiForDate } from '@/lib/hawaiian-moon'
-import { EventChip } from './EventChip'
+import * as React from 'react';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import type { CalendarEvent } from '../types';
+import { hawaiianMoonForDate, moonEmojiForDate } from '@/lib/hawaiian-moon';
+import { EventChip } from './EventChip';
 
 export function DayCell({
   date,
@@ -15,33 +15,37 @@ export function DayCell({
   dayName,
   isWeekView,
 }: {
-  date: Date
-  currentMonth: number
-  today: Date
-  onOpenDetail: (dateISO: string) => void
-  events: CalendarEvent[]
-  dayName?: string | null
-  isWeekView?: boolean
+  date: Date;
+  currentMonth: number;
+  today: Date;
+  onOpenDetail: (dateISO: string) => void;
+  events: CalendarEvent[];
+  dayName?: string | null;
+  isWeekView?: boolean;
 }) {
   function fmt(d: Date) {
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
   function isSameDay(a: Date, b: Date) {
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
   }
-  const key = fmt(date)
-  const isOtherMonth = date.getMonth() !== currentMonth
-  const isToday = isSameDay(date, today)
-  const isWeekend = date.getDay() === 0 || date.getDay() === 6
-  const moon = hawaiianMoonForDate(date)
-  const dayEvents = [...events]
-  const showDayName = isWeekView && dayName
-  
+  const key = fmt(date);
+  const isOtherMonth = date.getMonth() !== currentMonth;
+  const isToday = isSameDay(date, today);
+  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+  const moon = hawaiianMoonForDate(date);
+  const dayEvents = [...events];
+  const showDayName = isWeekView && dayName;
+
   // Simplified date display
-  const dateNumber = date.getDate()
-  const monthShort = date.toLocaleDateString(undefined, { month: 'short' })
-  
+  const dateNumber = date.getDate();
+  const monthShort = date.toLocaleDateString(undefined, { month: 'short' });
+
   return (
     <div
       key={key}
@@ -50,7 +54,9 @@ export function DayCell({
       role="button"
       tabIndex={0}
       aria-label={date.toLocaleDateString()}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenDetail(key) }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onOpenDetail(key);
+      }}
     >
       {/* Inner content container with overflow control */}
       <div className={`${isWeekView ? 'p-2 md:p-3' : 'p-2'} overflow-hidden h-full`}>
@@ -66,11 +72,7 @@ export function DayCell({
                 {dateNumber}
               </div>
               <div className="ml-auto flex items-center gap-2">
-                {!isOtherMonth && (
-                  <div className="text-xs text-muted-foreground">
-                    {monthShort}
-                  </div>
-                )}
+                {!isOtherMonth && <div className="text-xs text-muted-foreground">{monthShort}</div>}
                 {/* Moon phase - only on desktop for week view */}
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -100,18 +102,18 @@ export function DayCell({
             </div>
           )}
         </div>
-        
+
         {/* Events list */}
         <ul className="space-y-1.5 overflow-hidden">
           {dayEvents.slice(0, isWeekView ? 5 : 2).map((e) => (
             <li key={e.id} className="overflow-hidden">
-              <EventChip 
-                e={e} 
+              <EventChip
+                e={e}
                 showText={
-                  isWeekView 
+                  isWeekView
                     ? 'always' // Week view (stacked on mobile): always show full text
-                    : 'auto'   // Month view: auto (icon on small, text on medium and up)
-                } 
+                    : 'auto' // Month view: auto (icon on small, text on medium and up)
+                }
               />
             </li>
           ))}
@@ -123,7 +125,5 @@ export function DayCell({
         </ul>
       </div>
     </div>
-  )
+  );
 }
-
-

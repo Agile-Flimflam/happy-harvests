@@ -56,10 +56,10 @@ export default function ResetPasswordPage() {
         {error && <p className="text-sm text-center text-red-600">{error}</p>}
       </form>
       <div className="text-center text-sm">
-        <Link href="/login" className="text-primary underline-offset-4 hover:underline">Back to login</Link>
+        <Link href="/login" className="text-primary underline-offset-4 hover:underline">
+          Back to login
+        </Link>
       </div>
     </div>
   );
 }
-
-
