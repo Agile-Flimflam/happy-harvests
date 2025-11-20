@@ -45,18 +45,77 @@ function errorToMessage(err: unknown): string {
   }
 }
 
+function parseAmendmentsJson(raw: FormDataEntryValue | null) {
+  try {
+    const str = String(raw || '');
+    if (!str) return null;
+    const parsed = JSON.parse(str);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function extractActivityFormData(formData: FormData) {
+  return {
+    activity_type: formData.get('activity_type'),
+    started_at: String(formData.get('started_at') ?? ''),
+    ended_at: String(formData.get('ended_at') ?? '') || null,
+    duration_minutes: formData.get('duration_minutes') || null,
+    labor_hours: formData.get('labor_hours') || null,
+    location_id: String(formData.get('location_id') ?? '') || null,
+    plot_id: formData.get('plot_id') || null,
+    bed_id: formData.get('bed_id') || null,
+    nursery_id: formData.get('nursery_id') || null,
+    crop: String(formData.get('crop') ?? '') || null,
+    asset_id: String(formData.get('asset_id') ?? '') || null,
+    asset_name: String(formData.get('asset_name') ?? '') || null,
+    quantity: formData.get('quantity') || null,
+    unit: String(formData.get('unit') || '') || null,
+    cost: formData.get('cost') || null,
+    notes: String(formData.get('notes') || '') || null,
+    amendments: parseAmendmentsJson(formData.get('amendments_json')),
+  };
+}
+
+function buildActivitiesQuery(
+  supabase: SupabaseClient<Database>,
+  filters?: {
+    type?: 'irrigation' | 'soil_amendment' | 'pest_management' | 'asset_maintenance';
+    from?: string;
+    to?: string;
+    location_id?: string;
+  }
+) {
+  let query = supabase.from('activities').select('*, locations(name)');
+
+  if (filters?.type) {
+    query = query.eq('activity_type', filters.type);
+  }
+  if (filters?.from) {
+    query = query.gte('started_at', filters.from);
+  }
+  if (filters?.to) {
+    query = query.lte('started_at', filters.to);
+  }
+  if (filters?.location_id) {
+    query = query.eq('location_id', filters.location_id);
+  }
+  return query;
+}
+
 export async function createActivity(
   prev: ActivityFormState,
   formData: FormData
 ): Promise<ActivityFormState> {
   const supabase = await createSupabaseServerClient();
-  const validated = validateActivityForm(formData);
+  const validated = ActivitySchema.safeParse(extractActivityFormData(formData));
 
   if (!validated.success) {
     return { message: 'Validation failed', errors: validated.error.flatten().fieldErrors };
   }
 
-  const weather = await fetchActivityWeather(supabase, validated.data.location_id);
+  const weather = await fetchActivityWeather(supabase, validated.data.location_id ?? null);
 
   const { data: inserted, error } = await supabase
     .from('activities')
@@ -91,39 +150,6 @@ export async function createActivity(
 
   revalidatePath('/activities');
   return { message: 'Activity created successfully', errors: {} };
-}
-
-function validateActivityForm(formData: FormData) {
-  return ActivitySchema.safeParse({
-    activity_type: formData.get('activity_type'),
-    started_at: String(formData.get('started_at') ?? ''),
-    ended_at: String(formData.get('ended_at') ?? '') || null,
-    duration_minutes: formData.get('duration_minutes') || null,
-    labor_hours: formData.get('labor_hours') || null,
-    location_id: String(formData.get('location_id') ?? '') || null,
-    plot_id: formData.get('plot_id') || null,
-    bed_id: formData.get('bed_id') || null,
-    nursery_id: formData.get('nursery_id') || null,
-    crop: String(formData.get('crop') ?? '') || null,
-    asset_id: String(formData.get('asset_id') ?? '') || null,
-    asset_name: String(formData.get('asset_name') ?? '') || null,
-    quantity: formData.get('quantity') || null,
-    unit: String(formData.get('unit') || '') || null,
-    cost: formData.get('cost') || null,
-    notes: String(formData.get('notes') || '') || null,
-    amendments: parseAmendmentsJson(formData.get('amendments_json')),
-  });
-}
-
-function parseAmendmentsJson(raw: FormDataEntryValue | null) {
-  try {
-    const str = String(raw || '');
-    if (!str) return null;
-    const parsed = JSON.parse(str);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
 }
 
 async function fetchActivityWeather(
@@ -173,44 +199,15 @@ export async function updateActivity(formData: FormData): Promise<void> {
   const supabase = await createSupabaseServerClient();
   const id = Number(formData.get('id'));
   if (!Number.isFinite(id)) return;
-  const started_at = String(formData.get('started_at') || '');
-  const validated = ActivitySchema.safeParse({
-    activity_type: formData.get('activity_type'),
-    started_at,
-    ended_at: String(formData.get('ended_at') ?? '') || null,
-    duration_minutes: formData.get('duration_minutes') || null,
-    labor_hours: formData.get('labor_hours') || null,
-    location_id: String(formData.get('location_id') ?? '') || null,
-    plot_id: formData.get('plot_id') || null,
-    bed_id: formData.get('bed_id') || null,
-    nursery_id: formData.get('nursery_id') || null,
-    crop: String(formData.get('crop') ?? '') || null,
-    asset_id: String(formData.get('asset_id') ?? '') || null,
-    asset_name: String(formData.get('asset_name') ?? '') || null,
-    quantity: formData.get('quantity') || null,
-    unit: String(formData.get('unit') || '') || null,
-    cost: formData.get('cost') || null,
-    notes: String(formData.get('notes') || '') || null,
-  });
+
+  const validated = ActivitySchema.safeParse(extractActivityFormData(formData));
   if (!validated.success) return;
 
   // Weather recompute if location changed
   let weather: Json | null = null;
   const locId = validated.data.location_id;
   if (locId) {
-    const { data: loc, error: locErr } = await supabase
-      .from('locations')
-      .select('latitude, longitude')
-      .eq('id', locId)
-      .single();
-    if (!locErr && loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number') {
-      try {
-        const w = await fetchWeatherByCoords(loc.latitude, loc.longitude, { units: 'imperial' });
-        weather = w as unknown as Json;
-      } catch (e) {
-        console.error('Weather fetch failed:', e);
-      }
-    }
+    weather = await fetchActivityWeather(supabase, locId);
   }
 
   const { error } = await supabase
@@ -254,22 +251,8 @@ export async function getActivitiesGrouped(filters?: {
   location_id?: string;
 }) {
   const supabase = await createSupabaseServerClient();
-  let query = supabase
-    .from('activities')
-    .select('*, locations(name)')
-    .order('started_at', { ascending: false });
-  if (filters?.type) {
-    query = query.eq('activity_type', filters.type);
-  }
-  if (filters?.from) {
-    query = query.gte('started_at', filters.from);
-  }
-  if (filters?.to) {
-    query = query.lte('started_at', filters.to);
-  }
-  if (filters?.location_id) {
-    query = query.eq('location_id', filters.location_id);
-  }
+  const query = buildActivitiesQuery(supabase, filters).order('started_at', { ascending: false });
+
   const { data, error } = await query;
   if (error) return { error: `Database Error: ${error.message}` };
   const grouped: Record<string, Tables<'activities'>[]> = {};
@@ -290,14 +273,12 @@ export async function getActivitiesFlat(params?: {
   dir?: 'asc' | 'desc';
 }) {
   const supabase = await createSupabaseServerClient();
-  let query = supabase.from('activities').select('*, locations(name)');
-  if (params?.type) query = query.eq('activity_type', params.type);
-  if (params?.from) query = query.gte('started_at', params.from);
-  if (params?.to) query = query.lte('started_at', params.to);
-  if (params?.location_id) query = query.eq('location_id', params.location_id);
+  let query = buildActivitiesQuery(supabase, params);
+
   const sort = params?.sort ?? 'started_at';
   const dir = params?.dir ?? 'desc';
   query = query.order(sort, { ascending: dir === 'asc' });
+
   const { data, error } = await query;
   if (error) return { error: `Database Error: ${error.message}` };
   return { rows: data || [] };

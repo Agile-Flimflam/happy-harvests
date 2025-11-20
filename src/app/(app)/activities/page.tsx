@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { getActivitiesGrouped, getActivitiesFlat, deleteActivitiesBulk } from './_actions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { WeatherBadge } from '@/components/weather/WeatherBadge';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import type { Tables } from '@/lib/database.types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,7 +11,7 @@ import { ActivitiesFilters } from '@/components/activities/ActivitiesFilters';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Download, Droplets, Plus } from 'lucide-react';
 import { isActivityType, prettyActivityType, type ActivityType } from '@/lib/activities/types';
-import { DeleteActivityDialog } from '@/components/activities/DeleteActivityDialog';
+import { ActivityListItem } from '@/components/activities/ActivityListItem';
 import {
   Empty,
   EmptyContent,
@@ -21,28 +20,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty';
-//
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null;
-}
-
-function parseWeather(a: { weather?: unknown } | null | undefined) {
-  let icon: string | null = null;
-  let tempF: number | null = null;
-  let description: string | null = null;
-  const w = a && isRecord(a) ? a.weather : undefined;
-  const wrec = isRecord(w) ? w : undefined;
-  const current = wrec && isRecord(wrec.current) ? wrec.current : undefined;
-  const temp = current?.temp;
-  if (typeof temp === 'number') tempF = temp;
-  const weather = current && isRecord(current.weather) ? current.weather : undefined;
-  const iconMaybe = weather?.icon;
-  if (typeof iconMaybe === 'string') icon = iconMaybe;
-  const descMaybe = weather?.description;
-  if (typeof descMaybe === 'string') description = descMaybe;
-  return { icon, tempF, description };
-}
 
 type ActivityRow = Tables<'activities'> & { locations?: { name?: string | null } | null };
 
@@ -167,51 +144,7 @@ export default async function ActivitiesPage({
                 <CardContent>
                   <ul className="divide-y">
                     {allRows.map((a: ActivityRow) => (
-                      <li key={a.id} className="py-3">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="capitalize">
-                                {String(a.activity_type).replace('_', ' ')}
-                              </Badge>
-                              <span className="font-medium">
-                                {a.started_at?.slice(0, 16).replace('T', ' ')}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 text-muted-foreground">
-                              <WeatherBadge {...parseWeather(a)} size="sm" inlineDescription />
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between text-sm text-muted-foreground">
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                              {a.locations?.name ? <span>Location: {a.locations.name}</span> : null}
-                              {a.crop ? <span>Crop: {a.crop}</span> : null}
-                              {a.asset_name ? <span>Asset: {a.asset_name}</span> : null}
-                              {a.labor_hours ? <span>Hours: {a.labor_hours}</span> : null}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button asChild size="sm" variant="outline">
-                                <Link href={`/activities/${a.id}/edit`}>Edit</Link>
-                              </Button>
-                              <form
-                                id={`delete-activity-${a.id}`}
-                                action={async (fd) => {
-                                  'use server';
-                                  const { deleteActivity } = await import('./_actions');
-                                  await deleteActivity(fd);
-                                }}
-                                className="hidden"
-                              >
-                                <input type="hidden" name="id" value={a.id} />
-                              </form>
-                              <DeleteActivityDialog formId={`delete-activity-${a.id}`} />
-                            </div>
-                          </div>
-                          {a.notes ? (
-                            <div className="text-xs text-muted-foreground mt-1">{a.notes}</div>
-                          ) : null}
-                        </div>
-                      </li>
+                      <ActivityListItem key={a.id} activity={a} showTypeBadge />
                     ))}
                   </ul>
                 </CardContent>
@@ -227,48 +160,7 @@ export default async function ActivitiesPage({
                   <CardContent>
                     <ul className="divide-y">
                       {(grouped?.[t] || []).map((a: ActivityRow) => (
-                        <li key={a.id} className="py-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">
-                                {a.started_at?.slice(0, 16).replace('T', ' ')}
-                              </span>
-                              {a.labor_hours ? (
-                                <Badge variant="secondary">{a.labor_hours}h</Badge>
-                              ) : null}
-                            </div>
-                            <div className="flex items-center gap-3 text-muted-foreground">
-                              <WeatherBadge {...parseWeather(a)} size="sm" inlineDescription />
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between text-sm text-muted-foreground mt-1">
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                              {a.locations?.name ? <span>Location: {a.locations.name}</span> : null}
-                              {a.crop ? <span>Crop: {a.crop}</span> : null}
-                              {a.asset_name ? <span>Asset: {a.asset_name}</span> : null}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button asChild size="sm" variant="outline">
-                                <Link href={`/activities/${a.id}/edit`}>Edit</Link>
-                              </Button>
-                              <form
-                                id={`delete-activity-${a.id}`}
-                                action={async (fd) => {
-                                  'use server';
-                                  const { deleteActivity } = await import('./_actions');
-                                  await deleteActivity(fd);
-                                }}
-                                className="hidden"
-                              >
-                                <input type="hidden" name="id" value={a.id} />
-                              </form>
-                              <DeleteActivityDialog formId={`delete-activity-${a.id}`} />
-                            </div>
-                          </div>
-                          {a.notes ? (
-                            <div className="text-xs text-muted-foreground mt-1">{a.notes}</div>
-                          ) : null}
-                        </li>
+                        <ActivityListItem key={a.id} activity={a} showTypeBadge={false} />
                       ))}
                     </ul>
                   </CardContent>
