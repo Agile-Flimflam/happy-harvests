@@ -417,7 +417,12 @@ export default function CalendarClient({
               </div>
               {(['month', 'week', 'today'] as const).map((v) => {
                 const label = v[0].toUpperCase() + v.slice(1);
-                const Icon = v === 'month' ? Calendar : v === 'week' ? CalendarRange : CalendarDays;
+                const rangeIconMap = {
+                  month: Calendar,
+                  week: CalendarRange,
+                  today: CalendarDays,
+                } as const;
+                const Icon = rangeIconMap[v];
                 return (
                   <DropdownMenuItem
                     key={v}

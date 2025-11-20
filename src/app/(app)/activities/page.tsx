@@ -65,7 +65,9 @@ export default async function ActivitiesPage({
   if (sp?.to) exportParams.set('to', sp.to);
   if (sp?.location_id) exportParams.set('location_id', sp.location_id);
   const exportParamsString = exportParams.toString();
-  const exportHref = `/api/activities/export${exportParamsString ? `?${exportParamsString}` : ''}`;
+  const exportHref = exportParamsString
+    ? `/api/activities/export?${exportParamsString}`
+    : '/api/activities/export';
   const hasActivities = types.length > 0;
   return (
     <div>

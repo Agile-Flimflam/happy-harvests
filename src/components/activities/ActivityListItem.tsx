@@ -30,8 +30,8 @@ function parseWeather(a: { weather?: unknown } | null | undefined) {
 }
 
 interface ActivityListItemProps {
-  activity: ActivityRow;
-  showTypeBadge?: boolean;
+  readonly activity: ActivityRow;
+  readonly showTypeBadge?: boolean;
 }
 
 export function ActivityListItem({ activity: a, showTypeBadge = false }: ActivityListItemProps) {

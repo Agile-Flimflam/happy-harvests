@@ -293,23 +293,20 @@ export async function getActivitiesFlat(params?: {
 
 export async function deleteActivitiesBulk(formData: FormData): Promise<void> {
   const supabase = await createSupabaseServerClient();
-  const csv = String(formData.get('ids') || '');
+  const csv = getString(formData.get('ids'));
   const ids = csv
     .split(',')
     .map((s) => Number(s.trim()))
     .filter((n) => Number.isFinite(n));
   if (!ids.length) return;
-  await supabase
-    .from('activities')
-    .delete()
-    .in('id', ids as number[]);
+  await supabase.from('activities').delete().in('id', ids);
   revalidatePath('/activities');
 }
 
 export async function renameBed(formData: FormData): Promise<{ message: string }> {
   const supabase = await createSupabaseServerClient();
   const id = Number(formData.get('bed_id'));
-  const name = String(formData.get('name') || '').trim();
+  const name = getString(formData.get('name')).trim();
   if (!Number.isFinite(id) || !name) return { message: 'Missing bed id or name' };
   const { error } = await supabase.from('beds').update({ name }).eq('id', id);
   if (error) return { message: `Database Error: ${errorToMessage(error)}` };
