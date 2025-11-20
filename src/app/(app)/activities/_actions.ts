@@ -2,9 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
-import { ActivitySchema, type ActivityFormValues } from '@/lib/validation/activities';
+import type { ActivityType } from '@/lib/activities/types';
 import { fetchWeatherByCoords } from '@/lib/openweather.server';
 import type { Json, Tables, Database } from '@/lib/database.types';
+import { ActivitySchema, type ActivityFormValues } from '@/lib/validation/activities';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type ActivityFormState = {
@@ -46,8 +47,10 @@ function errorToMessage(err: unknown): string {
 }
 
 function parseAmendmentsJson(raw: FormDataEntryValue | null) {
+  if (typeof raw !== 'string') return null;
+
   try {
-    const str = String(raw || '');
+    const str = raw.trim();
     if (!str) return null;
     const parsed = JSON.parse(str);
     return Array.isArray(parsed) ? parsed : null;
@@ -56,24 +59,28 @@ function parseAmendmentsJson(raw: FormDataEntryValue | null) {
   }
 }
 
+function getString(data: FormDataEntryValue | null): string {
+  return typeof data === 'string' ? data : '';
+}
+
 function extractActivityFormData(formData: FormData) {
   return {
     activity_type: formData.get('activity_type'),
-    started_at: String(formData.get('started_at') ?? ''),
-    ended_at: String(formData.get('ended_at') ?? '') || null,
+    started_at: getString(formData.get('started_at')),
+    ended_at: getString(formData.get('ended_at')) || null,
     duration_minutes: formData.get('duration_minutes') || null,
     labor_hours: formData.get('labor_hours') || null,
-    location_id: String(formData.get('location_id') ?? '') || null,
+    location_id: getString(formData.get('location_id')) || null,
     plot_id: formData.get('plot_id') || null,
     bed_id: formData.get('bed_id') || null,
     nursery_id: formData.get('nursery_id') || null,
-    crop: String(formData.get('crop') ?? '') || null,
-    asset_id: String(formData.get('asset_id') ?? '') || null,
-    asset_name: String(formData.get('asset_name') ?? '') || null,
+    crop: getString(formData.get('crop')) || null,
+    asset_id: getString(formData.get('asset_id')) || null,
+    asset_name: getString(formData.get('asset_name')) || null,
     quantity: formData.get('quantity') || null,
-    unit: String(formData.get('unit') || '') || null,
+    unit: getString(formData.get('unit')) || null,
     cost: formData.get('cost') || null,
-    notes: String(formData.get('notes') || '') || null,
+    notes: getString(formData.get('notes')) || null,
     amendments: parseAmendmentsJson(formData.get('amendments_json')),
   };
 }
@@ -81,7 +88,7 @@ function extractActivityFormData(formData: FormData) {
 function buildActivitiesQuery(
   supabase: SupabaseClient<Database>,
   filters?: {
-    type?: 'irrigation' | 'soil_amendment' | 'pest_management' | 'asset_maintenance';
+    type?: ActivityType;
     from?: string;
     to?: string;
     location_id?: string;
@@ -245,7 +252,7 @@ export async function deleteActivity(formData: FormData): Promise<void> {
 }
 
 export async function getActivitiesGrouped(filters?: {
-  type?: 'irrigation' | 'soil_amendment' | 'pest_management' | 'asset_maintenance';
+  type?: ActivityType;
   from?: string;
   to?: string;
   location_id?: string;
@@ -265,7 +272,7 @@ export async function getActivitiesGrouped(filters?: {
 }
 
 export async function getActivitiesFlat(params?: {
-  type?: 'irrigation' | 'soil_amendment' | 'pest_management' | 'asset_maintenance';
+  type?: ActivityType;
   from?: string;
   to?: string;
   location_id?: string;
