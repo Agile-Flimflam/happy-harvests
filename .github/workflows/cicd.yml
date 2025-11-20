@@ -267,7 +267,7 @@ jobs:
         uses: ./.github/actions/setup-node-pnpm
 
       - name: Run SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v3.1.0 #changed to test sonarcloud scan
+        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 #changed to test sonarcloud scan v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
