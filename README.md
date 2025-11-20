@@ -31,7 +31,6 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
     ```
 
 3.  **Set up Supabase:**
-
     - Create a new project on [Supabase](https://app.supabase.com).
     - In your Supabase project dashboard, go to **Project Settings > API**.
     - Copy the **Project URL** and the **`anon` public key**.
@@ -54,7 +53,6 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       - In this app, OAuth sign-in will redirect to: `${NEXT_PUBLIC_SITE_URL}/auth/callback?next=/` which then exchanges the code and returns you to the app.
 
 4.  **Set up Mapbox:**
-
     - Create a free account at [Mapbox](https://www.mapbox.com/) or sign in to your existing account.
     - Navigate to your [Account page](https://account.mapbox.com/) and copy your **Default public token** (or create a new access token if needed).
     - Add the Mapbox access token to your `.env.local` file:
@@ -77,7 +75,6 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       - See the [Security Best Practices](#security-best-practices) section below for more information
 
 5.  **Set up Supabase CLI and link project:**
-
     - Install the Supabase CLI: Follow instructions at [docs.supabase.com/guides/cli](https://supabase.com/docs/guides/cli)
     - Log in to the CLI:
       ```bash
@@ -90,14 +87,12 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       (Enter your database password when prompted - you can find/reset this in Project Settings > Database)
 
 6.  **Apply Database Migrations:**
-
     - The initial schema is in `supabase/migrations`. Apply it to your Supabase database:
       ```bash
       supabase db push
       ```
 
 7.  **Generate TypeScript Types from Schema:**
-
     - This step generates accurate TypeScript types based on your database schema, which are used in the Supabase client helper (`lib/supabase.ts`) and server actions.
       ```bash
       supabase gen types typescript --linked > lib/database.types.ts
@@ -115,7 +110,6 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       ```
 
 8.  **Seed the database (Optional but Recommended):**
-
     - The `supabase/seed.sql` script contains demo data.
       ```bash
       supabase db reset
@@ -124,7 +118,6 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       *Alternatively, to run *only* the seed script on an existing database:* `psql -h localhost -p 54322 -U postgres -f supabase/seed.sql` _(Adjust port if necessary, password is `postgres` by default for local Supabase dev)_
 
 9.  **Initialize shadcn/ui & Add Components:**
-
     - Run the `shadcn` init command (accept defaults or configure as needed):
       ```bash
       pnpm dlx shadcn@latest init
@@ -151,19 +144,14 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       ```
 
 10. **Add Toaster Component:**
-
     - The `sonner` library requires its `<Toaster />` component to be present in your layout to render toasts.
     - Open `app/layout.tsx` (or your root layout file) and add the import and component:
 
       ```tsx
       // app/layout.tsx (or similar root layout)
-      import { Toaster } from "@/components/ui/sonner"; // Import Toaster
+      import { Toaster } from '@/components/ui/sonner'; // Import Toaster
 
-      export default function RootLayout({
-        children,
-      }: {
-        children: React.ReactNode;
-      }) {
+      export default function RootLayout({ children }: { children: React.ReactNode }) {
         return (
           <html lang="en">
             <body>
@@ -212,33 +200,31 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
 **Required Security Practices:**
 
 1. **Use Public Tokens Only:**
-
    - Always use Mapbox **public tokens** (typically start with `pk.`) for client-side applications
    - **NEVER** use secret tokens (start with `sk.`) in client-side code
    - Public tokens are designed to be exposed in the browser, but must still be properly secured
 
 2. **Configure URL Restrictions:**
-
    - In your [Mapbox account settings](https://account.mapbox.com/), restrict your public token to specific domains to prevent unauthorized usage.
-   
+
    **Option A: Single Token with Multiple Domains (Recommended for simplicity)**
-   
+
    Add all domains where your app will run:
    - Production domain: `https://app.happyharvests.com`
    - Staging domain (if applicable): `https://staging.happyharvests.com`
    - Preview deployments: Use wildcard patterns where supported (e.g., `*.vercel.app` for Vercel preview deployments)
    - Local development: `http://localhost:*` (if Mapbox supports port wildcards) or add specific ports like `http://localhost:4000`
-   
+
    **Option B: Separate Tokens per Environment (Recommended for security)**
-   
+
    Create different tokens for different environments:
    - **Production token:** Restricted to production domain only
    - **Staging token:** Restricted to staging domain only
    - **Development token:** Restricted to `http://localhost:*` or specific local ports
    - **Preview token:** Restricted to preview deployment patterns (e.g., `*.vercel.app`)
-   
+
    Use environment-specific tokens in your deployment configuration (e.g., Vercel environment variables).
-   
+
    **Important Notes:**
    - Mapbox URL restrictions support wildcard patterns for subdomains (e.g., `*.vercel.app`)
    - Port wildcards may not be supported - you may need to add specific ports or use `localhost` without port restrictions for development
@@ -246,27 +232,24 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
    - If you have multiple developers, consider using a shared development token with localhost restrictions or individual tokens per developer
 
 3. **Set Minimal Token Scopes:**
-
    - For map display: Only enable `styles:read`, `fonts:read`, `sprites:read`
    - For address autocomplete: Only enable geocoding API access
    - **DO NOT** enable uploads, datasets, or any write permissions
 
 4. **Set Usage Limits:**
-
    - Configure rate limits and usage quotas in Mapbox to prevent abuse and unexpected charges:
      - Set daily/monthly request limits
      - Enable usage alerts
      - Monitor usage regularly in the Mapbox dashboard
 
 5. **Rotate Tokens:**
-
    - If you suspect a token has been compromised, immediately revoke it in Mapbox and generate a new one
    - Rotate tokens periodically as a security best practice
 
 6. **Server-Side Token (Optional but Recommended):**
    - For reverse geocoding, you can optionally use `MAPBOX_ACCESS_TOKEN` (without `NEXT_PUBLIC_` prefix) in your `.env.local`
    - The API route will prefer the server-only token over the public token
-   - This provides an additional layer of security for server-side operations
+   - This provides an additional layer of security for server-only operations
 
 ### Supabase Keys
 
@@ -280,6 +263,53 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
 - Use HTTPS in production to encrypt data in transit
 - Never commit `.env.local` or `.env` files to version control (they should be in `.gitignore`)
 - Use different credentials for development, staging, and production environments
+
+## E2E Testing with Playwright
+
+This project uses [Playwright](https://playwright.dev/) for end-to-end testing.
+
+### Running E2E Tests Locally
+
+1. **Install Playwright browsers** (first time only):
+
+   ```bash
+   pnpm playwright:install
+   ```
+
+2. **Start the development server** (in one terminal):
+
+   ```bash
+   pnpm dev
+   ```
+
+3. **Run E2E tests** (in another terminal):
+
+   ```bash
+   # Run tests headlessly
+   pnpm test:e2e
+
+   # Run tests with UI mode (interactive)
+   pnpm test:e2e:ui
+
+   # Run tests on a specific browser
+   pnpm test:e2e --project=chromium
+   ```
+
+### Test Configuration
+
+- Test files are located in `tests/e2e/`
+- Base URL defaults to `http://localhost:4000` (configurable via `PLAYWRIGHT_BASE_URL` environment variable)
+- Tests run against Chromium, Firefox, and WebKit browsers
+- Screenshots and videos are captured on test failures
+- HTML reports are generated after test runs
+
+### CI/CD Integration
+
+E2E tests run automatically in the CI/CD pipeline:
+
+- Tests execute after the build job completes
+- Test artifacts (videos, screenshots, HTML reports) are uploaded to GitHub Actions
+- Tests run with retries enabled for flaky test handling
 
 ## Husky Pre-commit Hook
 

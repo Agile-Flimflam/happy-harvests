@@ -5,9 +5,17 @@ import { WeatherBadge } from '@/components/weather/WeatherBadge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatSquareFeet, formatAcres, squareFeetToAcres } from '@/lib/utils';
 import type { Tables } from '@/lib/supabase-server';
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import FormDialog from "@/components/dialogs/FormDialog";
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog';
+import FormDialog from '@/components/dialogs/FormDialog';
 import {
   Table,
   TableBody,
@@ -15,16 +23,23 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+} from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlotForm } from '../_components/PlotForm';
 import { BedForm } from '../_components/BedForm';
 import { deletePlot, deleteBed } from '../_actions';
-import { Pencil, Trash2, PlusCircle, MapPin, Sunrise, Sunset, Droplet } from 'lucide-react';
-import { toast } from "sonner";
+import { Pencil, Trash2, Plus, MapPin, Sunrise, Sunset, Droplet } from 'lucide-react';
+import { toast } from 'sonner';
 import PageHeader from '@/components/page-header';
 import PageContent from '@/components/page-content';
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 
 type Plot = Tables<'plots'>;
 type Bed = Tables<'beds'>;
@@ -38,20 +53,23 @@ export interface PlotsBedsPageContentProps {
 
 // Helper function to group plots by location
 const groupPlotsByLocation = (plots: PlotWithBeds[]) => {
-  return plots.reduce((acc, plot) => {
-    const locationKey = plot.locations?.id || 'no-location';
-    const locationName = plot.locations?.name || 'No Location Assigned';
-    
-    if (!acc[locationKey]) {
-      acc[locationKey] = {
-        location: plot.locations,
-        locationName,
-        plots: []
-      };
-    }
-    acc[locationKey].plots.push(plot);
-    return acc;
-  }, {} as Record<string, { location: Location | null; locationName: string; plots: PlotWithBeds[] }>);
+  return plots.reduce(
+    (acc, plot) => {
+      const locationKey = plot.locations?.id || 'no-location';
+      const locationName = plot.locations?.name || 'No Location Assigned';
+
+      if (!acc[locationKey]) {
+        acc[locationKey] = {
+          location: plot.locations,
+          locationName,
+          plots: [],
+        };
+      }
+      acc[locationKey].plots.push(plot);
+      return acc;
+    },
+    {} as Record<string, { location: Location | null; locationName: string; plots: PlotWithBeds[] }>
+  );
 };
 
 export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPageContentProps) {
@@ -145,15 +163,15 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
             <CardTitle className="text-lg font-semibold">{plot.name}</CardTitle>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => handleAddBed(plot)}>
-                <PlusCircle className="h-4 w-4 mr-1" />
+                <Plus className="h-4 w-4 mr-1" />
                 Add Bed
               </Button>
               <Button variant="ghost" size="sm" onClick={() => handleEditPlot(plot)}>
                 <Pencil className="h-4 w-4" />
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => openDeletePlot(plot.plot_id)}
                 className="text-destructive hover:text-destructive"
               >
@@ -177,21 +195,27 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
                 </TableHeader>
                 <TableBody>
                   {plot.beds.map((bed) => {
-                    const areaSqIn = (bed.length_inches && bed.width_inches) ? bed.length_inches * bed.width_inches : null;
+                    const areaSqIn =
+                      bed.length_inches && bed.width_inches
+                        ? bed.length_inches * bed.width_inches
+                        : null;
                     const areaSqFt = areaSqIn != null ? areaSqIn / 144 : null;
                     const acresRaw = areaSqFt != null ? squareFeetToAcres(areaSqFt) : null;
                     const sqFtDisplay = areaSqFt != null ? formatSquareFeet(areaSqFt) : null;
-                    const sqFtTooltip = areaSqFt != null ? formatSquareFeet(areaSqFt, { variant: 'tooltip' }) : null;
+                    const sqFtTooltip =
+                      areaSqFt != null ? formatSquareFeet(areaSqFt, { variant: 'tooltip' }) : null;
                     const acresDisplay = acresRaw != null ? formatAcres(acresRaw) : null;
-                    const acresTooltip = acresRaw != null ? formatAcres(acresRaw, { variant: 'tooltip' }) : null;
+                    const acresTooltip =
+                      acresRaw != null ? formatAcres(acresRaw, { variant: 'tooltip' }) : null;
                     return (
                       <TableRow key={bed.id} className="hover:bg-muted/30">
-                        <TableCell className="font-medium">{bed.name ? bed.name : `#${bed.id}`}</TableCell>
+                        <TableCell className="font-medium">
+                          {bed.name ? bed.name : `#${bed.id}`}
+                        </TableCell>
                         <TableCell className="font-mono text-sm">
-                          {bed.length_inches && bed.width_inches 
+                          {bed.length_inches && bed.width_inches
                             ? `${bed.length_inches}" × ${bed.width_inches}`
-                            : '—'
-                          }
+                            : '—'}
                         </TableCell>
                         <TableCell className="font-mono text-sm">
                           {areaSqFt !== null ? (
@@ -201,28 +225,36 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
                               </TooltipTrigger>
                               <TooltipContent>{sqFtTooltip} sq ft</TooltipContent>
                             </Tooltip>
-                          ) : '—'}
+                          ) : (
+                            '—'
+                          )}
                         </TableCell>
                         <TableCell className="font-mono text-sm">
                           {acresRaw !== null ? (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <span className="cursor-help">{acresDisplay ? `${acresDisplay} ac` : '—'}</span>
+                                <span className="cursor-help">
+                                  {acresDisplay ? `${acresDisplay} ac` : '—'}
+                                </span>
                               </TooltipTrigger>
-                              {acresTooltip && (
-                                <TooltipContent>{acresTooltip} ac</TooltipContent>
-                              )}
+                              {acresTooltip && <TooltipContent>{acresTooltip} ac</TooltipContent>}
                             </Tooltip>
-                          ) : '—'}
+                          ) : (
+                            '—'
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => handleEditBed(bed, plot)}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditBed(bed, plot)}
+                            >
                               <Pencil className="h-3 w-3" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => openDeleteBed(bed.id)}
                               className="text-destructive hover:text-destructive"
                             >
@@ -239,12 +271,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <p className="text-sm">No beds in this plot yet</p>
-              <Button 
-                variant="link" 
-                size="sm" 
-                onClick={() => handleAddBed(plot)}
-                className="mt-2"
-              >
+              <Button variant="link" size="sm" onClick={() => handleAddBed(plot)} className="mt-2">
                 Add the first bed
               </Button>
             </div>
@@ -254,7 +281,14 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
     );
   };
 
-  const renderLocationSection = (locationKey: string, { location, locationName, plots }: { location: Location | null; locationName: string; plots: PlotWithBeds[] }) => {
+  const renderLocationSection = (
+    locationKey: string,
+    {
+      location,
+      locationName,
+      plots,
+    }: { location: Location | null; locationName: string; plots: PlotWithBeds[] }
+  ) => {
     return (
       <div key={locationKey} className="space-y-6">
         {/* Location Header */}
@@ -272,7 +306,11 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
           </div>
           <div className="flex flex-wrap items-center gap-3 sm:gap-6 justify-start sm:justify-end">
             {location ? (
-              <LocationWeather id={location.id} latitude={location.latitude} longitude={location.longitude} />
+              <LocationWeather
+                id={location.id}
+                latitude={location.latitude}
+                longitude={location.longitude}
+              />
             ) : null}
             <span className="text-sm text-muted-foreground">
               {plots.length} plot{plots.length !== 1 ? 's' : ''}
@@ -281,9 +319,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
         </div>
 
         {/* Plots Grid */}
-        <div className="grid gap-4">
-          {plots.map(renderPlotCard)}
-        </div>
+        <div className="grid gap-4">{plots.map(renderPlotCard)}</div>
       </div>
     );
   };
@@ -292,40 +328,60 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
     <div>
       <PageHeader
         title="Plots & Beds"
-        action={hasPlots ? (
-          <Button onClick={handleAddPlot} size="sm" className="w-full sm:w-auto">
-            <PlusCircle className="h-4 w-4 mr-2" />
-            Add Plot
-          </Button>
-        ) : undefined}
+        action={
+          hasPlots ? (
+            <Button onClick={handleAddPlot} size="sm" className="w-full sm:w-auto">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Plot
+            </Button>
+          ) : undefined
+        }
       />
 
       <FormDialog
         open={isPlotDialogOpen}
         onOpenChange={setIsPlotDialogOpen}
         title={editingPlot ? 'Edit Plot' : 'Add New Plot'}
-        description={editingPlot ? 'Update the details of the plot.' : 'Enter the details for the new plot.'}
+        description={
+          editingPlot ? 'Update the details of the plot.' : 'Enter the details for the new plot.'
+        }
         submitLabel={editingPlot ? 'Update Plot' : 'Create Plot'}
         formId="plotFormSubmit"
         className="sm:max-w-[425px]"
       >
-        <PlotForm plot={editingPlot} locations={locations} closeDialog={closePlotDialog} formId="plotFormSubmit" />
+        <PlotForm
+          plot={editingPlot}
+          locations={locations}
+          closeDialog={closePlotDialog}
+          formId="plotFormSubmit"
+        />
       </FormDialog>
 
       {/* Delete Plot Confirmation */}
-      <Dialog open={deletePlotId != null} onOpenChange={(open) => { if (!open) setDeletePlotId(null); }}>
+      <Dialog
+        open={deletePlotId != null}
+        onOpenChange={(open) => {
+          if (!open) setDeletePlotId(null);
+        }}
+      >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Delete plot?</DialogTitle>
             <DialogDescription>
-              This will permanently delete the plot and all associated beds. This action cannot be undone.
+              This will permanently delete the plot and all associated beds. This action cannot be
+              undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button variant="destructive" onClick={confirmDeletePlot} disabled={isDeletingPlot} aria-disabled={isDeletingPlot}>
+            <Button
+              variant="destructive"
+              onClick={confirmDeletePlot}
+              disabled={isDeletingPlot}
+              aria-disabled={isDeletingPlot}
+            >
               {isDeletingPlot ? 'Deleting…' : 'Delete'}
             </Button>
           </DialogFooter>
@@ -336,7 +392,9 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
         open={isBedDialogOpen}
         onOpenChange={setIsBedDialogOpen}
         title={editingBed ? 'Edit Bed' : `Add New Bed to ${currentPlotForBed?.name ?? 'Plot'}`}
-        description={editingBed ? 'Update the details of the bed.' : 'Enter the details for the new bed.'}
+        description={
+          editingBed ? 'Update the details of the bed.' : 'Enter the details for the new bed.'
+        }
         submitLabel={editingBed ? 'Update Bed' : 'Create Bed'}
         formId="bedFormSubmit"
         className="sm:max-w-[425px]"
@@ -351,7 +409,12 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
       </FormDialog>
 
       {/* Delete Bed Confirmation */}
-      <Dialog open={deleteBedId != null} onOpenChange={(open) => { if (!open) setDeleteBedId(null); }}>
+      <Dialog
+        open={deleteBedId != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteBedId(null);
+        }}
+      >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Delete bed?</DialogTitle>
@@ -363,7 +426,12 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button variant="destructive" onClick={confirmDeleteBed} disabled={isDeletingBed} aria-disabled={isDeletingBed}>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteBed}
+              disabled={isDeletingBed}
+              aria-disabled={isDeletingBed}
+            >
               {isDeletingBed ? 'Deleting…' : 'Delete'}
             </Button>
           </DialogFooter>
@@ -378,14 +446,12 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
                 <MapPin className="h-10 w-10" />
               </EmptyMedia>
               <EmptyTitle>No plots yet</EmptyTitle>
-              <EmptyDescription>
-                Create a plot to add beds and track your garden.
-              </EmptyDescription>
+              <EmptyDescription>Create a plot to add beds and track your garden.</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button onClick={handleAddPlot}>
                 <span className="flex items-center gap-1">
-                  <PlusCircle className="h-4 w-4" />
+                  <Plus className="h-4 w-4" />
                   Add Plot
                 </span>
               </Button>
@@ -403,64 +469,74 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
   );
 }
 
-
-function LocationWeather({ id, latitude, longitude }: { id: string; latitude: number | null; longitude: number | null }) {
+function LocationWeather({
+  id,
+  latitude,
+  longitude,
+}: {
+  id: string;
+  latitude: number | null;
+  longitude: number | null;
+}) {
   const [state, setState] = useState<
     | { status: 'idle' }
     | { status: 'loading' }
     | { status: 'error'; message: string }
     | {
-        status: 'ready'
+        status: 'ready';
         data: {
-          timezone: string
+          timezone: string;
           current: {
-            dt: number
-            sunrise?: number
-            sunset?: number
-            temp: number
-            humidity: number
-            weather: { id: number; main: string; description: string; icon: string } | null
-          }
-          moonPhase?: number
-          moonPhaseLabel?: string
-        }
+            dt: number;
+            sunrise?: number;
+            sunset?: number;
+            temp: number;
+            humidity: number;
+            weather: { id: number; main: string; description: string; icon: string } | null;
+          };
+          moonPhase?: number;
+          moonPhaseLabel?: string;
+        };
       }
-  >({ status: 'idle' })
+  >({ status: 'idle' });
 
   useEffect(() => {
-    if (latitude == null || longitude == null) return
-    let cancelled = false
-    setState({ status: 'loading' })
+    if (latitude == null || longitude == null) return;
+    let cancelled = false;
+    setState({ status: 'loading' });
     fetch(`/api/locations/${id}/weather`, { cache: 'no-store' })
       .then(async (res) => {
-        if (!res.ok) throw new Error((await res.json()).error || res.statusText)
-        return res.json()
+        if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+        return res.json();
       })
       .then((data) => {
-        if (cancelled) return
-        setState({ status: 'ready', data })
+        if (cancelled) return;
+        setState({ status: 'ready', data });
       })
       .catch((e) => {
-        if (cancelled) return
-        setState({ status: 'error', message: e instanceof Error ? e.message : 'Failed to load weather' })
-      })
+        if (cancelled) return;
+        setState({
+          status: 'error',
+          message: e instanceof Error ? e.message : 'Failed to load weather',
+        });
+      });
     return () => {
-      cancelled = true
-    }
-  }, [id, latitude, longitude])
+      cancelled = true;
+    };
+  }, [id, latitude, longitude]);
 
   if (latitude == null || longitude == null) {
-    return <span className="text-muted-foreground text-sm">Set coordinates to enable weather</span>
+    return <span className="text-muted-foreground text-sm">Set coordinates to enable weather</span>;
   }
   if (state.status === 'loading' || state.status === 'idle') {
-    return <span className="text-muted-foreground text-sm">Loading weather…</span>
+    return <span className="text-muted-foreground text-sm">Loading weather…</span>;
   }
   if (state.status === 'error') {
-    return <span className="text-red-500 text-sm">{state.message}</span>
+    return <span className="text-red-500 text-sm">{state.message}</span>;
   }
 
-  const { current } = state.data
-  const tempF = current.temp
+  const { current } = state.data;
+  const tempF = current.temp;
 
   return (
     <div className="flex items-center gap-4 text-sm">
@@ -469,7 +545,9 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
         tempF={tempF}
         description={current.weather?.description || null}
         inlineDescription={false}
-        hawaiianMoon={state.status === 'ready' ? state.data.moonPhaseLabel ?? undefined : undefined}
+        hawaiianMoon={
+          state.status === 'ready' ? (state.data.moonPhaseLabel ?? undefined) : undefined
+        }
         size="sm"
       />
       {typeof current.sunrise === 'number' && (
@@ -489,17 +567,16 @@ function LocationWeather({ id, latitude, longitude }: { id: string; latitude: nu
         </span>
       )}
     </div>
-  )
+  );
 }
 
 function formatUnixToLocalTime(unixSeconds: number) {
   try {
-    const d = new Date(unixSeconds * 1000)
-    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    const d = new Date(unixSeconds * 1000);
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   } catch {
-    return ''
+    return '';
   }
 }
 
 // formatMoonPhase now imported from utils
-

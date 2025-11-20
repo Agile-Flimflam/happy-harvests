@@ -4,23 +4,56 @@ import PageHeader from '@/components/page-header';
 import PageContent from '@/components/page-content';
 import FormDialog from '@/components/dialogs/FormDialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useActionState } from 'react';
 import { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { actionCreateNursery, actionUpdateNursery, actionDeleteNursery, type NurseryFormState } from '../_actions';
+import {
+  actionCreateNursery,
+  actionUpdateNursery,
+  actionDeleteNursery,
+  type NurseryFormState,
+} from '../_actions';
 import type { Tables } from '@/lib/database.types';
-import { PlusCircle, FlaskConical, Pencil, Trash2 } from 'lucide-react';
+import { Plus, FlaskConical, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 
 type Nursery = Tables<'nurseries'>;
 type Location = Tables<'locations'>;
 
-export default function NurseriesPageContent({ nurseries, locations, error }: { nurseries: Nursery[]; locations: Pick<Location, 'id' | 'name'>[]; error?: string }) {
+export default function NurseriesPageContent({
+  nurseries,
+  locations,
+  error,
+}: {
+  nurseries: Nursery[];
+  locations: Pick<Location, 'id' | 'name'>[];
+  error?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Nursery | null>(null);
   const [name, setName] = useState<string>('');
@@ -28,8 +61,14 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
   const [notes, setNotes] = useState<string>('');
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; location_id?: string }>({});
   const initial: NurseryFormState = { message: '' };
-  const [createState, createAction] = useActionState<NurseryFormState, FormData>(actionCreateNursery, initial);
-  const [updateState, updateAction] = useActionState<NurseryFormState, FormData>(actionUpdateNursery, initial);
+  const [createState, createAction] = useActionState<NurseryFormState, FormData>(
+    actionCreateNursery,
+    initial
+  );
+  const [updateState, updateAction] = useActionState<NurseryFormState, FormData>(
+    actionUpdateNursery,
+    initial
+  );
   const [deleteTarget, setDeleteTarget] = useState<Nursery | null>(null);
   const [deleting, setDeleting] = useState(false);
   const hasNurseries = nurseries.length > 0;
@@ -88,7 +127,22 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
 
   return (
     <div>
-      <PageHeader title="Nurseries" action={hasNurseries ? <Button size="sm" onClick={() => { setEditing(null); setOpen(true); }}>Add Nursery</Button> : undefined} />
+      <PageHeader
+        title="Nurseries"
+        action={
+          hasNurseries ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+            >
+              Add Nursery
+            </Button>
+          ) : undefined
+        }
+      />
       <PageContent>
         {error ? (
           <div className="text-red-500">Error loading nurseries: {error}</div>
@@ -104,8 +158,13 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button onClick={() => { setEditing(null); setOpen(true); }}>
-                <PlusCircle className="h-4 w-4 mr-2" />
+              <Button
+                onClick={() => {
+                  setEditing(null);
+                  setOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
                 Add Your First Nursery
               </Button>
             </EmptyContent>
@@ -124,12 +183,17 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
                 {nurseries.map((n: Nursery) => (
                   <TableRow key={n.id}>
                     <TableCell className="font-medium">{n.name}</TableCell>
-                    <TableCell>{locations.find((l) => l.id === n.location_id)?.name ?? '—'}</TableCell>
+                    <TableCell>
+                      {locations.find((l) => l.id === n.location_id)?.name ?? '—'}
+                    </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => { setEditing(n); setOpen(true); }}
+                        onClick={() => {
+                          setEditing(n);
+                          setOpen(true);
+                        }}
                         aria-label="Edit nursery"
                       >
                         <Pencil className="h-4 w-4" />
@@ -155,12 +219,15 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
       {/* Single confirm dialog instance to avoid stacked overlays and include deterministic copy */}
       <ConfirmDialog
         open={deleteTarget != null}
-        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
-        title='Delete nursery?'
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Delete nursery?"
         description={
           deleteTarget ? (
             <span>
-              Are you sure you want to delete <strong>{deleteTarget.name}</strong>? This action cannot be undone. You must remove or reassign any associated records first.
+              Are you sure you want to delete <strong>{deleteTarget.name}</strong>? This action
+              cannot be undone. You must remove or reassign any associated records first.
             </span>
           ) : (
             'This action cannot be undone.'
@@ -217,12 +284,16 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
             {/* Hidden input carries selected value from shadcn Select to server action */}
             <input type="hidden" name="location_id" value={locationId} />
             <Select value={locationId} onValueChange={(v) => setLocationId(v)}>
-              <SelectTrigger className={`mt-1 ${fieldErrors.location_id ? 'border-red-500 focus-visible:ring-red-500' : ''}`}>
+              <SelectTrigger
+                className={`mt-1 ${fieldErrors.location_id ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+              >
                 <SelectValue placeholder="Select a location" />
               </SelectTrigger>
               <SelectContent>
                 {locations.map((l) => (
-                  <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -232,7 +303,13 @@ export default function NurseriesPageContent({ nurseries, locations, error }: { 
           </div>
           <div>
             <label className="text-sm font-medium">Notes</label>
-            <Textarea name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1" rows={3} />
+            <Textarea
+              name="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="mt-1"
+              rows={3}
+            />
           </div>
         </form>
       </FormDialog>

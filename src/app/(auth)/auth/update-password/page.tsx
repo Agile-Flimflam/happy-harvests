@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 
 export default function UpdatePasswordPage() {
-  const supabase = createClient();
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,11 +19,12 @@ export default function UpdatePasswordPage() {
 
   useEffect(() => {
     const checkSession = async () => {
+      const supabase = createClient();
       const { data } = await supabase.auth.getSession();
       setHasSession(!!data.session);
     };
     void checkSession();
-  }, [supabase]);
+  }, []);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -43,6 +43,7 @@ export default function UpdatePasswordPage() {
       return;
     }
 
+    const supabase = createClient();
     const { error: updateError } = await supabase.auth.updateUser({ password });
     if (updateError) {
       setError(updateError.message);
@@ -61,7 +62,10 @@ export default function UpdatePasswordPage() {
       {!hasSession && (
         <p className="text-sm text-center text-red-600">
           Password reset link invalid or expired. Request a new one on the{' '}
-          <Link href="/auth/reset-password" className="underline underline-offset-4">reset page</Link>.
+          <Link href="/auth/reset-password" className="underline underline-offset-4">
+            reset page
+          </Link>
+          .
         </p>
       )}
       <form onSubmit={onSubmit} className="space-y-6">
@@ -98,10 +102,10 @@ export default function UpdatePasswordPage() {
         {error && <p className="text-sm text-center text-red-600">{error}</p>}
       </form>
       <div className="text-center text-sm">
-        <Link href="/" className="text-primary underline-offset-4 hover:underline">Go to dashboard</Link>
+        <Link href="/" className="text-primary underline-offset-4 hover:underline">
+          Go to dashboard
+        </Link>
       </div>
     </div>
   );
 }
-
-
