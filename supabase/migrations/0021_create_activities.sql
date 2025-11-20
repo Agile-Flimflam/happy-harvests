@@ -58,7 +58,7 @@ alter table if exists public.activities enable row level security;
 do $$
 begin
   if not exists (
-    select 1 from pg_policies where polname = 'activities: authenticated all' and tablename = 'activities'
+    select 1 from pg_policies where policyname = 'activities: authenticated all' and tablename = 'activities'
   ) then
     create policy "activities: authenticated all"
     on public.activities
