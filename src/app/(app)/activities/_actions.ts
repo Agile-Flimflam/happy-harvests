@@ -119,15 +119,10 @@ export async function createActivity(
   const validated = ActivitySchema.safeParse(extractActivityFormData(formData));
 
   if (!validated.success) {
-    const errors: Record<string, string[]> = {};
-    for (const issue of validated.error.issues) {
-      const field = issue.path.join('.');
-      if (!errors[field]) {
-        errors[field] = [];
-      }
-      errors[field].push(issue.message);
-    }
-    return { message: 'Validation failed', errors };
+    return {
+      message: 'Validation failed',
+      errors: validated.error.flatten().fieldErrors,
+    };
   }
 
   const weather = await fetchActivityWeather(supabase, validated.data.location_id ?? null);
