@@ -1,5 +1,9 @@
 name: CI/CD Pipeline
 
+# Note: If using tj-actions/changed-files in the future, it will automatically use
+# the default GITHUB_TOKEN. The current permissions (contents: read) are sufficient
+# for changed-files to function correctly without explicit token passing.
+
 permissions:
   contents: read
   actions: read
