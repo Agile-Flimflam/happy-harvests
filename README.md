@@ -203,6 +203,83 @@ E2E tests run automatically in the CI/CD pipeline:
 - Test artifacts (videos, screenshots, HTML reports) are uploaded to GitHub Actions
 - Tests run with retries enabled for flaky test handling
 
+## Testing Database Migrations Locally
+
+Before creating a PR with database migrations, it's important to test them locally to ensure they apply correctly and don't introduce errors.
+
+### Quick Validation
+
+The easiest way to validate all migrations is using the `db:validate` script:
+
+```bash
+pnpm db:validate
+```
+
+**⚠️ Warning:** This script is **destructive** - it will drop your local database and recreate it from scratch.
+
+This script will:
+
+- Start a local Supabase instance (if not already running)
+- Drop the existing local database (if any)
+- Apply all migrations from scratch using `supabase db reset`
+- Automatically run the seed script (`supabase/seed.sql`) to populate test data
+- Verify migrations complete successfully
+- Provide clear success/failure output
+
+**Use with caution if you have important local data that isn't backed up.**
+
+### Manual Testing Steps
+
+1. **Start local Supabase** (if not already running):
+
+   ```bash
+   pnpm db:start
+   ```
+
+2. **Test all migrations from scratch**:
+
+   ```bash
+   pnpm db:reset
+   ```
+
+   **⚠️ Warning:** This command is **destructive** - it drops your local database completely.
+
+   This command will:
+   - Drop the existing local database (if any)
+   - Apply all migrations in order
+   - Automatically run the seed script (`supabase/seed.sql`) to populate test data
+
+   **Use with caution if you have important local data that isn't backed up.**
+
+3. **Test a specific migration**:
+   - To test migrations incrementally, you can use:
+     ```bash
+     supabase migration up
+     ```
+   - This applies only pending migrations without resetting the database.
+
+4. **Verify migration syntax**:
+   - The Supabase CLI will validate SQL syntax when applying migrations
+   - Check the output for any errors or warnings
+   - Ensure all migrations are idempotent (can be run multiple times safely)
+
+### Best Practices
+
+- **Always test migrations locally** before creating a PR
+- **Test from a clean state** using `db:reset` to catch issues with migration ordering
+- **Verify migrations are reversible** if you plan to create down migrations
+- **Check for breaking changes** that might affect existing data or application code
+- **Run the validation script** (`pnpm db:validate`) to match CI/CD behavior
+
+### CI/CD Integration
+
+Migrations are automatically validated in the CI/CD pipeline on pull requests:
+
+- The `validate-migrations` job runs on all PRs (not on main branch)
+- It starts a fresh Supabase instance and applies all migrations
+- PRs will fail if migrations have errors, preventing broken migrations from being merged
+- The actual deployment to production only happens when code is merged to `main`
+
 ## Husky Pre-commit Hook
 
 A pre-commit hook is set up using Husky and `lint-staged` (assuming `package.json` is configured) to automatically lint and format staged files before committing.
