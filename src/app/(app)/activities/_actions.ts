@@ -305,7 +305,7 @@ export async function deleteActivitiesBulk(formData: FormData): Promise<void> {
   const ids = csv
     .split(',')
     .map((s) => Number(s.trim()))
-    .filter((n) => Number.isFinite(n));
+    .filter((n) => Number.isFinite(n) && n > 0);
   if (!ids.length) return;
   await supabase.from('activities').delete().in('id', ids);
   revalidatePath('/activities');

@@ -107,6 +107,35 @@ const toLocalMidnightDate = (iso: string): Date => new Date(iso + 'T00:00:00');
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
+// Event type priority constants (lower number = higher priority)
+const PRIORITY_HARVEST = 0;
+const PRIORITY_PLANTING = 1;
+const PRIORITY_ACTIVITY = 2;
+
+// Event type priority mapping
+const EVENT_TYPE_PRIORITY: Record<'harvest' | 'planting' | 'activity', number> = {
+  harvest: PRIORITY_HARVEST,
+  planting: PRIORITY_PLANTING,
+  activity: PRIORITY_ACTIVITY,
+} as const;
+
+// Filter configuration mapping
+const FILTER_CONFIG: Record<
+  'all' | 'activity' | 'planting' | 'harvest',
+  { label: string; Icon: typeof CalendarDays }
+> = {
+  all: { label: 'All', Icon: CalendarDays },
+  activity: { label: 'Activities', Icon: Wrench },
+  planting: { label: 'Plantings', Icon: Sprout },
+  harvest: { label: 'Harvests', Icon: ShoppingBasket },
+} as const;
+
+// Helper function to capitalize first letter of a string
+const capitalizeFirst = (str: string): string => {
+  if (str.length === 0) return str;
+  return str[0].toUpperCase() + str.slice(1);
+};
+
 export default function CalendarClient({
   events,
   locations = [],
@@ -389,15 +418,7 @@ export default function CalendarClient({
                 Type
               </div>
               {(['all', 'activity', 'planting', 'harvest'] as const).map((v) => {
-                let label = 'All';
-                if (v === 'activity') label = 'Activities';
-                else if (v === 'planting') label = 'Plantings';
-                else if (v === 'harvest') label = 'Harvests';
-
-                let Icon = CalendarDays;
-                if (v === 'activity') Icon = Wrench;
-                else if (v === 'planting') Icon = Sprout;
-                else if (v === 'harvest') Icon = ShoppingBasket;
+                const { label, Icon } = FILTER_CONFIG[v];
 
                 return (
                   <DropdownMenuItem
@@ -416,7 +437,7 @@ export default function CalendarClient({
                 Range
               </div>
               {(['month', 'week', 'today'] as const).map((v) => {
-                const label = v[0].toUpperCase() + v.slice(1);
+                const label = capitalizeFirst(v);
                 const rangeIconMap = {
                   month: Calendar,
                   week: CalendarRange,
@@ -503,7 +524,7 @@ export default function CalendarClient({
                   className={`rounded px-1.5 py-1 text-xs whitespace-nowrap border transition-colors active:scale-95 ${range === v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`}
                   onClick={() => setRange(v)}
                 >
-                  {v[0].toUpperCase() + v.slice(1)}
+                  {capitalizeFirst(v)}
                 </button>
               ))}
             </div>
@@ -514,10 +535,7 @@ export default function CalendarClient({
           {/* Filter toggles */}
           <div className="flex items-center gap-0.5 flex-wrap" role="tablist" aria-label="Filter">
             {(['all', 'activity', 'planting', 'harvest'] as const).map((v) => {
-              let fullLabel = 'All';
-              if (v === 'activity') fullLabel = 'Activities';
-              else if (v === 'planting') fullLabel = 'Plantings';
-              else if (v === 'harvest') fullLabel = 'Harvests';
+              const { label } = FILTER_CONFIG[v];
               return (
                 <button
                   key={v}
@@ -526,7 +544,7 @@ export default function CalendarClient({
                   className={`rounded px-1.5 py-1 text-xs whitespace-nowrap border transition-colors active:scale-95 ${filter === v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`}
                   onClick={() => setFilter(v)}
                 >
-                  {fullLabel}
+                  {label}
                 </button>
               );
             })}
@@ -615,9 +633,7 @@ export default function CalendarClient({
             const key = iso;
             const dayEventsRaw = byDay.get(iso) || [];
             const eventsWithPriority = dayEventsRaw.map((e) => {
-              let p = 2;
-              if (e.type === 'harvest') p = 0;
-              else if (e.type === 'planting') p = 1;
+              const p = EVENT_TYPE_PRIORITY[e.type];
               return { e, p };
             });
             eventsWithPriority.sort((a, b) => {

@@ -791,18 +791,11 @@ describe('Activities Actions', () => {
       // Clear any previous calls
       jest.clearAllMocks();
 
-      // Note: Current implementation converts empty string to [0], so it doesn't return early
-      // This test verifies the current behavior - if the implementation is fixed to filter out 0,
-      // this test should be updated to expect from() not to be called
-      const deleteChain = createMockQueryBuilder();
-      deleteChain.delete.mockReturnValueOnce(deleteChain);
-      deleteChain.in.mockResolvedValueOnce({ data: null, error: null });
-
       await deleteActivitiesBulk(formData);
 
-      // Current behavior: empty string becomes [0], so from() is called
-      // If implementation is fixed, change this to expect().not.toHaveBeenCalled()
-      expect(mockSupabaseClient.from).toHaveBeenCalled();
+      // Empty string results in empty array after filtering, so function returns early
+      expect(mockSupabaseClient.from).not.toHaveBeenCalled();
+      expect(revalidatePath).not.toHaveBeenCalled();
     });
 
     it('should filter out invalid IDs', async () => {
