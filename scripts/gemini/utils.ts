@@ -2,8 +2,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import { Octokit } from '@octokit/rest';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 /**
  * Initialize Gemini API client
@@ -39,10 +39,10 @@ export function getPRContext(): {
 } {
   const context = github.context;
   // Check for PR number from environment (for manual workflow dispatch) or from context
-  const prNumberFromEnv = process.env.PR_NUMBER ? parseInt(process.env.PR_NUMBER, 10) : null;
+  const prNumberFromEnv = process.env.PR_NUMBER ? Number.parseInt(process.env.PR_NUMBER, 10) : null;
   const prNumber = prNumberFromEnv || context.payload.pull_request?.number;
 
-  if (!prNumber || isNaN(prNumber)) {
+  if (!prNumber || Number.isNaN(prNumber)) {
     throw new Error(
       'This workflow must be run on a pull request or with PR_NUMBER environment variable'
     );
@@ -89,12 +89,6 @@ export async function getPRDiff(
   repo: string,
   prNumber: number
 ): Promise<string> {
-  const { data: pr } = await octokit.rest.pulls.get({
-    owner,
-    repo,
-    pull_number: prNumber,
-  });
-
   const { data: diff } = await octokit.request(`GET /repos/${owner}/${repo}/pulls/${prNumber}`, {
     headers: {
       accept: 'application/vnd.github.v3.diff',

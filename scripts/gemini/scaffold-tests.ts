@@ -11,9 +11,9 @@ import {
   isNewFile,
   getTestFilePath,
 } from './utils';
-import * as path from 'path';
-import * as fs from 'fs';
-import { execSync } from 'child_process';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import { execSync } from 'node:child_process';
 
 interface TestScaffold {
   filePath: string;
@@ -29,10 +29,6 @@ async function generateTestScaffold(
 
   // Determine if it's a React component or utility function
   const isComponent = sourceFilePath.endsWith('.tsx');
-  const isReactComponent =
-    isComponent &&
-    sourceCode.includes('export') &&
-    (sourceCode.includes('function') || sourceCode.includes('const') || sourceCode.includes('='));
 
   const prompt = `You are a test generator for a TypeScript/React/Next.js project using Jest and @testing-library/react.
 
@@ -114,8 +110,8 @@ Generate the complete test file code. Respond with ONLY the TypeScript test code
     let testCode = text.trim();
     if (testCode.startsWith('```')) {
       testCode = testCode
-        .replace(/^```(?:typescript|ts|tsx)?\n?/gm, '')
-        .replace(/```$/gm, '')
+        .replaceAll(/^```(?:typescript|ts|tsx)?\n?/gm, '')
+        .replaceAll(/```$/gm, '')
         .trim();
     }
 
@@ -141,208 +137,181 @@ async function checkTestFileExists(
   }
 }
 
-async function main(): Promise<void> {
+async function resolvePRContext(octokit: ReturnType<typeof initGitHubClient>) {
   try {
-    core.info('Starting test scaffolding...');
+    return getPRContext();
+  } catch (error) {
+    const prNumberFromEnv = process.env.PR_NUMBER;
+    if (!prNumberFromEnv) throw error;
 
-    const gemini = initGeminiClient();
-    const octokit = initGitHubClient();
+    const context = github.context;
+    const { data: pr } = await octokit.rest.pulls.get({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      pull_number: Number.parseInt(prNumberFromEnv, 10),
+    });
 
-    // Handle manual workflow dispatch with PR_NUMBER env var
-    let prContext;
-    try {
-      prContext = getPRContext();
-    } catch (error) {
-      const prNumberFromEnv = process.env.PR_NUMBER;
-      if (prNumberFromEnv) {
-        const context = github.context;
-        const { data: pr } = await octokit.rest.pulls.get({
-          owner: context.repo.owner,
-          repo: context.repo.repo,
-          pull_number: parseInt(prNumberFromEnv, 10),
-        });
-        prContext = {
-          owner: context.repo.owner,
-          repo: context.repo.repo,
-          prNumber: parseInt(prNumberFromEnv, 10),
-          baseSha: pr.base.sha,
-          headSha: pr.head.sha,
-        };
-      } else {
-        throw error;
-      }
+    return {
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      prNumber: Number.parseInt(prNumberFromEnv, 10),
+      baseSha: pr.base.sha,
+      headSha: pr.head.sha,
+    };
+  }
+}
+
+async function identifyFilesNeedingTests(
+  octokit: ReturnType<typeof initGitHubClient>,
+  prContext: { owner: string; repo: string; prNumber: number; baseSha: string }
+) {
+  const allFiles = await getChangedFiles(
+    octokit,
+    prContext.owner,
+    prContext.repo,
+    prContext.prNumber
+  );
+  const newFiles = filterCodeFiles(allFiles).filter(isNewFile);
+
+  if (newFiles.length === 0) {
+    core.info('No new TypeScript/TSX files in this PR.');
+    return [];
+  }
+
+  core.info(`Found ${newFiles.length} new code files`);
+
+  const filesNeedingTests: Array<{ sourcePath: string; testPath: string }> = [];
+
+  for (const file of newFiles) {
+    const { testPath, specPath } = getTestFilePath(file.filename);
+
+    const [testExists, specExists] = await Promise.all([
+      checkTestFileExists(octokit, prContext.owner, prContext.repo, testPath, prContext.baseSha),
+      checkTestFileExists(octokit, prContext.owner, prContext.repo, specPath, prContext.baseSha),
+    ]);
+
+    if (!testExists && !specExists) {
+      filesNeedingTests.push({
+        sourcePath: file.filename,
+        testPath,
+      });
     }
+  }
 
-    core.info(`Scaffolding tests for PR #${prContext.prNumber}`);
+  return filesNeedingTests;
+}
 
-    // Get changed files
-    const allFiles = await getChangedFiles(
+async function generateScaffolds(
+  gemini: GoogleGenerativeAI,
+  octokit: ReturnType<typeof initGitHubClient>,
+  prContext: { owner: string; repo: string; headSha: string },
+  filesNeedingTests: Array<{ sourcePath: string; testPath: string }>
+): Promise<TestScaffold[]> {
+  const scaffolds: TestScaffold[] = [];
+
+  for (const { sourcePath, testPath } of filesNeedingTests) {
+    core.info(`Generating test for ${sourcePath}...`);
+
+    const sourceCode = await getFileContents(
       octokit,
       prContext.owner,
       prContext.repo,
-      prContext.prNumber
+      sourcePath,
+      prContext.headSha
     );
-    const codeFiles = filterCodeFiles(allFiles);
 
-    // Filter to only new files
-    const newFiles = codeFiles.filter(isNewFile);
-
-    if (newFiles.length === 0) {
-      core.info('No new TypeScript/TSX files in this PR.');
-      return;
+    if (!sourceCode) {
+      core.warning(`Could not fetch content for ${sourcePath}`);
+      continue;
     }
 
-    core.info(`Found ${newFiles.length} new code files`);
-
-    // Check which files need test scaffolding
-    const filesNeedingTests: Array<{ sourcePath: string; testPath: string }> = [];
-
-    for (const file of newFiles) {
-      const { testPath, specPath } = getTestFilePath(file.filename);
-
-      // Check if test file exists in base branch
-      const testExists = await checkTestFileExists(
-        octokit,
-        prContext.owner,
-        prContext.repo,
-        testPath,
-        prContext.baseSha
-      );
-      const specExists = await checkTestFileExists(
-        octokit,
-        prContext.owner,
-        prContext.repo,
-        specPath,
-        prContext.baseSha
-      );
-
-      if (!testExists && !specExists) {
-        filesNeedingTests.push({
-          sourcePath: file.filename,
-          testPath,
-        });
-      }
-    }
-
-    if (filesNeedingTests.length === 0) {
-      core.info('All new files already have corresponding test files.');
-      return;
-    }
-
-    core.info(`Generating test scaffolds for ${filesNeedingTests.length} files`);
-
-    // Generate test scaffolds
-    const scaffolds: TestScaffold[] = [];
-
-    for (const { sourcePath, testPath } of filesNeedingTests) {
-      core.info(`Generating test for ${sourcePath}...`);
-
-      // Get source file content
-      const sourceCode = await getFileContents(
-        octokit,
-        prContext.owner,
-        prContext.repo,
-        sourcePath,
-        prContext.headSha
-      );
-
-      if (!sourceCode) {
-        core.warning(`Could not fetch content for ${sourcePath}`);
-        continue;
-      }
-
-      try {
-        const testCode = await generateTestScaffold(gemini, sourcePath, sourceCode);
-        scaffolds.push({
-          filePath: testPath,
-          testCode,
-        });
-      } catch (error) {
-        core.warning(`Failed to generate test for ${sourcePath}: ${error}`);
-      }
-    }
-
-    if (scaffolds.length === 0) {
-      core.info('No test scaffolds generated.');
-      return;
-    }
-
-    const shouldCommit = process.env.COMMIT_CHANGES === 'true';
-
-    if (shouldCommit) {
-      // Check if the last commit was made by this action to prevent infinite loops
-      try {
-        const lastCommitAuthor = execSync('git log -1 --pretty=format:"%an <%ae>"', {
-          encoding: 'utf-8',
-        }).trim();
-        const lastCommitMessage = execSync('git log -1 --pretty=format:"%s"', {
-          encoding: 'utf-8',
-        }).trim();
-
-        if (
-          lastCommitAuthor.includes('GitHub Action') &&
-          lastCommitMessage.includes('test: add generated test scaffolds')
-        ) {
-          core.info('Last commit was made by this action. Skipping to prevent infinite loop.');
-          return;
-        }
-      } catch (error) {
-        core.warning(`Could not check last commit: ${error}`);
-      }
-
-      // Write files to disk and commit them
-      core.info(`Writing ${scaffolds.length} test files to disk...`);
-
-      for (const scaffold of scaffolds) {
-        const fullPath = path.join(process.cwd(), scaffold.filePath);
-        const dir = path.dirname(fullPath);
-
-        // Ensure directory exists
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-
-        // Write test file
-        fs.writeFileSync(fullPath, scaffold.testCode, 'utf-8');
-        core.info(`Wrote ${scaffold.filePath}`);
-      }
-
-      // Stage files
-      execSync('git add ' + scaffolds.map((s) => s.filePath).join(' '), {
-        stdio: 'inherit',
+    try {
+      const testCode = await generateTestScaffold(gemini, sourcePath, sourceCode);
+      scaffolds.push({
+        filePath: testPath,
+        testCode,
       });
+    } catch (error) {
+      core.warning(`Failed to generate test for ${sourcePath}: ${error}`);
+    }
+  }
 
-      // Check if there are any changes to commit
-      try {
-        const status = execSync('git status --porcelain', { encoding: 'utf-8' });
-        if (!status.trim()) {
-          core.info('No changes to commit.');
-          return;
-        }
+  return scaffolds;
+}
 
-        // Commit with a clear message
-        const commitMessage = `test: add generated test scaffolds for ${scaffolds.length} file(s)
+async function commitScaffolds(
+  octokit: ReturnType<typeof initGitHubClient>,
+  prContext: { owner: string; repo: string; prNumber: number },
+  scaffolds: TestScaffold[]
+) {
+  // Check if the last commit was made by this action to prevent infinite loops
+  try {
+    const lastCommitAuthor = execSync('git log -1 --pretty=format:"%an <%ae>"', {
+      encoding: 'utf-8',
+    }).trim();
+    const lastCommitMessage = execSync('git log -1 --pretty=format:"%s"', {
+      encoding: 'utf-8',
+    }).trim();
+
+    if (
+      lastCommitAuthor.includes('GitHub Action') &&
+      lastCommitMessage.includes('test: add generated test scaffolds')
+    ) {
+      core.info('Last commit was made by this action. Skipping to prevent infinite loop.');
+      return;
+    }
+  } catch (error) {
+    core.warning(`Could not check last commit: ${error}`);
+  }
+
+  // Write files to disk and commit them
+  core.info(`Writing ${scaffolds.length} test files to disk...`);
+
+  for (const scaffold of scaffolds) {
+    const fullPath = path.join(process.cwd(), scaffold.filePath);
+    const dir = path.dirname(fullPath);
+
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    fs.writeFileSync(fullPath, scaffold.testCode, 'utf-8');
+    core.info(`Wrote ${scaffold.filePath}`);
+  }
+
+  // Stage files
+  execSync('git add ' + scaffolds.map((s) => s.filePath).join(' '), {
+    stdio: 'inherit',
+  });
+
+  // Check if there are any changes to commit
+  try {
+    const status = execSync('git status --porcelain', { encoding: 'utf-8' });
+    if (!status.trim()) {
+      core.info('No changes to commit.');
+      return;
+    }
+
+    const commitMessage = `test: add generated test scaffolds for ${scaffolds.length} file(s)
 
 Generated by Gemini AI workflow
 Files: ${scaffolds.map((s) => s.filePath).join(', ')}`;
 
-        execSync(`git commit -m "${commitMessage}"`, {
-          stdio: 'inherit',
-        });
+    execSync(`git commit -m "${commitMessage}"`, {
+      stdio: 'inherit',
+    });
 
-        // Push to the PR branch
-        const branchName = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME;
-        if (branchName) {
-          execSync(`git push origin ${branchName}`, {
-            stdio: 'inherit',
-          });
-          core.info(`Pushed test scaffolds to ${branchName}`);
-        } else {
-          core.warning('Could not determine branch name for push');
-        }
+    const branchName = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME;
+    if (branchName) {
+      execSync(`git push origin ${branchName}`, {
+        stdio: 'inherit',
+      });
+      core.info(`Pushed test scaffolds to ${branchName}`);
+    } else {
+      core.warning('Could not determine branch name for push');
+    }
 
-        // Post success comment
-        const commentBody = `## ✅ Test Scaffolding Committed
+    const commentBody = `## ✅ Test Scaffolding Committed
 
 I've generated and committed test boilerplate for ${scaffolds.length} new file(s):
 
@@ -355,19 +324,24 @@ ${scaffolds.map((s) => `- \`${s.filePath}\``).join('\n')}
 
 These are boilerplate tests - please review and enhance them based on your specific requirements.`;
 
-        await octokit.rest.issues.createComment({
-          owner: prContext.owner,
-          repo: prContext.repo,
-          issue_number: prContext.prNumber,
-          body: commentBody,
-        });
-      } catch (error) {
-        core.warning(`Failed to commit/push: ${error}`);
-        // Fall through to post comment with code blocks
-      }
-    } else {
-      // Post scaffolds as PR comment (original behavior for manual review)
-      const commentBody = `## 🧪 Test Scaffolding Generated
+    await octokit.rest.issues.createComment({
+      owner: prContext.owner,
+      repo: prContext.repo,
+      issue_number: prContext.prNumber,
+      body: commentBody,
+    });
+  } catch (error) {
+    core.warning(`Failed to commit/push: ${error}`);
+    throw error;
+  }
+}
+
+async function postScaffoldsComment(
+  octokit: ReturnType<typeof initGitHubClient>,
+  prContext: { owner: string; repo: string; prNumber: number },
+  scaffolds: TestScaffold[]
+) {
+  const commentBody = `## 🧪 Test Scaffolding Generated
 
 I've generated test boilerplate for ${scaffolds.length} new file(s) that don't have corresponding test files:
 
@@ -393,19 +367,54 @@ ${scaffold.testCode}
 
 These are boilerplate tests - please review and enhance them based on your specific requirements.`;
 
-      await octokit.rest.issues.createComment({
-        owner: prContext.owner,
-        repo: prContext.repo,
-        issue_number: prContext.prNumber,
-        body: commentBody,
-      });
-    }
-
-    core.info(`Processed test scaffolds for ${scaffolds.length} files`);
-  } catch (error) {
-    core.setFailed(`Test scaffolding failed: ${error}`);
-    process.exit(1);
-  }
+  await octokit.rest.issues.createComment({
+    owner: prContext.owner,
+    repo: prContext.repo,
+    issue_number: prContext.prNumber,
+    body: commentBody,
+  });
 }
 
-main();
+try {
+  core.info('Starting test scaffolding...');
+
+  const gemini = initGeminiClient();
+  const octokit = initGitHubClient();
+  const prContext = await resolvePRContext(octokit);
+
+  core.info(`Scaffolding tests for PR #${prContext.prNumber}`);
+
+  const filesNeedingTests = await identifyFilesNeedingTests(octokit, prContext);
+
+  if (filesNeedingTests.length === 0) {
+    core.info('All new files already have corresponding test files.');
+    process.exit(0);
+  }
+
+  core.info(`Generating test scaffolds for ${filesNeedingTests.length} files`);
+
+  const scaffolds = await generateScaffolds(gemini, octokit, prContext, filesNeedingTests);
+
+  if (scaffolds.length === 0) {
+    core.info('No test scaffolds generated.');
+    process.exit(0);
+  }
+
+  core.info(`Processed test scaffolds for ${scaffolds.length} files`);
+
+  const shouldCommit = process.env.COMMIT_CHANGES === 'true';
+
+  if (shouldCommit) {
+    try {
+      await commitScaffolds(octokit, prContext, scaffolds);
+    } catch {
+      // Fallback to comment if commit/push fails
+      await postScaffoldsComment(octokit, prContext, scaffolds);
+    }
+  } else {
+    await postScaffoldsComment(octokit, prContext, scaffolds);
+  }
+} catch (error) {
+  core.setFailed(`Test scaffolding failed: ${error}`);
+  process.exit(1);
+}
