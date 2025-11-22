@@ -136,59 +136,69 @@ ${fileIssues
   }
 }
 
-try {
-  core.info('Starting Gemini code review...');
+async function main(): Promise<void> {
+  try {
+    core.info('Starting Gemini code review...');
 
-  const gemini = initGeminiClient();
-  const octokit = initGitHubClient();
-  const prContext = getPRContext();
+    const gemini = initGeminiClient();
+    const octokit = initGitHubClient();
+    const prContext = getPRContext();
 
-  core.info(`Reviewing PR #${prContext.prNumber} in ${prContext.owner}/${prContext.repo}`);
+    core.info(`Reviewing PR #${prContext.prNumber} in ${prContext.owner}/${prContext.repo}`);
 
-  // Get changed files
-  const allFiles = await getChangedFiles(
-    octokit,
-    prContext.owner,
-    prContext.repo,
-    prContext.prNumber
-  );
-  const codeFiles = filterCodeFiles(allFiles);
-
-  if (codeFiles.length === 0) {
-    core.info('No TypeScript/TSX files changed in this PR.');
-    process.exit(0);
-  }
-
-  core.info(`Found ${codeFiles.length} code files to review`);
-
-  // Review each file
-  const allIssues: ReviewIssue[] = [];
-  for (const file of codeFiles) {
-    core.info(`Reviewing ${file.filename}...`);
-
-    // Get file content from head commit
-    const content = await getFileContents(
+    // Get changed files
+    const allFiles = await getChangedFiles(
       octokit,
       prContext.owner,
       prContext.repo,
-      file.filename,
-      prContext.headSha
+      prContext.prNumber
     );
+    const codeFiles = filterCodeFiles(allFiles);
 
-    if (!content) {
-      core.warning(`Could not fetch content for ${file.filename}`);
-      continue;
+    if (codeFiles.length === 0) {
+      core.info('No TypeScript/TSX files changed in this PR.');
+      process.exit(0);
     }
 
-    const issues = await reviewCodeWithGemini(gemini, file.filename, content);
-    allIssues.push(...issues);
+    core.info(`Found ${codeFiles.length} code files to review`);
+
+    // Review each file
+    const allIssues: ReviewIssue[] = [];
+    for (const file of codeFiles) {
+      core.info(`Reviewing ${file.filename}...`);
+
+      // Get file content from head commit
+      const content = await getFileContents(
+        octokit,
+        prContext.owner,
+        prContext.repo,
+        file.filename,
+        prContext.headSha
+      );
+
+      if (!content) {
+        core.warning(`Could not fetch content for ${file.filename}`);
+        continue;
+      }
+
+      const issues = await reviewCodeWithGemini(gemini, file.filename, content);
+      allIssues.push(...issues);
+    }
+
+    // Post review comments
+    await postReviewComments(
+      octokit,
+      prContext.owner,
+      prContext.repo,
+      prContext.prNumber,
+      allIssues
+    );
+
+    core.info(`Review complete. Found ${allIssues.length} issues.`);
+  } catch (error) {
+    core.setFailed(`Code review failed: ${error}`);
+    process.exit(1);
   }
-
-  // Post review comments
-  await postReviewComments(octokit, prContext.owner, prContext.repo, prContext.prNumber, allIssues);
-
-  core.info(`Review complete. Found ${allIssues.length} issues.`);
-} catch (error) {
-  core.setFailed(`Code review failed: ${error}`);
-  process.exit(1);
 }
+
+main();

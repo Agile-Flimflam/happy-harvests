@@ -375,46 +375,50 @@ These are boilerplate tests - please review and enhance them based on your speci
   });
 }
 
-try {
-  core.info('Starting test scaffolding...');
+async function main(): Promise<void> {
+  try {
+    core.info('Starting test scaffolding...');
 
-  const gemini = initGeminiClient();
-  const octokit = initGitHubClient();
-  const prContext = await resolvePRContext(octokit);
+    const gemini = initGeminiClient();
+    const octokit = initGitHubClient();
+    const prContext = await resolvePRContext(octokit);
 
-  core.info(`Scaffolding tests for PR #${prContext.prNumber}`);
+    core.info(`Scaffolding tests for PR #${prContext.prNumber}`);
 
-  const filesNeedingTests = await identifyFilesNeedingTests(octokit, prContext);
+    const filesNeedingTests = await identifyFilesNeedingTests(octokit, prContext);
 
-  if (filesNeedingTests.length === 0) {
-    core.info('All new files already have corresponding test files.');
-    process.exit(0);
-  }
+    if (filesNeedingTests.length === 0) {
+      core.info('All new files already have corresponding test files.');
+      process.exit(0);
+    }
 
-  core.info(`Generating test scaffolds for ${filesNeedingTests.length} files`);
+    core.info(`Generating test scaffolds for ${filesNeedingTests.length} files`);
 
-  const scaffolds = await generateScaffolds(gemini, octokit, prContext, filesNeedingTests);
+    const scaffolds = await generateScaffolds(gemini, octokit, prContext, filesNeedingTests);
 
-  if (scaffolds.length === 0) {
-    core.info('No test scaffolds generated.');
-    process.exit(0);
-  }
+    if (scaffolds.length === 0) {
+      core.info('No test scaffolds generated.');
+      process.exit(0);
+    }
 
-  core.info(`Processed test scaffolds for ${scaffolds.length} files`);
+    core.info(`Processed test scaffolds for ${scaffolds.length} files`);
 
-  const shouldCommit = process.env.COMMIT_CHANGES === 'true';
+    const shouldCommit = process.env.COMMIT_CHANGES === 'true';
 
-  if (shouldCommit) {
-    try {
-      await commitScaffolds(octokit, prContext, scaffolds);
-    } catch {
-      // Fallback to comment if commit/push fails
+    if (shouldCommit) {
+      try {
+        await commitScaffolds(octokit, prContext, scaffolds);
+      } catch {
+        // Fallback to comment if commit/push fails
+        await postScaffoldsComment(octokit, prContext, scaffolds);
+      }
+    } else {
       await postScaffoldsComment(octokit, prContext, scaffolds);
     }
-  } else {
-    await postScaffoldsComment(octokit, prContext, scaffolds);
+  } catch (error) {
+    core.setFailed(`Test scaffolding failed: ${error}`);
+    process.exit(1);
   }
-} catch (error) {
-  core.setFailed(`Test scaffolding failed: ${error}`);
-  process.exit(1);
 }
+
+main();
