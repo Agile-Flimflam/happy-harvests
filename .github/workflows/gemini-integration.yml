@@ -1,0 +1,101 @@
+name: Gemini AI Integration
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - 'src/**/*.ts'
+      - 'src/**/*.tsx'
+      - 'scripts/**/*.ts'
+      - 'scripts/**/*.tsx'
+      - '!**/*.test.ts'
+      - '!**/*.test.tsx'
+      - '!**/*.spec.ts'
+      - '!**/*.spec.tsx'
+      - '!**/*.md'
+      - '!**/*.json'
+      - '!**/*.yml'
+      - '!**/*.yaml'
+      - '!**/*.css'
+      - '!**/*.html'
+      - '!**/README.md'
+      - '!**/CHANGELOG.md'
+      - '!**/.github/**'
+      - '!**/docs/**'
+      - '!**/coverage/**'
+      - '!**/node_modules/**'
+      - '!**/supabase/migrations/**'
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to generate tests for (optional, will use current PR if run from PR context)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  gemini-analysis:
+    name: Gemini Code Analysis
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action != 'labeled'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run Gemini code review
+        run: pnpm exec tsx scripts/gemini/review.ts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate PR description
+        if: github.event.action == 'opened'
+        run: pnpm exec tsx scripts/gemini/describe-pr.ts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  gemini-scaffold:
+    name: Gemini Test Scaffolding
+    runs-on: ubuntu-latest
+    # Only run on manual dispatch, or when label 'generate-tests' is added to a PR
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'generate-tests')
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Generate and commit test scaffolds
+        run: pnpm exec tsx scripts/gemini/scaffold-tests.ts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_CHANGES: 'true'
+          GITHUB_HEAD_REF: ${{ github.head_ref || github.ref_name }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number || '' }}
