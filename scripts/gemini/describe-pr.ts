@@ -186,5 +186,4 @@ try {
   }
 } catch (error) {
   core.setFailed(`PR description generation failed: ${error}`);
-  process.exit(1);
 }

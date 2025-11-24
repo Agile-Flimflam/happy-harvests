@@ -332,7 +332,9 @@ function isRepeatActionCommit(lastCommitInfo: LastCommitInfo | null): boolean {
 
 function writeScaffoldsToDisk(scaffolds: TestScaffold[]): void {
   for (const scaffold of scaffolds) {
-    const fullPath = path.join(process.cwd(), scaffold.filePath);
+    // Sanitize the relative file path before using it for any filesystem operations
+    const safeRelativePath = sanitizeFileSystemPath(scaffold.filePath);
+    const fullPath = path.join(process.cwd(), safeRelativePath);
     const dir = path.dirname(fullPath);
 
     if (!fs.existsSync(dir)) {
