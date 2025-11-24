@@ -101,8 +101,8 @@ Respond with ONLY the markdown description, no additional commentary.`;
     let description = text.trim();
     if (description.startsWith('```')) {
       description = description
-        .replaceAll(/^```(?:markdown)?\n?/gm, '')
-        .replaceAll(/```$/gm, '')
+        .replaceAll(/^```(?:markdown)?\n?/m, '')
+        .replaceAll(/```$/m, '')
         .trim();
     }
 
@@ -113,31 +113,28 @@ Respond with ONLY the markdown description, no additional commentary.`;
   }
 }
 
-async function main(): Promise<void> {
-  try {
-    core.info('Starting PR description generation...');
+try {
+  core.info('Starting PR description generation...');
 
-    const gemini = initGeminiClient();
-    const octokit = initGitHubClient();
-    const prContext = getPRContext();
+  const gemini = initGeminiClient();
+  const octokit = initGitHubClient();
+  const prContext = getPRContext();
 
-    core.info(`Generating description for PR #${prContext.prNumber}`);
+  core.info(`Generating description for PR #${prContext.prNumber}`);
 
-    // Get PR details
-    const { data: pr } = await octokit.rest.pulls.get({
-      owner: prContext.owner,
-      repo: prContext.repo,
-      pull_number: prContext.prNumber,
-    });
+  // Get PR details
+  const { data: pr } = await octokit.rest.pulls.get({
+    owner: prContext.owner,
+    repo: prContext.repo,
+    pull_number: prContext.prNumber,
+  });
 
-    // Get PR diff
-    const diff = await getPRDiff(octokit, prContext.owner, prContext.repo, prContext.prNumber);
+  // Get PR diff
+  const diff = await getPRDiff(octokit, prContext.owner, prContext.repo, prContext.prNumber);
 
-    if (!diff || diff.length === 0) {
-      core.warning('No diff found for this PR');
-      return;
-    }
-
+  if (!diff || diff.length === 0) {
+    core.warning('No diff found for this PR');
+  } else {
     const { truncatedDiff, wasTruncated } = truncateDiffAtFileBoundary(diff, MAX_DIFF_LENGTH);
 
     if (wasTruncated) {
@@ -169,10 +166,8 @@ async function main(): Promise<void> {
     });
 
     core.info('PR description updated successfully');
-  } catch (error) {
-    core.setFailed(`PR description generation failed: ${error}`);
-    process.exit(1);
   }
+} catch (error) {
+  core.setFailed(`PR description generation failed: ${error}`);
+  process.exit(1);
 }
-
-main();

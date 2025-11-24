@@ -72,8 +72,8 @@ Respond with valid JSON as the only content. You may optionally wrap it in a \`\
     let jsonText = text.trim();
     if (jsonText.startsWith('```')) {
       jsonText = jsonText
-        .replaceAll(/^```(?:json)?\n?/gm, '')
-        .replaceAll(/```$/gm, '')
+        .replaceAll(/^```(?:json)?\n?/m, '')
+        .replaceAll(/```$/m, '')
         .trim();
     }
 
@@ -141,30 +141,27 @@ ${fileIssues
   }
 }
 
-async function main(): Promise<void> {
-  try {
-    core.info('Starting Gemini code review...');
+try {
+  core.info('Starting Gemini code review...');
 
-    const gemini = initGeminiClient();
-    const octokit = initGitHubClient();
-    const prContext = getPRContext();
+  const gemini = initGeminiClient();
+  const octokit = initGitHubClient();
+  const prContext = getPRContext();
 
-    core.info(`Reviewing PR #${prContext.prNumber} in ${prContext.owner}/${prContext.repo}`);
+  core.info(`Reviewing PR #${prContext.prNumber} in ${prContext.owner}/${prContext.repo}`);
 
-    // Get changed files
-    const allFiles = await getChangedFiles(
-      octokit,
-      prContext.owner,
-      prContext.repo,
-      prContext.prNumber
-    );
-    const codeFiles = filterCodeFiles(allFiles);
+  // Get changed files
+  const allFiles = await getChangedFiles(
+    octokit,
+    prContext.owner,
+    prContext.repo,
+    prContext.prNumber
+  );
+  const codeFiles = filterCodeFiles(allFiles);
 
-    if (codeFiles.length === 0) {
-      core.info('No TypeScript/TSX files changed in this PR.');
-      return;
-    }
-
+  if (codeFiles.length === 0) {
+    core.info('No TypeScript/TSX files changed in this PR.');
+  } else {
     core.info(`Found ${codeFiles.length} code files to review`);
 
     // Review each file
@@ -200,10 +197,8 @@ async function main(): Promise<void> {
     );
 
     core.info(`Review complete. Found ${allIssues.length} issues.`);
-  } catch (error) {
-    core.setFailed(`Code review failed: ${error}`);
-    process.exit(1);
   }
+} catch (error) {
+  core.setFailed(`Code review failed: ${error}`);
+  process.exit(1);
 }
-
-main();

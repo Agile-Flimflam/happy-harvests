@@ -40,7 +40,7 @@ export function getPRContext(): {
   const context = github.context;
   // Check for PR number from environment (for manual workflow dispatch) or from context
   const prNumberFromEnv = process.env.PR_NUMBER ? Number.parseInt(process.env.PR_NUMBER, 10) : null;
-  const prNumber = prNumberFromEnv || context.payload.pull_request?.number;
+  const prNumber = prNumberFromEnv ?? context.payload.pull_request?.number;
 
   if (!prNumber || Number.isNaN(prNumber)) {
     throw new Error(
@@ -96,7 +96,7 @@ export async function getPRDiff(
   });
 
   if (typeof diff !== 'string') {
-    throw new Error('Failed to fetch PR diff: unexpected response type');
+    throw new TypeError('Failed to fetch PR diff: unexpected response type');
   }
 
   return diff;
@@ -170,8 +170,30 @@ export function filterCodeFiles(
   files: Array<{ filename: string; status: string; additions: number; deletions: number }>
 ): Array<{ filename: string; status: string; additions: number; deletions: number }> {
   return files.filter((file) => {
-    const ext = path.extname(file.filename);
-    return ext === '.ts' || ext === '.tsx';
+    const ext: string = path.extname(file.filename);
+
+    // Only consider .ts/.tsx files
+    if (ext !== '.ts' && ext !== '.tsx') {
+      return false;
+    }
+
+    // Exclude declaration files
+    if (file.filename.endsWith('.d.ts')) {
+      return false;
+    }
+
+    // Exclude test/spec files (e.g., *.test.ts, *.spec.ts, *.test.tsx, *.spec.tsx)
+    const isTestOrSpecFile: boolean =
+      file.filename.endsWith('.test.ts') ||
+      file.filename.endsWith('.spec.ts') ||
+      file.filename.endsWith('.test.tsx') ||
+      file.filename.endsWith('.spec.tsx');
+
+    if (isTestOrSpecFile) {
+      return false;
+    }
+
+    return true;
   });
 }
 
