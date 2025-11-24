@@ -9,6 +9,16 @@ import {
   filterCodeFiles,
 } from './utils';
 
+function sanitizeForPrompt(value: string): string {
+  return (
+    value
+      // Break markdown code fences so they can't interfere with our prompt structure
+      .replaceAll('```', '``\u200b`')
+      // Remove any null characters that could affect parsing
+      .replaceAll('\u0000', '')
+  );
+}
+
 interface ReviewIssue {
   file: string;
   line: number;
@@ -23,6 +33,9 @@ async function reviewCodeWithGemini(
   fileContent: string
 ): Promise<ReviewIssue[]> {
   const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+  const safeFilePath: string = sanitizeForPrompt(filePath);
+  const safeFileContent: string = sanitizeForPrompt(fileContent);
 
   const prompt = `You are a senior code reviewer for a TypeScript/React/Next.js project using Tailwind CSS and shadcn/ui components.
 
@@ -55,10 +68,10 @@ For each issue found, provide a JSON array with this exact structure:
 
 If no issues are found, return an empty array: []
 
-File path: ${filePath}
+File path: ${safeFilePath}
 File content:
 \`\`\`typescript
-${fileContent}
+${safeFileContent}
 \`\`\`
 
 Respond with valid JSON as the only content. You may optionally wrap it in a \`\`\`json\`\`\` code block, but do not include any additional commentary or text.`;
@@ -72,8 +85,8 @@ Respond with valid JSON as the only content. You may optionally wrap it in a \`\
     let jsonText = text.trim();
     if (jsonText.startsWith('```')) {
       jsonText = jsonText
-        .replaceAll(/^```(?:json)?\n?/m, '')
-        .replaceAll(/```$/m, '')
+        .replaceAll(/^```(?:json)?\n?/gm, '')
+        .replaceAll(/```$/gm, '')
         .trim();
     }
 
@@ -132,12 +145,16 @@ ${fileIssues
   )
   .join('\n')}`;
 
-    await octokit.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
-      body,
-    });
+    try {
+      await octokit.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: prNumber,
+        body,
+      });
+    } catch (error) {
+      core.warning(`Failed to post comment for ${file}: ${error}`);
+    }
   }
 }
 

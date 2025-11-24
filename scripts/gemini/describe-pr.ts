@@ -6,6 +6,16 @@ const MAX_DIFF_LENGTH: number = 50_000;
 
 const DIFF_HEADER_REGEX: RegExp = /^diff --git .*$/gm;
 
+function sanitizeForPrompt(value: string): string {
+  return (
+    value
+      // Break markdown code fences so they can't interfere with our prompt structure
+      .replaceAll('```', '``\u200b`')
+      // Remove any null characters that could affect parsing
+      .replaceAll('\u0000', '')
+  );
+}
+
 function truncateDiffAtFileBoundary(
   diff: string,
   maxLength: number
@@ -50,6 +60,13 @@ async function generatePRDescription(
 ): Promise<string> {
   const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
+  const safeTitle: string = sanitizeForPrompt(title);
+  const safeDescription: string =
+    currentDescription && currentDescription.trim().length > 0
+      ? sanitizeForPrompt(currentDescription)
+      : '(No description provided)';
+  const safeDiff: string = sanitizeForPrompt(diff);
+
   const truncationPromptNote: string = wasDiffTruncated
     ? `
 
@@ -62,14 +79,14 @@ When generating the description, clearly mention that the analysis may not cover
 
   const prompt = `You are a technical writer for a software development team. Analyze the following pull request and generate a professional, comprehensive PR description.
 
-PR Title: ${title}
+PR Title: ${safeTitle}
 
 Current Description (may be empty or minimal):
-${currentDescription || '(No description provided)'}
+${safeDescription}
 
 Git Diff:
 \`\`\`
-${diff}
+${safeDiff}
 \`\`\`
 
 Generate a professional PR description in markdown format that includes:
@@ -101,8 +118,8 @@ Respond with ONLY the markdown description, no additional commentary.`;
     let description = text.trim();
     if (description.startsWith('```')) {
       description = description
-        .replaceAll(/^```(?:markdown)?\n?/m, '')
-        .replaceAll(/```$/m, '')
+        .replaceAll(/^```(?:markdown)?\n?/gm, '')
+        .replaceAll(/```$/gm, '')
         .trim();
     }
 

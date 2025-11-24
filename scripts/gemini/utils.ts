@@ -89,9 +89,12 @@ export async function getPRDiff(
   repo: string,
   prNumber: number
 ): Promise<string> {
-  const { data: diff } = await octokit.request(`GET /repos/${owner}/${repo}/pulls/${prNumber}`, {
-    headers: {
-      accept: 'application/vnd.github.v3.diff',
+  const { data: diff } = await octokit.rest.pulls.get({
+    owner,
+    repo,
+    pull_number: prNumber,
+    mediaType: {
+      format: 'diff',
     },
   });
 

@@ -1,4 +1,4 @@
 packages:
   - .
-onlyBuiltDependencies:
-  - esbuild
+# Note: esbuild build behavior is configured in package.json under
+# pnpm.ignoredBuiltDependencies to avoid unnecessary native builds.

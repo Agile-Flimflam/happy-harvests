@@ -242,7 +242,7 @@ This script will:
 - Verify migrations complete successfully
 - Provide clear success/failure output
 
-**Note:** `supabase db reset` applies **all migrations found in your local** `supabase/migrations/` **directory as it exists in your working tree**. This includes any new or modified migration files that are not yet committed to git. If you only want to validate committed migrations, ensure your working directory is clean (or stash/untracked changes) before running `pnpm db:validate`.
+**Note:** `supabase db reset` applies **all migration files** in your local `supabase/migrations/` directory, **including uncommitted or modified files**. If you only want to validate committed migrations, ensure your working directory is clean (or stash/untracked changes) before running `pnpm db:validate`.
 
 ### Manual Testing Steps
 
