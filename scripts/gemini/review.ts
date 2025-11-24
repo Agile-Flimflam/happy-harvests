@@ -61,7 +61,7 @@ File content:
 ${fileContent}
 \`\`\`
 
-Respond ONLY with valid JSON, no markdown, no explanations.`;
+Respond with valid JSON as the only content. You may optionally wrap it in a \`\`\`json\`\`\` code block, but do not include any additional commentary or text.`;
 
   try {
     const result = await model.generateContent(prompt);
@@ -77,13 +77,18 @@ Respond ONLY with valid JSON, no markdown, no explanations.`;
         .trim();
     }
 
-    const issues: ReviewIssue[] = JSON.parse(jsonText);
+    try {
+      const issues: ReviewIssue[] = JSON.parse(jsonText);
 
-    // Add file path to each issue
-    return issues.map((issue) => ({
-      ...issue,
-      file: filePath,
-    }));
+      // Add file path to each issue
+      return issues.map((issue) => ({
+        ...issue,
+        file: filePath,
+      }));
+    } catch (parseError) {
+      core.warning(`Failed to parse review response for ${filePath}: ${parseError}`);
+      return [];
+    }
   } catch (error) {
     core.warning(`Failed to review ${filePath}: ${error}`);
     return [];
@@ -157,7 +162,7 @@ async function main(): Promise<void> {
 
     if (codeFiles.length === 0) {
       core.info('No TypeScript/TSX files changed in this PR.');
-      process.exit(0);
+      return;
     }
 
     core.info(`Found ${codeFiles.length} code files to review`);

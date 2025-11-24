@@ -123,6 +123,9 @@
     },
     "allowedDeprecatedVersions": {
       "node-domexception": "^2.0.2"
-    }
+    },
+    "ignoredBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

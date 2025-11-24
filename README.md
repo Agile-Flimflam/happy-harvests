@@ -149,6 +149,23 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
 11. **Open the app:**
     Navigate to [http://localhost:4000](http://localhost:4000) in your browser. You should be redirected to `/login`. Use the email link login to access the dashboard.
 
+## Gemini-based Code Review & Test Scaffolding
+
+This project includes helper scripts that use Google's Gemini API for code review, PR description generation, and test scaffolding:
+
+- `pnpm gemini:review` – runs an AI-assisted code review for the current PR
+- `pnpm gemini:describe` – generates a PR description based on code changes
+- `pnpm gemini:scaffold` – generates Jest test scaffolding for new TypeScript/TSX files
+
+These commands require the following environment variables to be set (locally or in CI):
+
+```bash
+export GEMINI_API_KEY="your-gemini-api-key"
+export GITHUB_TOKEN="your-github-token"
+```
+
+If either variable is missing or empty, the Gemini scripts will fail with a clear error message.
+
 ## Row Level Security (RLS)
 
 - RLS policies are included as comments in the initial migration (`supabase/migrations/..._initial_schema.sql`) and are essential for securing your data.
@@ -215,18 +232,15 @@ The easiest way to validate all migrations is using the `db:validate` script:
 pnpm db:validate
 ```
 
-**⚠️ Warning:** This script is **destructive** - it will drop your local database and recreate it from scratch.
+**⚠️ Warning:** This script is **destructive** and will reset your local database from scratch. Use with caution if you have important local data that isn't backed up.
 
 This script will:
 
 - Start a local Supabase instance (if not already running)
-- Drop the existing local database (if any)
 - Apply all migrations from scratch using `supabase db reset`
 - Automatically run the seed script (`supabase/seed.sql`) to populate test data
 - Verify migrations complete successfully
 - Provide clear success/failure output
-
-**Use with caution if you have important local data that isn't backed up.**
 
 ### Manual Testing Steps
 

@@ -2,13 +2,63 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as core from '@actions/core';
 import { initGeminiClient, initGitHubClient, getPRContext, getPRDiff } from './utils';
 
+const MAX_DIFF_LENGTH: number = 50_000;
+
+const DIFF_HEADER_REGEX: RegExp = /^diff --git .*$/gm;
+
+function truncateDiffAtFileBoundary(
+  diff: string,
+  maxLength: number
+): { truncatedDiff: string; wasTruncated: boolean } {
+  if (diff.length <= maxLength) {
+    return { truncatedDiff: diff, wasTruncated: false };
+  }
+
+  let lastBoundaryIndex: number = -1;
+  let match: RegExpExecArray | null;
+
+  // Find the last "diff --git" boundary before the max length so we don't cut a file in half.
+  // If none is found, fall back to a simple character-based truncation.
+
+  while ((match = DIFF_HEADER_REGEX.exec(diff)) !== null) {
+    if (match.index > maxLength) {
+      break;
+    }
+    lastBoundaryIndex = match.index;
+  }
+
+  if (lastBoundaryIndex > 0) {
+    return {
+      truncatedDiff: diff.substring(0, lastBoundaryIndex),
+      wasTruncated: true,
+    };
+  }
+
+  return {
+    truncatedDiff: diff.substring(0, maxLength),
+    wasTruncated: true,
+  };
+}
+
 async function generatePRDescription(
   gemini: GoogleGenerativeAI,
   title: string,
   currentDescription: string,
-  diff: string
+  diff: string,
+  wasDiffTruncated: boolean,
+  originalDiffLength: number
 ): Promise<string> {
   const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+  const truncationPromptNote: string = wasDiffTruncated
+    ? `
+
+NOTE: The diff provided below was truncated for length before being sent to you.
+- Original diff length: ${originalDiffLength.toLocaleString()} characters
+- Provided diff length: ${diff.length.toLocaleString()} characters
+
+When generating the description, clearly mention that the analysis may not cover all files or changes in this PR.`
+    : '';
 
   const prompt = `You are a technical writer for a software development team. Analyze the following pull request and generate a professional, comprehensive PR description.
 
@@ -19,7 +69,7 @@ ${currentDescription || '(No description provided)'}
 
 Git Diff:
 \`\`\`
-${diff.substring(0, 50000)}${diff.length > 50000 ? '\n...(truncated)' : ''}
+${diff}
 \`\`\`
 
 Generate a professional PR description in markdown format that includes:
@@ -35,6 +85,8 @@ The description should be:
 - Suitable for an audit trail
 - Helpful for code reviewers
 - Informative for future developers
+
+${truncationPromptNote}
 
 If the current description already contains substantial information, enhance it rather than replacing it entirely. Preserve any existing context that is valuable.
 
@@ -83,18 +135,37 @@ async function main(): Promise<void> {
 
     if (!diff || diff.length === 0) {
       core.warning('No diff found for this PR');
-      process.exit(0);
+      return;
+    }
+
+    const { truncatedDiff, wasTruncated } = truncateDiffAtFileBoundary(diff, MAX_DIFF_LENGTH);
+
+    if (wasTruncated) {
+      core.warning(
+        `PR diff was truncated for description generation: used ${truncatedDiff.length.toLocaleString()} of ${diff.length.toLocaleString()} characters.`
+      );
     }
 
     // Generate description
-    const newDescription = await generatePRDescription(gemini, pr.title, pr.body || '', diff);
+    const newDescription = await generatePRDescription(
+      gemini,
+      pr.title,
+      pr.body || '',
+      truncatedDiff,
+      wasTruncated,
+      diff.length
+    );
+
+    const finalDescription = wasTruncated
+      ? `${newDescription}\n\n> ⚠️ Note: This PR description was generated from a truncated diff and may not reflect every change in this PR.`
+      : newDescription;
 
     // Update PR description
     await octokit.rest.pulls.update({
       owner: prContext.owner,
       repo: prContext.repo,
       pull_number: prContext.prNumber,
-      body: newDescription,
+      body: finalDescription,
     });
 
     core.info('PR description updated successfully');

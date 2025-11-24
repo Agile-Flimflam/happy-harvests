@@ -55,30 +55,37 @@ jobs:
     name: Validate Migrations
     runs-on: ubuntu-latest
     needs: [lint, test]
-    if: github.event_name == 'pull_request'
     steps:
+      - name: Skip migration validation on non-PR events
+        if: ${{ github.event_name != 'pull_request' }}
+        run: echo "Migration validation runs only for pull requests."
+
       - name: Checkout repository
+        if: ${{ github.event_name == 'pull_request' }}
         uses: actions/checkout@v4
 
       - name: Install Supabase CLI
+        if: ${{ github.event_name == 'pull_request' }}
         uses: supabase/setup-cli@b60b5899c73b63a2d2d651b1e90db8d4c9392f51 # v1.6.0
         with:
           version: latest
 
       - name: Start Supabase
+        if: ${{ github.event_name == 'pull_request' }}
         run: supabase start -x studio,migra,deno-relay
 
       - name: Validate migrations
+        if: ${{ github.event_name == 'pull_request' }}
         run: supabase db reset --yes
 
       - name: Stop Supabase
-        if: always()
+        if: ${{ always() && github.event_name == 'pull_request' }}
         run: supabase stop
 
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, test, validate-migrations]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -280,17 +287,11 @@ jobs:
         with:
           version: latest
 
-      - name: Link Supabase project
-        run: supabase link --project-ref $SUPABASE_PROJECT_ID --password $SUPABASE_DB_PASSWORD
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-
       - name: Push migrations to production
-        run: supabase db push
+        run: supabase db push --project-ref $SUPABASE_PROJECT_ID
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
 
   sonarcloud:
     name: SonarCloud Analysis

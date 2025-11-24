@@ -10,10 +10,10 @@ import * as path from 'node:path';
  */
 export function initGeminiClient(): GoogleGenerativeAI {
   const apiKey = process.env.GEMINI_API_KEY || core.getInput('gemini_api_key');
-  if (!apiKey) {
+  if (!apiKey || apiKey.trim() === '') {
     throw new Error('GEMINI_API_KEY is required');
   }
-  return new GoogleGenerativeAI(apiKey);
+  return new GoogleGenerativeAI(apiKey.trim());
 }
 
 /**
@@ -21,10 +21,10 @@ export function initGeminiClient(): GoogleGenerativeAI {
  */
 export function initGitHubClient(): Octokit {
   const token = process.env.GITHUB_TOKEN || core.getInput('github_token');
-  if (!token) {
+  if (!token || token.trim() === '') {
     throw new Error('GITHUB_TOKEN is required');
   }
-  return new Octokit({ auth: token });
+  return new Octokit({ auth: token.trim() });
 }
 
 /**
@@ -95,7 +95,11 @@ export async function getPRDiff(
     },
   });
 
-  return diff as string;
+  if (typeof diff !== 'string') {
+    throw new Error('Failed to fetch PR diff: unexpected response type');
+  }
+
+  return diff;
 }
 
 /**
