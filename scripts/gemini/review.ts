@@ -7,32 +7,8 @@ import {
   getChangedFiles,
   getFileContents,
   filterCodeFiles,
+  sanitizeForPrompt,
 } from './utils';
-
-function sanitizeForPrompt(value: string): string {
-  // Start with basic structural safety; avoid brittle pattern-based "injection" filters
-  // and rely on the model's own safety mechanisms instead.
-  let sanitized: string = value
-    // Break markdown code fences so they can't interfere with our prompt structure.
-    .replaceAll('```', '``\u200b`')
-    // Remove any null characters that could affect parsing.
-    .replaceAll('\u0000', '')
-    // Normalize newlines to reduce ambiguity.
-    .replace(/\r\n?/g, '\n');
-
-  // Hard-cap maximum length to avoid extremely large prompts and reduce attack surface.
-  const MAX_CONTENT_LENGTH: number = 40_000;
-  if (sanitized.length > MAX_CONTENT_LENGTH) {
-    const originalLength: number = sanitized.length;
-    const omittedCharacters: number = originalLength - MAX_CONTENT_LENGTH;
-    sanitized = `${sanitized.slice(
-      0,
-      MAX_CONTENT_LENGTH
-    )}\n\n[Content truncated for safety - remaining ${omittedCharacters} characters omitted]`;
-  }
-
-  return sanitized;
-}
 
 interface ReviewIssue {
   file: string;

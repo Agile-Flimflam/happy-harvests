@@ -10,6 +10,7 @@ import {
   filterCodeFiles,
   isNewFile,
   getTestFilePath,
+  sanitizeForPrompt,
 } from './utils';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -108,19 +109,6 @@ if (RAW_SAFE_ENV.GIT_COMMITTER_EMAIL !== undefined) {
   SAFE_ENV.GIT_COMMITTER_EMAIL = RAW_SAFE_ENV.GIT_COMMITTER_EMAIL;
 }
 
-function sanitizeForPrompt(value: string): string {
-  // Structural safety for user-controlled content embedded in LLM prompts.
-  return (
-    value
-      // Break markdown code fences so they can't interfere with our prompt structure.
-      .replaceAll('```', '``\u200b`')
-      // Remove any null characters that could affect parsing.
-      .replaceAll('\u0000', '')
-      // Normalize newlines to reduce ambiguity.
-      .replace(/\r\n?/g, '\n')
-  );
-}
-
 function sanitizeFileSystemPath(filePath: string): string {
   const trimmed = filePath.trim();
 
@@ -201,8 +189,12 @@ function resolveGitRemote(): string {
  * - This does NOT implement the full git refname validation rules.
  * - It is intentionally conservative: suspicious or special-looking refs are rejected,
  *   and git itself performs the final validation when commands are executed.
+ * - This helper expects "short" branch names such as `main` or `feature/foo` and will
+ *   intentionally reject fully qualified refs like `refs/heads/main`.
  *
- * If you need stronger guarantees, call `git check-ref-format --branch <name>` instead.
+ * If you need stronger guarantees, or support for full ref names, call
+ * `git check-ref-format --branch <name>` instead and/or normalize refs yourself before
+ * passing them to this helper.
  */
 function isLikelyValidBranchRef(ref: string): boolean {
   const trimmed = ref.trim();

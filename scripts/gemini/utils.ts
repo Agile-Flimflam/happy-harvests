@@ -4,6 +4,45 @@ import { Octokit } from '@octokit/rest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+// Upper bound on the amount of user-controlled content we will embed directly into a prompt.
+// This helps keep prompts within reasonable size limits and reduces the impact of extremely
+// large or adversarial inputs.
+const MAX_PROMPT_CONTENT_LENGTH: number = 40_000;
+
+/**
+ * Sanitize arbitrary user-controlled content before embedding it into an LLM prompt.
+ *
+ * This helper focuses on structural safety and size limits. It deliberately does **not**
+ * try to "solve" prompt injection; callers must still treat model outputs as untrusted.
+ */
+export function sanitizeForPrompt(value: string): string {
+  // Normalize markdown fences and newlines first so downstream logic sees a consistent shape.
+  const normalized: string = value
+    // Break markdown code fences so they can't interfere with our prompt structure.
+    .replaceAll('```', '``\u200b`')
+    // Normalize newlines to reduce ambiguity across platforms.
+    .replace(/\r\n?/g, '\n');
+
+  // Remove control characters (other than newlines) that could affect parsing.
+  const withoutControlChars: string = normalized.replace(
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,
+    ''
+  );
+
+  // Enforce a hard upper bound on content length embedded in prompts.
+  if (withoutControlChars.length > MAX_PROMPT_CONTENT_LENGTH) {
+    const originalLength: number = withoutControlChars.length;
+    const omittedCharacters: number = originalLength - MAX_PROMPT_CONTENT_LENGTH;
+
+    return `${withoutControlChars.slice(
+      0,
+      MAX_PROMPT_CONTENT_LENGTH
+    )}\n\n[Content truncated for safety - remaining ${omittedCharacters.toLocaleString()} characters omitted]`;
+  }
+
+  return withoutControlChars;
+}
+
 /**
  * Initialize Gemini API client
  */
@@ -117,11 +156,19 @@ export async function getFileContents(
   path: string,
   ref: string
 ): Promise<string | null> {
+  const normalizedPath: string = path.trim();
+
+  // Defense in depth: reject obviously unsafe or traversal-like paths even though the
+  // GitHub API also validates repository paths.
+  if (!normalizedPath || normalizedPath.startsWith('/') || normalizedPath.includes('..')) {
+    throw new Error(`Invalid file path: ${path}`);
+  }
+
   try {
     const { data } = await octokit.rest.repos.getContent({
       owner,
       repo,
-      path,
+      path: normalizedPath,
       ref,
     });
 

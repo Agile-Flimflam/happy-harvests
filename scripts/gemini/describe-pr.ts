@@ -1,22 +1,18 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as core from '@actions/core';
-import { initGeminiClient, initGitHubClient, getPRContext, getPRDiff } from './utils';
+import {
+  initGeminiClient,
+  initGitHubClient,
+  getPRContext,
+  getPRDiff,
+  sanitizeForPrompt,
+} from './utils';
 
 // Upper bound on diff size sent to Gemini to avoid exceeding model/context limits and
 // to keep the prompt small enough for fast, reliable responses in CI.
 // 50,000 characters is a conservative value that comfortably fits within token limits
 // while still capturing enough of the PR for a meaningful description.
 const MAX_DIFF_LENGTH: number = 50_000;
-
-function sanitizeForPrompt(value: string): string {
-  return (
-    value
-      // Break markdown code fences so they can't interfere with our prompt structure
-      .replaceAll('```', '``\u200b`')
-      // Remove any null characters that could affect parsing
-      .replaceAll('\u0000', '')
-  );
-}
 
 function stripOuterCodeFence(markup: string): string {
   const trimmed: string = markup.trim();
