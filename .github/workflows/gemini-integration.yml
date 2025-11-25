@@ -6,6 +6,14 @@ on:
     paths:
       - 'src/**/*.ts'
       - 'src/**/*.tsx'
+    # NOTE:
+    # - GitHub combines "paths" and "paths-ignore" so that a workflow only runs when
+    #   (a) at least one changed file matches "paths" AND
+    #   (b) no changed files match "paths-ignore".
+    # - Because we ignore YAML files below, a PR that only changes workflow/config
+    #   files (including this workflow file) will NOT trigger this workflow.
+    # - This is intentional: Gemini analysis is only run when application source
+    #   files under "src/" are modified, not for config-only changes.
     paths-ignore:
       - '**/*.test.ts'
       - '**/*.test.tsx'
