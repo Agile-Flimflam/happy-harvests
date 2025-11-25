@@ -2,6 +2,10 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as core from '@actions/core';
 import { initGeminiClient, initGitHubClient, getPRContext, getPRDiff } from './utils';
 
+// Upper bound on diff size sent to Gemini to avoid exceeding model/context limits and
+// to keep the prompt small enough for fast, reliable responses in CI.
+// 50,000 characters is a conservative value that comfortably fits within token limits
+// while still capturing enough of the PR for a meaningful description.
 const MAX_DIFF_LENGTH: number = 50_000;
 
 function sanitizeForPrompt(value: string): string {
@@ -52,16 +56,15 @@ function truncateDiffAtFileBoundary(
   }
 
   let lastBoundaryIndex: number = -1;
-  let match: RegExpExecArray | null;
 
   // Find the last "diff --git" boundary before the max length so we don't cut a file in half.
   // If none is found, fall back to a simple character-based truncation.
-
-  while ((match = diffHeaderRegex.exec(diff)) !== null) {
-    if (match.index > maxLength) {
+  for (const match of diff.matchAll(diffHeaderRegex)) {
+    const matchIndex: number = match.index ?? -1;
+    if (matchIndex === -1 || matchIndex > maxLength) {
       break;
     }
-    lastBoundaryIndex = match.index;
+    lastBoundaryIndex = matchIndex;
   }
 
   if (lastBoundaryIndex > 0) {

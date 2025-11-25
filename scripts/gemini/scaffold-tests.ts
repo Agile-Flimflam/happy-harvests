@@ -219,7 +219,7 @@ function isLikelyValidBranchRef(ref: string): boolean {
   // Apply a very simple structural sanity check:
   // - disallow whitespace and obvious problematic characters
   // - disallow some patterns that are known-invalid or special in git refs
-  if (/[~^:\s?*[\]]/.test(trimmed)) return false;
+  if (/[~^:\s?*\[\]]/.test(trimmed)) return false;
   if (trimmed.includes('..')) return false;
   if (trimmed.endsWith('.')) return false;
   if (trimmed.endsWith('/')) return false;
@@ -460,31 +460,50 @@ interface LastCommitInfo {
   message: string;
 }
 
+// NOTE: This author identity must match the Git configuration used in the
+// GitHub Actions workflow (see `.github/workflows/gemini-integration.yml`),
+// otherwise `isRepeatActionCommit` will fail to recognize commits created by
+// this action and the infinite-loop protection will not work as intended.
 const ACTION_AUTHOR = 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>';
 const COMMIT_SUBJECT_PREFIX = 'test: add generated test scaffolds for ';
 const ACTION_COMMIT_MARKER = 'Generated-by: gemini-scaffold-tests-action';
 
-function isGitNoCommitsError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
+function hasAnyCommits(): boolean {
+  try {
+    // `git rev-parse --verify HEAD` exits with:
+    // - 0 when HEAD resolves successfully (i.e., there is at least one commit)
+    // - 128 when HEAD does not exist (e.g., an empty repository)
+    execFileSync(resolveGitExecutable(), ['rev-parse', '--verify', 'HEAD'], {
+      stdio: 'ignore',
+      env: SAFE_ENV,
+    });
+    return true;
+  } catch (error) {
+    const candidate = error as { status?: number; code?: number };
+    const status =
+      typeof candidate.status === 'number'
+        ? candidate.status
+        : typeof candidate.code === 'number'
+          ? candidate.code
+          : null;
 
-  const candidate = error as { stderr?: unknown };
-  const stderr: unknown = candidate.stderr;
+    if (status === 128) {
+      core.info('Repository has no commits yet; skipping last-commit check for scaffold action.');
+      return false;
+    }
 
-  if (typeof stderr !== 'string') return false;
-
-  const normalized = stderr.toLowerCase();
-
-  // Common git error messages when there are no commits yet or HEAD is invalid.
-  return (
-    normalized.includes('does not have any commits yet') ||
-    normalized.includes('bad default revision') ||
-    normalized.includes('unknown revision or path not in the working tree') ||
-    normalized.includes("ambiguous argument 'head'")
-  );
+    core.warning(`Could not determine commit presence via git rev-parse: ${error}`);
+    // On unexpected errors, behave conservatively and skip the last-commit check.
+    return false;
+  }
 }
 
 function getLastCommitInfo(): LastCommitInfo | null {
   try {
+    if (!hasAnyCommits()) {
+      return null;
+    }
+
     // Safe usage: command and arguments are constant strings; no user-controlled data is passed here.
     const author = execFileSync(
       resolveGitExecutable(),
@@ -504,12 +523,7 @@ function getLastCommitInfo(): LastCommitInfo | null {
 
     return { author, message };
   } catch (error) {
-    if (isGitNoCommitsError(error)) {
-      core.info('Repository has no commits yet; skipping last-commit check for scaffold action.');
-      return null;
-    }
-
-    core.warning(`Could not check last commit: ${error}`);
+    core.warning(`Could not check last commit via git log: ${error}`);
     return null;
   }
 }

@@ -138,12 +138,30 @@ export async function getFileContents(
       return content;
     }
     throw new Error(`File ${path} is not a file`);
-  } catch (error) {
-    if ((error as { status?: number }).status === 404) {
+  } catch (error: unknown) {
+    if (isErrorWithStatus(error) && error.status === 404) {
       return null;
     }
     throw error;
   }
+}
+
+type ErrorWithStatus = {
+  status?: number;
+};
+
+function isErrorWithStatus(error: unknown): error is ErrorWithStatus {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  if (!('status' in error)) {
+    return false;
+  }
+
+  const candidateStatus: unknown = (error as { status?: unknown }).status;
+
+  return candidateStatus === undefined || typeof candidateStatus === 'number';
 }
 
 /**
