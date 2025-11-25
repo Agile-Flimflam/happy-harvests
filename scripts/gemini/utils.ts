@@ -10,12 +10,12 @@ import * as path from 'node:path';
 const MAX_PROMPT_CONTENT_LENGTH: number = 40_000;
 
 /**
- * Sanitize arbitrary user-controlled content before embedding it into an LLM prompt.
+ * Prepare arbitrary user-controlled content before embedding it into an LLM prompt.
  *
  * This helper focuses on structural safety and size limits. It deliberately does **not**
  * try to "solve" prompt injection; callers must still treat model outputs as untrusted.
  */
-export function sanitizeForPrompt(value: string): string {
+export function prepareForPrompt(value: string): string {
   // Normalize markdown fences and newlines first so downstream logic sees a consistent shape.
   const normalized: string = value
     // Break markdown code fences so they can't interfere with our prompt structure.
@@ -98,12 +98,19 @@ export function getPRContext(): {
 /**
  * Fetch changed files in a PR
  */
+export interface ChangedFileSummary {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+}
+
 export async function getChangedFiles(
   octokit: Octokit,
   owner: string,
   repo: string,
   prNumber: number
-): Promise<Array<{ filename: string; status: string; additions: number; deletions: number }>> {
+): Promise<ChangedFileSummary[]> {
   const { data: files } = await octokit.rest.pulls.listFiles({
     owner,
     repo,
@@ -244,9 +251,7 @@ export function getTestFilePath(sourcePath: string): { testPath: string; specPat
 /**
  * Filter files to only TypeScript/TSX files
  */
-export function filterCodeFiles(
-  files: Array<{ filename: string; status: string; additions: number; deletions: number }>
-): Array<{ filename: string; status: string; additions: number; deletions: number }> {
+export function filterCodeFiles(files: ReadonlyArray<ChangedFileSummary>): ChangedFileSummary[] {
   return files.filter((file) => {
     const ext: string = path.extname(file.filename);
 
@@ -273,6 +278,22 @@ export function filterCodeFiles(
 
     return true;
   });
+}
+
+/**
+ * Convenience helper that returns only TypeScript/TSX code files changed in a PR.
+ *
+ * This avoids repeating the "list files, then filter" pattern in each script and ensures
+ * we only walk the changed file list once per invocation.
+ */
+export async function getChangedCodeFiles(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<ChangedFileSummary[]> {
+  const allFiles: ChangedFileSummary[] = await getChangedFiles(octokit, owner, repo, prNumber);
+  return filterCodeFiles(allFiles);
 }
 
 /**

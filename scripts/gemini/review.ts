@@ -4,10 +4,9 @@ import {
   initGeminiClient,
   initGitHubClient,
   getPRContext,
-  getChangedFiles,
+  getChangedCodeFiles,
   getFileContents,
-  filterCodeFiles,
-  sanitizeForPrompt,
+  prepareForPrompt,
 } from './utils';
 
 interface ReviewIssue {
@@ -19,6 +18,14 @@ interface ReviewIssue {
 }
 
 interface ReviewResult {
+  /**
+   * Indicates whether the review completed successfully for this file.
+   *
+   * Note: This function is intentionally "best effort" and will **never throw** for
+   * expected model / parsing issues. Instead, callers should rely on this flag and
+   * the `issues` array. This differs from the test-scaffolding flow, where generation
+   * errors are allowed to propagate so that invalid scaffolds cannot be silently used.
+   */
   success: boolean;
   issues: ReviewIssue[];
 }
@@ -30,8 +37,8 @@ async function reviewCodeWithGemini(
 ): Promise<ReviewResult> {
   const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  const safeFilePath: string = sanitizeForPrompt(filePath);
-  const safeFileContent: string = sanitizeForPrompt(fileContent);
+  const safeFilePath: string = prepareForPrompt(filePath);
+  const safeFileContent: string = prepareForPrompt(fileContent);
 
   const prompt = `You are a senior code reviewer for a TypeScript/React/Next.js project using Tailwind CSS and shadcn/ui components.
 
@@ -181,14 +188,13 @@ try {
 
   core.info(`Reviewing PR #${prContext.prNumber} in ${prContext.owner}/${prContext.repo}`);
 
-  // Get changed files
-  const allFiles = await getChangedFiles(
+  // Get changed TypeScript/TSX code files once for this review run
+  const codeFiles = await getChangedCodeFiles(
     octokit,
     prContext.owner,
     prContext.repo,
     prContext.prNumber
   );
-  const codeFiles = filterCodeFiles(allFiles);
 
   if (codeFiles.length === 0) {
     core.info('No TypeScript/TSX files changed in this PR.');

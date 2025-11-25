@@ -5,7 +5,7 @@ import {
   initGitHubClient,
   getPRContext,
   getPRDiff,
-  sanitizeForPrompt,
+  prepareForPrompt,
 } from './utils';
 
 // Upper bound on diff size sent to Gemini to avoid exceeding model/context limits and
@@ -86,12 +86,12 @@ async function generatePRDescription(
 ): Promise<string> {
   const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  const safeTitle: string = sanitizeForPrompt(title);
+  const safeTitle: string = prepareForPrompt(title);
   const safeDescription: string =
     currentDescription && currentDescription.trim().length > 0
-      ? sanitizeForPrompt(currentDescription)
+      ? prepareForPrompt(currentDescription)
       : '(No description provided)';
-  const safeDiff: string = sanitizeForPrompt(diff);
+  const safeDiff: string = prepareForPrompt(diff);
 
   const truncationPromptNote: string = wasDiffTruncated
     ? `

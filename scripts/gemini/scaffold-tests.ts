@@ -5,12 +5,11 @@ import {
   initGeminiClient,
   initGitHubClient,
   getPRContext,
-  getChangedFiles,
+  getChangedCodeFiles,
   getFileContents,
-  filterCodeFiles,
   isNewFile,
   getTestFilePath,
-  sanitizeForPrompt,
+  prepareForPrompt,
 } from './utils';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -211,7 +210,9 @@ function isLikelyValidBranchRef(ref: string): boolean {
   // Apply a very simple structural sanity check:
   // - disallow whitespace and obvious problematic characters
   // - disallow some patterns that are known-invalid or special in git refs
-  if (/[~^:\s?*\[\]]/.test(trimmed)) return false;
+  // The character class explicitly escapes `[` and `]` and also rejects backslash
+  // to avoid ambiguity across regex engines.
+  if (/[~^:\s?*\[\\\]]/.test(trimmed)) return false;
   if (trimmed.includes('..')) return false;
   if (trimmed.endsWith('.')) return false;
   if (trimmed.endsWith('/')) return false;
@@ -233,8 +234,8 @@ async function generateTestScaffold(
 ): Promise<string> {
   const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  const safeSourceFilePath: string = sanitizeForPrompt(sourceFilePath);
-  const safeSourceCode: string = sanitizeForPrompt(sourceCode);
+  const safeSourceFilePath: string = prepareForPrompt(sourceFilePath);
+  const safeSourceCode: string = prepareForPrompt(sourceCode);
 
   const prompt = `You are a test generator for a TypeScript/React/Next.js project using Jest and @testing-library/react.
 
@@ -373,13 +374,13 @@ async function identifyFilesNeedingTests(
   octokit: ReturnType<typeof initGitHubClient>,
   prContext: { owner: string; repo: string; prNumber: number; baseSha: string }
 ) {
-  const allFiles = await getChangedFiles(
+  const codeFiles = await getChangedCodeFiles(
     octokit,
     prContext.owner,
     prContext.repo,
     prContext.prNumber
   );
-  const newFiles = filterCodeFiles(allFiles).filter(isNewFile);
+  const newFiles = codeFiles.filter(isNewFile);
 
   if (newFiles.length === 0) {
     core.info('No new TypeScript/TSX files in this PR.');
@@ -460,6 +461,24 @@ const ACTION_AUTHOR = 'github-actions[bot] <github-actions[bot]@users.noreply.gi
 const COMMIT_SUBJECT_PREFIX = 'test: add generated test scaffolds for ';
 const ACTION_COMMIT_MARKER = 'Generated-by: gemini-scaffold-tests-action';
 
+function getExitCodeFromError(error: unknown): number | null {
+  if (!error || typeof error !== 'object') return null;
+
+  const candidate = error as { status?: unknown; code?: unknown };
+
+  const status: unknown = candidate.status;
+  if (typeof status === 'number') {
+    return status;
+  }
+
+  const code: unknown = candidate.code;
+  if (typeof code === 'number') {
+    return code;
+  }
+
+  return null;
+}
+
 function hasAnyCommits(): boolean {
   try {
     // `git rev-parse --verify HEAD` exits with:
@@ -471,13 +490,7 @@ function hasAnyCommits(): boolean {
     });
     return true;
   } catch (error) {
-    const candidate = error as { status?: number; code?: number };
-    const status =
-      typeof candidate.status === 'number'
-        ? candidate.status
-        : typeof candidate.code === 'number'
-          ? candidate.code
-          : null;
+    const status: number | null = getExitCodeFromError(error);
 
     if (status === 128) {
       core.info('Repository has no commits yet; skipping last-commit check for scaffold action.');
@@ -572,13 +585,7 @@ function hasPendingChanges(): boolean {
     // Exit code 0: no staged changes.
     return false;
   } catch (error) {
-    const candidate = error as { status?: number; code?: number };
-    const status =
-      typeof candidate.status === 'number'
-        ? candidate.status
-        : typeof candidate.code === 'number'
-          ? candidate.code
-          : null;
+    const status: number | null = getExitCodeFromError(error);
 
     if (status === 1) {
       // Git uses exit code 1 to indicate that differences were found.
