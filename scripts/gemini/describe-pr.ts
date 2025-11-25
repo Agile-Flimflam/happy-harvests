@@ -4,8 +4,6 @@ import { initGeminiClient, initGitHubClient, getPRContext, getPRDiff } from './u
 
 const MAX_DIFF_LENGTH: number = 50_000;
 
-const DIFF_HEADER_REGEX: RegExp = /^diff --git .*$/gm;
-
 function sanitizeForPrompt(value: string): string {
   return (
     value
@@ -20,8 +18,8 @@ function truncateDiffAtFileBoundary(
   diff: string,
   maxLength: number
 ): { truncatedDiff: string; wasTruncated: boolean } {
-  // Reset regex state to avoid leaking lastIndex between calls.
-  DIFF_HEADER_REGEX.lastIndex = 0;
+  // Use a local regex with global + multiline flags so state is not shared across calls.
+  const diffHeaderRegex: RegExp = /^diff --git .*$/gm;
 
   if (diff.length <= maxLength) {
     return { truncatedDiff: diff, wasTruncated: false };
@@ -33,7 +31,7 @@ function truncateDiffAtFileBoundary(
   // Find the last "diff --git" boundary before the max length so we don't cut a file in half.
   // If none is found, fall back to a simple character-based truncation.
 
-  while ((match = DIFF_HEADER_REGEX.exec(diff)) !== null) {
+  while ((match = diffHeaderRegex.exec(diff)) !== null) {
     if (match.index > maxLength) {
       break;
     }

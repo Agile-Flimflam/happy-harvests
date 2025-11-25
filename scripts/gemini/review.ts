@@ -18,8 +18,7 @@ function sanitizeForPrompt(value: string): string {
     // Remove any null characters that could affect parsing.
     .replaceAll('\u0000', '')
     // Normalize newlines to reduce ambiguity.
-    .replaceAll('\r\n', '\n')
-    .replaceAll('\r', '\n');
+    .replace(/\r\n?/g, '\n');
 
   // Hard-cap maximum length to avoid extremely large prompts and reduce attack surface.
   const MAX_CONTENT_LENGTH: number = 40_000;
@@ -38,11 +37,16 @@ interface ReviewIssue {
   category: 'type-safety' | 'tailwind' | 'security' | 'other';
 }
 
+interface ReviewResult {
+  success: boolean;
+  issues: ReviewIssue[];
+}
+
 async function reviewCodeWithGemini(
   gemini: GoogleGenerativeAI,
   filePath: string,
   fileContent: string
-): Promise<ReviewIssue[]> {
+): Promise<ReviewResult> {
   const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   const safeFilePath: string = sanitizeForPrompt(filePath);
@@ -105,17 +109,28 @@ Respond with valid JSON as the only content. You may optionally wrap it in a \`\
       const issues: ReviewIssue[] = JSON.parse(jsonText);
 
       // Add file path to each issue
-      return issues.map((issue) => ({
+      const issuesWithFile: ReviewIssue[] = issues.map((issue) => ({
         ...issue,
         file: filePath,
       }));
+
+      return {
+        success: true,
+        issues: issuesWithFile,
+      };
     } catch (parseError) {
       core.warning(`Failed to parse review response for ${filePath}: ${parseError}`);
-      return [];
+      return {
+        success: false,
+        issues: [],
+      };
     }
   } catch (error) {
     core.warning(`Failed to review ${filePath}: ${error}`);
-    return [];
+    return {
+      success: false,
+      issues: [],
+    };
   }
 }
 
@@ -206,13 +221,21 @@ try {
         prContext.headSha
       );
 
-      if (!content) {
+      if (content === null) {
         core.warning(`Could not fetch content for ${file.filename}`);
         continue;
       }
 
-      const issues = await reviewCodeWithGemini(gemini, file.filename, content);
-      allIssues.push(...issues);
+      const reviewResult = await reviewCodeWithGemini(gemini, file.filename, content);
+
+      if (!reviewResult.success) {
+        core.warning(
+          `Gemini review failed for ${file.filename}; treating as "no issues reported" for this file.`
+        );
+        continue;
+      }
+
+      allIssues.push(...reviewResult.issues);
     }
 
     // Post review comments

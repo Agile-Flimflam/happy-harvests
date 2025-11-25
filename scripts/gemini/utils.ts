@@ -105,7 +105,10 @@ export async function getPRDiff(
 }
 
 /**
- * Fetch file contents from a specific commit
+ * Fetch file contents from a specific commit.
+ *
+ * Returns the UTF-8 decoded file contents, or `null` if the file does not exist (HTTP 404).
+ * Other errors are propagated to the caller.
  */
 export async function getFileContents(
   octokit: Octokit,
@@ -113,7 +116,7 @@ export async function getFileContents(
   repo: string,
   path: string,
   ref: string
-): Promise<string> {
+): Promise<string | null> {
   try {
     const { data } = await octokit.rest.repos.getContent({
       owner,
@@ -129,7 +132,7 @@ export async function getFileContents(
     throw new Error(`File ${path} is not a file`);
   } catch (error) {
     if ((error as { status?: number }).status === 404) {
-      return '';
+      return null;
     }
     throw error;
   }
