@@ -154,7 +154,7 @@ export function fileExists(filePath: string): boolean {
  */
 export function getTestFilePath(sourcePath: string): { testPath: string; specPath: string } {
   const ext = path.extname(sourcePath);
-  const basePath = sourcePath.replace(ext, '');
+  const basePath = ext.length > 0 ? sourcePath.slice(0, -ext.length) : sourcePath;
   const dir = path.dirname(sourcePath);
   const baseName = path.basename(basePath);
 

@@ -63,9 +63,9 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@b60b5899c73b63a2d2d651b1e90db8d4c9392f51 # v1.6.0
         with:
-          # Pin to a specific Supabase CLI version for reproducible builds.
-          # Update this intentionally when upgrading the CLI.
-          version: '1.234.5'
+          # Use the latest stable Supabase CLI. If you need fully reproducible builds,
+          # intentionally pin this to a specific, existing CLI version.
+          version: 'latest'
 
       - name: Start Supabase
         run: supabase start -x studio,migra,deno-relay
@@ -75,7 +75,12 @@ jobs:
 
       - name: Stop Supabase
         if: ${{ always() }}
-        run: supabase stop
+        run: |
+          if command -v supabase >/dev/null 2>&1; then
+            supabase stop
+          else
+            echo "Supabase CLI not installed; skipping supabase stop."
+          fi
 
   build:
     name: Build
@@ -146,9 +151,9 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@b60b5899c73b63a2d2d651b1e90db8d4c9392f51 # v1.6.0
         with:
-          # Pin to a specific Supabase CLI version for reproducible builds.
-          # Update this intentionally when upgrading the CLI.
-          version: '1.234.5'
+          # Use the latest stable Supabase CLI. If you need fully reproducible builds,
+          # intentionally pin this to a specific, existing CLI version.
+          version: 'latest'
 
       - name: Start Supabase
         run: |
@@ -282,9 +287,9 @@ jobs:
 
       - uses: supabase/setup-cli@b60b5899c73b63a2d2d651b1e90db8d4c9392f51 # v1.6.0
         with:
-          # Pin to a specific Supabase CLI version for reproducible builds.
-          # Update this intentionally when upgrading the CLI.
-          version: '1.234.5'
+          # Use the latest stable Supabase CLI. If you need fully reproducible builds,
+          # intentionally pin this to a specific, existing CLI version.
+          version: 'latest'
 
       - name: Push migrations to production
         run: supabase db push --project-ref $SUPABASE_PROJECT_ID
