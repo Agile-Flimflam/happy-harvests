@@ -14,6 +14,32 @@ function sanitizeForPrompt(value: string): string {
   );
 }
 
+function stripOuterCodeFence(markup: string): string {
+  const trimmed: string = markup.trim();
+
+  if (!trimmed.startsWith('```')) {
+    return trimmed;
+  }
+
+  const firstNewlineIndex: number = trimmed.indexOf('\n');
+
+  // If there is no newline after the opening fence, treat it as plain text.
+  if (firstNewlineIndex === -1) {
+    return trimmed;
+  }
+
+  const closingFenceIndex: number = trimmed.lastIndexOf('```');
+
+  // Require a distinct closing fence after the first line; otherwise, leave as-is.
+  if (closingFenceIndex <= firstNewlineIndex) {
+    return trimmed;
+  }
+
+  const innerContent: string = trimmed.slice(firstNewlineIndex + 1, closingFenceIndex);
+
+  return innerContent.trim();
+}
+
 function truncateDiffAtFileBoundary(
   diff: string,
   maxLength: number
@@ -115,14 +141,8 @@ Respond with ONLY the markdown description, no additional commentary.`;
     const response = result.response;
     const text = response.text();
 
-    // Clean up markdown code blocks if present
-    let description = text.trim();
-    if (description.startsWith('```')) {
-      description = description
-        .replaceAll(/^```(?:markdown)?\n?/gm, '')
-        .replaceAll(/```$/gm, '')
-        .trim();
-    }
+    // Clean up outer markdown code block if present, while preserving any internal code fences.
+    const description: string = stripOuterCodeFence(text);
 
     return description;
   } catch (error) {

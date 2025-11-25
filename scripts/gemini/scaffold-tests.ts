@@ -33,7 +33,6 @@ function resolveGitExecutable(): string {
   return 'git';
 }
 
-const GIT_EXECUTABLE = resolveGitExecutable();
 const REPO_ROOT = process.cwd();
 // Restrict PATH to fixed, typically unwritable system directories to avoid using user-controlled
 // executables, but preserve a minimal, explicitly whitelisted set of environment variables that Git
@@ -63,7 +62,7 @@ function sanitizeOptionalEnvValue(name: string, value: string | undefined): stri
   return trimmed;
 }
 
-const SAFE_ENV = {
+const RAW_SAFE_ENV = {
   PATH: SAFE_PATH,
   NODE_ENV: process.env.NODE_ENV ?? 'production',
   HOME: sanitizeOptionalEnvValue('HOME', process.env.HOME),
@@ -79,6 +78,35 @@ const SAFE_ENV = {
     process.env.GIT_COMMITTER_EMAIL
   ),
 } satisfies Partial<NodeJS.ProcessEnv>;
+
+const SAFE_ENV: NodeJS.ProcessEnv = {
+  PATH: RAW_SAFE_ENV.PATH ?? SAFE_PATH,
+  NODE_ENV: RAW_SAFE_ENV.NODE_ENV ?? 'production',
+};
+
+if (RAW_SAFE_ENV.HOME !== undefined) {
+  SAFE_ENV.HOME = RAW_SAFE_ENV.HOME;
+}
+
+if (RAW_SAFE_ENV.USER !== undefined) {
+  SAFE_ENV.USER = RAW_SAFE_ENV.USER;
+}
+
+if (RAW_SAFE_ENV.GIT_AUTHOR_NAME !== undefined) {
+  SAFE_ENV.GIT_AUTHOR_NAME = RAW_SAFE_ENV.GIT_AUTHOR_NAME;
+}
+
+if (RAW_SAFE_ENV.GIT_AUTHOR_EMAIL !== undefined) {
+  SAFE_ENV.GIT_AUTHOR_EMAIL = RAW_SAFE_ENV.GIT_AUTHOR_EMAIL;
+}
+
+if (RAW_SAFE_ENV.GIT_COMMITTER_NAME !== undefined) {
+  SAFE_ENV.GIT_COMMITTER_NAME = RAW_SAFE_ENV.GIT_COMMITTER_NAME;
+}
+
+if (RAW_SAFE_ENV.GIT_COMMITTER_EMAIL !== undefined) {
+  SAFE_ENV.GIT_COMMITTER_EMAIL = RAW_SAFE_ENV.GIT_COMMITTER_EMAIL;
+}
 
 function sanitizeForPrompt(value: string): string {
   // Structural safety for user-controlled content embedded in LLM prompts.
@@ -145,14 +173,58 @@ function sanitizeGitRef(ref: string): string {
   return trimmed;
 }
 
+function resolveGitRemote(): string {
+  const remoteFromEnv: string | undefined = process.env.GIT_REMOTE;
+
+  if (remoteFromEnv !== undefined) {
+    const trimmed = remoteFromEnv.trim();
+
+    // Reject empty, option-like, or control-character/whitespace-containing values and fall back.
+    if (trimmed && !trimmed.startsWith('-') && !/[\u0000-\u001F\u007F\s]/u.test(trimmed)) {
+      return trimmed;
+    }
+
+    core.warning(
+      `Ignoring unsafe GIT_REMOTE value "${remoteFromEnv}", falling back to default remote 'origin'.`
+    );
+  }
+
+  // Default remote name commonly used in Git repositories; callers can override via GIT_REMOTE.
+  return 'origin';
+}
+
+/**
+ * Lightweight heuristic to decide whether a ref name is *probably* a user branch name
+ * for the purposes of this workflow.
+ *
+ * Important:
+ * - This does NOT implement the full git refname validation rules.
+ * - It is intentionally conservative: suspicious or special-looking refs are rejected,
+ *   and git itself performs the final validation when commands are executed.
+ *
+ * If you need stronger guarantees, call `git check-ref-format --branch <name>` instead.
+ */
 function isLikelyValidBranchRef(ref: string): boolean {
   const trimmed = ref.trim();
   if (!trimmed) return false;
 
-  // Exclude common non-branch ref patterns used by GitHub.
+  // Exclude common non-branch / special ref patterns used by Git / GitHub.
   if (trimmed.startsWith('refs/')) return false;
   if (trimmed.startsWith('pull/')) return false;
   if (trimmed.startsWith('tags/')) return false;
+  if (trimmed.startsWith('heads/')) return false;
+  if (trimmed.startsWith('remotes/')) return false;
+  if (trimmed.startsWith('merge/')) return false;
+
+  // Apply a very simple structural sanity check:
+  // - disallow whitespace and obvious problematic characters
+  // - disallow some patterns that are known-invalid or special in git refs
+  if (/[~^:\s?*[\]]/.test(trimmed)) return false;
+  if (trimmed.includes('..')) return false;
+  if (trimmed.endsWith('.')) return false;
+  if (trimmed.endsWith('/')) return false;
+  if (trimmed.endsWith('.lock')) return false;
+  if (trimmed.includes('@{')) return false;
 
   return true;
 }
@@ -248,12 +320,13 @@ Generate the complete, runnable TypeScript test file code. You may respond eithe
     const response = result.response;
     const text = response.text();
 
-    // Clean up the response - remove markdown code blocks if present
+    // Clean up the response - remove a single outer markdown code fence if present, while leaving
+    // any inner fenced code blocks inside the generated test code intact.
     let testCode = text.trim();
     if (testCode.startsWith('```')) {
       testCode = testCode
-        .replaceAll(/^```(?:typescript|ts|tsx)?\n?/gm, '')
-        .replaceAll(/```$/gm, '')
+        .replace(/^```(?:typescript|ts|tsx)?\s*/, '')
+        .replace(/\n```$/, '')
         .trim();
     }
 
@@ -413,14 +486,18 @@ function isGitNoCommitsError(error: unknown): boolean {
 function getLastCommitInfo(): LastCommitInfo | null {
   try {
     // Safe usage: command and arguments are constant strings; no user-controlled data is passed here.
-    const author = execFileSync(GIT_EXECUTABLE, ['log', '-1', '--pretty=format:%an <%ae>'], {
-      encoding: 'utf-8',
-      env: SAFE_ENV,
-    }).trim();
+    const author = execFileSync(
+      resolveGitExecutable(),
+      ['log', '-1', '--pretty=format:%an <%ae>'],
+      {
+        encoding: 'utf-8',
+        env: SAFE_ENV,
+      }
+    ).trim();
     // Safe usage: command and arguments are constant strings; no user-controlled data is passed here.
     // Use %B to read the full commit message (subject + body) so we can reliably detect the
     // action's marker line in isRepeatActionCommit.
-    const message = execFileSync(GIT_EXECUTABLE, ['log', '-1', '--pretty=format:%B'], {
+    const message = execFileSync(resolveGitExecutable(), ['log', '-1', '--pretty=format:%B'], {
       encoding: 'utf-8',
       env: SAFE_ENV,
     }).trim();
@@ -469,16 +546,43 @@ function stageScaffoldFiles(scaffolds: TestScaffold[]): void {
   );
   // Use `--` to ensure paths are not interpreted as flags.
   // Safe usage: command is fixed, paths are sanitized and passed as separate arguments after `--`.
-  execFileSync(GIT_EXECUTABLE, ['add', '--', ...filePaths], { stdio: 'inherit', env: SAFE_ENV });
+  execFileSync(resolveGitExecutable(), ['add', '--', ...filePaths], {
+    stdio: 'inherit',
+    env: SAFE_ENV,
+  });
 }
 
 function hasPendingChanges(): boolean {
-  const status = execFileSync(GIT_EXECUTABLE, ['status', '--porcelain'], {
-    encoding: 'utf-8',
-    env: SAFE_ENV,
-  });
+  try {
+    // `git diff --cached --quiet` exits with:
+    // - 0 when there are no staged changes
+    // - 1 when there are staged changes
+    // - >1 on errors
+    execFileSync(resolveGitExecutable(), ['diff', '--cached', '--quiet'], {
+      stdio: 'ignore',
+      env: SAFE_ENV,
+    });
 
-  return Boolean(status.trim());
+    // Exit code 0: no staged changes.
+    return false;
+  } catch (error) {
+    const candidate = error as { status?: number; code?: number };
+    const status =
+      typeof candidate.status === 'number'
+        ? candidate.status
+        : typeof candidate.code === 'number'
+          ? candidate.code
+          : null;
+
+    if (status === 1) {
+      // Git uses exit code 1 to indicate that differences were found.
+      return true;
+    }
+
+    core.warning(`Could not determine staged changes status via git diff --cached: ${error}`);
+    // Be conservative on unexpected errors and assume there may be changes.
+    return true;
+  }
 }
 
 function buildCommitMessage(scaffolds: TestScaffold[]): string {
@@ -558,12 +662,13 @@ async function resolveTargetBranchForPush(
 
 function pushToBranch(targetBranch: string): void {
   try {
+    const remote = resolveGitRemote();
     // Safe usage: repository is a fixed literal and branch name is sanitized and passed as an argument.
-    execFileSync(GIT_EXECUTABLE, ['push', 'origin', targetBranch], {
+    execFileSync(resolveGitExecutable(), ['push', remote, targetBranch], {
       stdio: 'inherit',
       env: SAFE_ENV,
     });
-    core.info(`Pushed test scaffolds to ${targetBranch}`);
+    core.info(`Pushed test scaffolds to ${remote}/${targetBranch}`);
   } catch (error) {
     core.warning(`Failed to push test scaffolds to ${targetBranch}: ${error}`);
     throw error;
@@ -604,7 +709,7 @@ async function commitAndPushOrComment(
   const commitMessage = buildCommitMessage(scaffolds);
 
   // Safe usage: command is fixed and commit message is constructed from trusted/static data.
-  execFileSync(GIT_EXECUTABLE, ['commit', '-m', commitMessage], {
+  execFileSync(resolveGitExecutable(), ['commit', '-m', commitMessage], {
     stdio: 'inherit',
     env: SAFE_ENV,
   });

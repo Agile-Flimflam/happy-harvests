@@ -101,13 +101,20 @@ Respond with valid JSON as the only content. You may optionally wrap it in a \`\
     const response = result.response;
     const text = response.text();
 
-    // Clean up the response - remove markdown code blocks if present
+    // Clean up the response - remove a single outer markdown code block wrapper if present
     let jsonText = text.trim();
     if (jsonText.startsWith('```')) {
-      jsonText = jsonText
-        .replaceAll(/^```(?:json)?\n?/gm, '')
-        .replaceAll(/```$/gm, '')
-        .trim();
+      // Support optional language tag, e.g. ```json
+      const firstNewlineIndex: number = jsonText.indexOf('\n');
+      const openingFenceEnd: number =
+        firstNewlineIndex === -1 ? jsonText.length : firstNewlineIndex + 1;
+
+      // Look for the last closing fence; this ensures we only strip a single outer wrapper
+      const closingFenceStart: number = jsonText.lastIndexOf('```');
+
+      if (closingFenceStart > openingFenceEnd) {
+        jsonText = jsonText.slice(openingFenceEnd, closingFenceStart).trim();
+      }
     }
 
     try {

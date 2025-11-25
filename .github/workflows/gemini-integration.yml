@@ -2,7 +2,7 @@ name: Gemini AI Integration
 
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, labeled]
     paths:
       - 'src/**/*.ts'
       - 'src/**/*.tsx'
@@ -17,14 +17,9 @@ on:
       - '**/*.yaml'
       - '**/*.css'
       - '**/*.html'
-  # Separate trigger for label events so they are not filtered out by paths/paths-ignore.
-  # Note: pull_request_target runs in the context of the base branch with write permissions.
-  # We rely on additional runtime guards in the gemini-scaffold job (e.g. only non-fork PRs,
-  # label-based opt‑in, and a narrowly scoped scaffolding script) to avoid executing
-  # untrusted code from forks. This pattern should be reviewed periodically if the job
-  # behavior changes.
-  pull_request_target:
-    types: [labeled]
+  # Label events are handled via the regular pull_request trigger with type "labeled".
+  # This avoids using pull_request_target with elevated base-branch permissions, which can
+  # be a high‑risk pattern if guard logic is ever bypassed.
   workflow_dispatch:
     inputs:
       pr_number:
@@ -46,8 +41,12 @@ jobs:
   gemini-analysis:
     name: Gemini Code Analysis
     runs-on: ubuntu-latest
-    # Run only for PRs from this repository (not forks) to avoid executing untrusted code with secrets.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+    # Run only for PRs from this repository (not forks) to avoid executing untrusted code with secrets,
+    # and only on PR open/reopen events (not label changes).
+    if: >
+      github.event_name == 'pull_request' &&
+      (github.event.action == 'opened' || github.event.action == 'reopened') &&
+      github.event.pull_request.head.repo.fork == false
     steps:
       # Safe: this job only runs on non-fork pull requests (see job-level "if" condition),
       # so we never execute code from untrusted forks.
@@ -78,7 +77,7 @@ jobs:
     # Only run on manual dispatch, or when label 'generate-tests' is added to a PR
     if: |
       github.event_name == 'workflow_dispatch' ||
-      ((github.event_name == 'pull_request' || github.event_name == 'pull_request_target') &&
+      (github.event_name == 'pull_request' &&
         github.event.action == 'labeled' &&
         github.event.label.name == 'generate-tests' &&
         github.event.pull_request.head.repo.fork == false)
@@ -88,7 +87,7 @@ jobs:
       issues: write
     steps:
       - name: Checkout repository (pull_request)
-        if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
+        if: github.event_name == 'pull_request'
         # Safe: the gemini-scaffold job only runs when github.event.pull_request.head.repo.fork == false
         # (see job-level "if" condition), so this checkout never pulls code from untrusted forks.
         uses: actions/checkout@v4
@@ -104,8 +103,10 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const prNumber = Number.parseInt('${{ github.event.inputs.pr_number }}', 10);
-            if (Number.isNaN(prNumber) || prNumber <= 0) {
-              core.setFailed(`Invalid pr_number input: "${prNumber}". It must be a positive integer.`);
+            if (Number.isNaN(prNumber) || prNumber <= 0 || prNumber > 999999) {
+              core.setFailed(
+                `Invalid pr_number input: "${prNumber}". It must be a positive integer less than or equal to 999999.`
+              );
               return;
             }
             const { data: pr } = await github.rest.pulls.get({
