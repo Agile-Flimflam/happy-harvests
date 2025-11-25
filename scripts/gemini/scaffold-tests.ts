@@ -16,7 +16,24 @@ import * as fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const SAFE_PATH = '/usr/bin:/bin';
-const GIT_EXECUTABLE = '/usr/bin/git';
+
+function resolveGitExecutable(): string {
+  const gitExecutableFromEnv: string | undefined = process.env.GIT_EXECUTABLE;
+
+  if (gitExecutableFromEnv && gitExecutableFromEnv.trim().length > 0) {
+    // Allow callers to explicitly override the git executable location for
+    // environments where git is not installed in a standard system path.
+    return gitExecutableFromEnv.trim();
+  }
+
+  // Fall back to relying on PATH resolution for "git". The SAFE_ENV below
+  // constrains PATH to a minimal set of system directories in CI, but local
+  // environments can either ensure git is discoverable via PATH or provide
+  // GIT_EXECUTABLE explicitly.
+  return 'git';
+}
+
+const GIT_EXECUTABLE = resolveGitExecutable();
 const REPO_ROOT = process.cwd();
 // Restrict PATH to fixed, typically unwritable system directories to avoid using user-controlled
 // executables, but preserve a minimal, explicitly whitelisted set of environment variables that Git
@@ -353,7 +370,9 @@ function getLastCommitInfo(): LastCommitInfo | null {
       env: SAFE_ENV,
     }).trim();
     // Safe usage: command and arguments are constant strings; no user-controlled data is passed here.
-    const message = execFileSync(GIT_EXECUTABLE, ['log', '-1', '--pretty=format:%s'], {
+    // Use %B to read the full commit message (subject + body) so we can reliably detect the
+    // action's marker line in isRepeatActionCommit.
+    const message = execFileSync(GIT_EXECUTABLE, ['log', '-1', '--pretty=format:%B'], {
       encoding: 'utf-8',
       env: SAFE_ENV,
     }).trim();

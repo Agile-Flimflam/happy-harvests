@@ -49,6 +49,8 @@ jobs:
     # Run only for PRs from this repository (not forks) to avoid executing untrusted code with secrets.
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
     steps:
+      # Safe: this job only runs on non-fork pull requests (see job-level "if" condition),
+      # so we never execute code from untrusted forks.
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -87,6 +89,8 @@ jobs:
     steps:
       - name: Checkout repository (pull_request)
         if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
+        # Safe: the gemini-scaffold job only runs when github.event.pull_request.head.repo.fork == false
+        # (see job-level "if" condition), so this checkout never pulls code from untrusted forks.
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -122,6 +126,8 @@ jobs:
 
       - name: Checkout repository (workflow_dispatch)
         if: github.event_name == 'workflow_dispatch' && steps.resolve_pr_head.outputs.is_fork == 'false'
+        # Safe: for workflow_dispatch, we explicitly resolve the PR and abort if it is a fork
+        # (see resolve_pr_head step). This checkout only runs when is_fork == 'false'.
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -144,7 +150,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # For label-based runs, always commit; for manual workflow_dispatch, respect the
           # commit_changes input (defaulting to false).
-          COMMIT_CHANGES: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.commit_changes || 'true' }}
+          COMMIT_CHANGES: "${{ github.event_name == 'workflow_dispatch' ? github.event.inputs.commit_changes : 'true' }}"
           GITHUB_HEAD_REF: ${{ github.head_ref || github.ref_name }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number || '' }}

@@ -115,6 +115,7 @@
     ]
   },
   "pnpm": {
+    "ignoredBuiltDependenciesComment": "esbuild ships prebuilt platform-specific binaries, so we skip native rebuild steps here to avoid slow, unnecessary, and sometimes flaky native rebuilds across different environments.",
     "ignoredBuiltDependencies": [
       "esbuild"
     ],

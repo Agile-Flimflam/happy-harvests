@@ -27,7 +27,11 @@ export function initGitHubClient(): Octokit {
 }
 
 /**
- * Get PR context from GitHub Actions environment
+ * Get PR context from GitHub Actions environment.
+ *
+ * This helper is intended for `pull_request` events only. For `workflow_dispatch` or other events,
+ * callers should resolve the PR (and its SHAs) explicitly via the GitHub API rather than relying
+ * on this function.
  */
 export function getPRContext(): {
   owner: string;
@@ -37,22 +41,18 @@ export function getPRContext(): {
   headSha: string;
 } {
   const context = github.context;
-  // Check for PR number from environment (for manual workflow dispatch) or from context
-  const prNumberFromEnv = process.env.PR_NUMBER ? Number.parseInt(process.env.PR_NUMBER, 10) : null;
-  const prNumber = prNumberFromEnv ?? context.payload.pull_request?.number;
+  const pr = context.payload.pull_request;
 
-  if (!prNumber || Number.isNaN(prNumber)) {
-    throw new Error(
-      'This workflow must be run on a pull request or with PR_NUMBER environment variable'
-    );
+  if (!pr || !pr.number) {
+    throw new Error('getPRContext can only be used for pull_request events with an associated PR');
   }
 
   return {
     owner: context.repo.owner,
     repo: context.repo.repo,
-    prNumber,
-    baseSha: context.payload.pull_request?.base?.sha || context.sha,
-    headSha: context.payload.pull_request?.head?.sha || context.sha,
+    prNumber: pr.number,
+    baseSha: pr.base.sha,
+    headSha: pr.head.sha,
   };
 }
 
