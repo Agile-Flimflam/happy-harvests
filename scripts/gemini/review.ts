@@ -18,7 +18,8 @@ function sanitizeForPrompt(value: string): string {
     // Remove any null characters that could affect parsing.
     .replaceAll('\u0000', '')
     // Normalize newlines to reduce ambiguity.
-    .replace(/\r\n?/g, '\n');
+    .replaceAll('\r\n', '\n')
+    .replaceAll('\r', '\n');
 
   // Hard-cap maximum length to avoid extremely large prompts and reduce attack surface.
   const MAX_CONTENT_LENGTH: number = 40_000;

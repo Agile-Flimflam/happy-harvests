@@ -18,11 +18,27 @@ import { execFileSync } from 'node:child_process';
 const SAFE_PATH = '/usr/bin:/bin';
 const GIT_EXECUTABLE = '/usr/bin/git';
 const REPO_ROOT = process.cwd();
-// Restrict PATH to fixed, typically unwritable system directories to avoid using user-controlled executables.
+// Restrict PATH to fixed, typically unwritable system directories to avoid using user-controlled executables,
+// but preserve a minimal set of environment variables that Git and related tooling may rely on.
 const SAFE_ENV = {
   PATH: SAFE_PATH,
   NODE_ENV: process.env.NODE_ENV ?? 'production',
-} satisfies NodeJS.ProcessEnv;
+  HOME: process.env.HOME,
+  USER: process.env.USER,
+} satisfies Partial<NodeJS.ProcessEnv>;
+
+function sanitizeForPrompt(value: string): string {
+  // Structural safety for user-controlled content embedded in LLM prompts.
+  return (
+    value
+      // Break markdown code fences so they can't interfere with our prompt structure.
+      .replaceAll('```', '``\u200b`')
+      // Remove any null characters that could affect parsing.
+      .replaceAll('\u0000', '')
+      // Normalize newlines to reduce ambiguity.
+      .replace(/\r\n?/g, '\n')
+  );
+}
 
 function sanitizeFileSystemPath(filePath: string): string {
   const trimmed = filePath.trim();
@@ -98,6 +114,9 @@ async function generateTestScaffold(
 ): Promise<string> {
   const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
+  const safeSourceFilePath: string = sanitizeForPrompt(sourceFilePath);
+  const safeSourceCode: string = sanitizeForPrompt(sourceCode);
+
   const prompt = `You are a test generator for a TypeScript/React/Next.js project using Jest and @testing-library/react.
 
 Generate a comprehensive test suite for the following source file. Follow these patterns:
@@ -161,10 +180,10 @@ describe('ComponentName', () => {
 - Use explicit types (never use \`any\`)
 - Follow the existing codebase patterns
 
-Source file path: ${sourceFilePath}
+Source file path: ${safeSourceFilePath}
 Source code:
 \`\`\`typescript
-${sourceCode}
+${safeSourceCode}
 \`\`\`
 
 Generate the complete, runnable TypeScript test file code. You may respond either with raw TypeScript test code or with a single fenced \`\`\`typescript\`\`\` code block, but do not include any non-code commentary or explanations.`;

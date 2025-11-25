@@ -2,7 +2,7 @@ name: Gemini AI Integration
 
 on:
   pull_request:
-    types: [opened, reopened, labeled]
+    types: [opened, reopened]
     paths:
       - 'src/**/*.ts'
       - 'src/**/*.tsx'
@@ -17,15 +17,9 @@ on:
       - '**/*.yaml'
       - '**/*.css'
       - '**/*.html'
-      - '**/README.md'
-      - '**/CHANGELOG.md'
-      - '**/.github/**'
-      - '**/docs/**'
-      - '**/coverage/**'
-      - '**/node_modules/**'
-      # Database migrations are validated separately in the main CI pipeline and
-      # are not TypeScript code, so we exclude them from Gemini analysis.
-      - '**/supabase/migrations/**'
+  # Separate trigger for label events so they are not filtered out by paths/paths-ignore.
+  pull_request_target:
+    types: [labeled]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -71,14 +65,16 @@ jobs:
     # Only run on manual dispatch, or when label 'generate-tests' is added to a PR
     if: |
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'generate-tests')
+      ((github.event_name == 'pull_request' || github.event_name == 'pull_request_target') &&
+        github.event.action == 'labeled' &&
+        github.event.label.name == 'generate-tests')
     permissions:
       contents: write
       pull-requests: write
       issues: write
     steps:
       - name: Checkout repository (pull_request)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
