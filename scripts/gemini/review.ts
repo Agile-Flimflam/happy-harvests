@@ -10,7 +10,8 @@ import {
 } from './utils';
 
 function sanitizeForPrompt(value: string): string {
-  // Start with basic structural safety.
+  // Start with basic structural safety; avoid brittle pattern-based "injection" filters
+  // and rely on the model's own safety mechanisms instead.
   let sanitized: string = value
     // Break markdown code fences so they can't interfere with our prompt structure.
     .replaceAll('```', '``\u200b`')
@@ -18,36 +19,6 @@ function sanitizeForPrompt(value: string): string {
     .replaceAll('\u0000', '')
     // Normalize newlines to reduce ambiguity.
     .replace(/\r\n?/g, '\n');
-
-  // Neutralize some common prompt-injection style phrases appearing in user-controlled text.
-  // This is not a complete defense, but it reduces the likelihood that comments like
-  // "ignore previous instructions" or "you are now..." will influence the model.
-  const injectionPatterns: Array<{ pattern: RegExp; replacement: string }> = [
-    {
-      pattern: /(^|\n)\s*#?\s*ignore\s+previous\s+instructions?/gi,
-      replacement: '$1[prompt-injection-phrase-removed]',
-    },
-    {
-      pattern: /(^|\n)\s*#?\s*disregard\s+the\s+above/gi,
-      replacement: '$1[prompt-injection-phrase-removed]',
-    },
-    {
-      pattern: /(^|\n)\s*you\s+are\s+chatgpt/gi,
-      replacement: '$1this comment describes ChatGPT',
-    },
-    {
-      pattern: /(^|\n)\s*you\s+are\s+an?\s+ai/gi,
-      replacement: '$1this comment describes an AI system',
-    },
-    {
-      pattern: /(^|\n)\s*system\s+prompt/gi,
-      replacement: '$1system context',
-    },
-  ];
-
-  for (const rule of injectionPatterns) {
-    sanitized = sanitized.replace(rule.pattern, rule.replacement);
-  }
 
   // Hard-cap maximum length to avoid extremely large prompts and reduce attack surface.
   const MAX_CONTENT_LENGTH: number = 40_000;

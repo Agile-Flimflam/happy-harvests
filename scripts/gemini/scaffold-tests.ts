@@ -17,6 +17,7 @@ import { execFileSync } from 'node:child_process';
 
 const SAFE_PATH = '/usr/bin:/bin';
 const GIT_EXECUTABLE = '/usr/bin/git';
+const REPO_ROOT = process.cwd();
 // Restrict PATH to fixed, typically unwritable system directories to avoid using user-controlled executables.
 const SAFE_ENV = {
   PATH: SAFE_PATH,
@@ -36,12 +37,25 @@ function sanitizeFileSystemPath(filePath: string): string {
     throw new Error(`Refusing to use non-relative or empty file path: ${filePath}`);
   }
 
-  const segments = trimmed.split(/[/\\]+/);
-  if (segments.includes('..')) {
-    throw new Error(`Refusing to use path containing parent directory segments: ${filePath}`);
+  // Normalize the path and ensure it stays within the repository root when resolved.
+  const normalized = path.normalize(trimmed);
+  const resolved = path.resolve(REPO_ROOT, normalized);
+  const relativeToRepoRoot = path.relative(REPO_ROOT, resolved);
+
+  // If the resolved path escapes the repo root, or does not point to a concrete file
+  // path under the repo (e.g. ".", empty), reject it.
+  if (
+    !relativeToRepoRoot ||
+    relativeToRepoRoot === '.' ||
+    relativeToRepoRoot.startsWith('..') ||
+    path.isAbsolute(relativeToRepoRoot)
+  ) {
+    throw new Error(
+      `Refusing to use file path outside repository root: ${filePath} (resolved to ${resolved})`
+    );
   }
 
-  return trimmed;
+  return relativeToRepoRoot;
 }
 
 function sanitizeGitRef(ref: string): string {
@@ -380,7 +394,12 @@ function getPrNumberFromEnvOrContext(defaultPrNumber: number): number {
   if (!prNumberEnv) return defaultPrNumber;
 
   const parsed = Number.parseInt(prNumberEnv, 10);
-  if (Number.isNaN(parsed)) return defaultPrNumber;
+  if (Number.isNaN(parsed)) {
+    core.warning(
+      `Environment variable PR_NUMBER="${prNumberEnv}" is not a valid number; falling back to default PR number ${defaultPrNumber}.`
+    );
+    return defaultPrNumber;
+  }
 
   return parsed;
 }

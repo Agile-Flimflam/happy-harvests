@@ -20,6 +20,9 @@ function truncateDiffAtFileBoundary(
   diff: string,
   maxLength: number
 ): { truncatedDiff: string; wasTruncated: boolean } {
+  // Reset regex state to avoid leaking lastIndex between calls.
+  DIFF_HEADER_REGEX.lastIndex = 0;
+
   if (diff.length <= maxLength) {
     return { truncatedDiff: diff, wasTruncated: false };
   }

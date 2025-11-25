@@ -9,7 +9,7 @@ import * as path from 'node:path';
  * Initialize Gemini API client
  */
 export function initGeminiClient(): GoogleGenerativeAI {
-  const apiKey = process.env.GEMINI_API_KEY || core.getInput('gemini_api_key');
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey.trim() === '') {
     throw new Error('GEMINI_API_KEY is required');
   }
@@ -20,7 +20,7 @@ export function initGeminiClient(): GoogleGenerativeAI {
  * Initialize GitHub Octokit client
  */
 export function initGitHubClient(): Octokit {
-  const token = process.env.GITHUB_TOKEN || core.getInput('github_token');
+  const token = process.env.GITHUB_TOKEN;
   if (!token || token.trim() === '') {
     throw new Error('GITHUB_TOKEN is required');
   }
