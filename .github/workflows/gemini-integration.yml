@@ -103,8 +103,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const prNumber = Number('${{ github.event.inputs.pr_number }}');
-            if (!Number.isInteger(prNumber) || prNumber <= 0) {
+            const prNumber = Number.parseInt('${{ github.event.inputs.pr_number }}', 10);
+            if (Number.isNaN(prNumber) || prNumber <= 0) {
               core.setFailed(`Invalid pr_number input: "${prNumber}". It must be a positive integer.`);
               return;
             }

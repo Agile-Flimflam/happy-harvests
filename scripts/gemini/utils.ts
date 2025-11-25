@@ -126,7 +126,15 @@ export async function getFileContents(
     });
 
     if ('content' in data && 'encoding' in data) {
-      const content = Buffer.from(data.content, data.encoding as BufferEncoding).toString('utf-8');
+      const allowedEncodings: ReadonlyArray<BufferEncoding> = ['base64', 'utf-8'];
+      const encoding: string = typeof data.encoding === 'string' ? data.encoding : '';
+
+      if (!allowedEncodings.includes(encoding as BufferEncoding)) {
+        throw new Error(`Unsupported encoding "${String(data.encoding)}" for file ${path}`);
+      }
+
+      const buffer: Buffer = Buffer.from(data.content, encoding as BufferEncoding);
+      const content: string = buffer.toString('utf-8');
       return content;
     }
     throw new Error(`File ${path} is not a file`);

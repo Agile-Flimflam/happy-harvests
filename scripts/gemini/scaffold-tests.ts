@@ -40,15 +40,44 @@ const REPO_ROOT = process.cwd();
 // and related tooling may rely on. In particular, we forward the Git author/committer identity
 // variables if they are set by the workflow so that commits created by this script are attributed
 // correctly, without exposing the full process environment to child processes.
+function sanitizeOptionalEnvValue(name: string, value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+
+  const trimmed = value.trim();
+
+  // Drop empty values rather than forwarding them.
+  if (!trimmed) return undefined;
+
+  // Reject control characters (including newlines) to avoid breaking downstream parsers or tools.
+  if (/[\u0000-\u001F\u007F]/u.test(trimmed)) {
+    core.warning(`Ignoring unsafe value for ${name}: contains control characters.`);
+    return undefined;
+  }
+
+  // Defensively bound the length to avoid excessively large values impacting child processes.
+  if (trimmed.length > 1024) {
+    core.warning(`Ignoring unsafe value for ${name}: value is unreasonably long.`);
+    return undefined;
+  }
+
+  return trimmed;
+}
+
 const SAFE_ENV = {
   PATH: SAFE_PATH,
   NODE_ENV: process.env.NODE_ENV ?? 'production',
-  HOME: process.env.HOME,
-  USER: process.env.USER,
-  GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME,
-  GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL,
-  GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME,
-  GIT_COMMITTER_EMAIL: process.env.GIT_COMMITTER_EMAIL,
+  HOME: sanitizeOptionalEnvValue('HOME', process.env.HOME),
+  USER: sanitizeOptionalEnvValue('USER', process.env.USER),
+  GIT_AUTHOR_NAME: sanitizeOptionalEnvValue('GIT_AUTHOR_NAME', process.env.GIT_AUTHOR_NAME),
+  GIT_AUTHOR_EMAIL: sanitizeOptionalEnvValue('GIT_AUTHOR_EMAIL', process.env.GIT_AUTHOR_EMAIL),
+  GIT_COMMITTER_NAME: sanitizeOptionalEnvValue(
+    'GIT_COMMITTER_NAME',
+    process.env.GIT_COMMITTER_NAME
+  ),
+  GIT_COMMITTER_EMAIL: sanitizeOptionalEnvValue(
+    'GIT_COMMITTER_EMAIL',
+    process.env.GIT_COMMITTER_EMAIL
+  ),
 } satisfies Partial<NodeJS.ProcessEnv>;
 
 function sanitizeForPrompt(value: string): string {
@@ -362,6 +391,25 @@ const ACTION_AUTHOR = 'github-actions[bot] <github-actions[bot]@users.noreply.gi
 const COMMIT_SUBJECT_PREFIX = 'test: add generated test scaffolds for ';
 const ACTION_COMMIT_MARKER = 'Generated-by: gemini-scaffold-tests-action';
 
+function isGitNoCommitsError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+
+  const candidate = error as { stderr?: unknown };
+  const stderr: unknown = candidate.stderr;
+
+  if (typeof stderr !== 'string') return false;
+
+  const normalized = stderr.toLowerCase();
+
+  // Common git error messages when there are no commits yet or HEAD is invalid.
+  return (
+    normalized.includes('does not have any commits yet') ||
+    normalized.includes('bad default revision') ||
+    normalized.includes('unknown revision or path not in the working tree') ||
+    normalized.includes("ambiguous argument 'head'")
+  );
+}
+
 function getLastCommitInfo(): LastCommitInfo | null {
   try {
     // Safe usage: command and arguments are constant strings; no user-controlled data is passed here.
@@ -379,6 +427,11 @@ function getLastCommitInfo(): LastCommitInfo | null {
 
     return { author, message };
   } catch (error) {
+    if (isGitNoCommitsError(error)) {
+      core.info('Repository has no commits yet; skipping last-commit check for scaffold action.');
+      return null;
+    }
+
     core.warning(`Could not check last commit: ${error}`);
     return null;
   }
@@ -504,12 +557,17 @@ async function resolveTargetBranchForPush(
 }
 
 function pushToBranch(targetBranch: string): void {
-  // Safe usage: repository is a fixed literal and branch name is sanitized and passed as an argument.
-  execFileSync(GIT_EXECUTABLE, ['push', 'origin', targetBranch], {
-    stdio: 'inherit',
-    env: SAFE_ENV,
-  });
-  core.info(`Pushed test scaffolds to ${targetBranch}`);
+  try {
+    // Safe usage: repository is a fixed literal and branch name is sanitized and passed as an argument.
+    execFileSync(GIT_EXECUTABLE, ['push', 'origin', targetBranch], {
+      stdio: 'inherit',
+      env: SAFE_ENV,
+    });
+    core.info(`Pushed test scaffolds to ${targetBranch}`);
+  } catch (error) {
+    core.warning(`Failed to push test scaffolds to ${targetBranch}: ${error}`);
+    throw error;
+  }
 }
 
 async function createCommittedScaffoldsComment(

@@ -23,7 +23,12 @@ function sanitizeForPrompt(value: string): string {
   // Hard-cap maximum length to avoid extremely large prompts and reduce attack surface.
   const MAX_CONTENT_LENGTH: number = 40_000;
   if (sanitized.length > MAX_CONTENT_LENGTH) {
-    sanitized = `${sanitized.slice(0, MAX_CONTENT_LENGTH)}\n\n[truncated user-controlled content]`;
+    const originalLength: number = sanitized.length;
+    const omittedCharacters: number = originalLength - MAX_CONTENT_LENGTH;
+    sanitized = `${sanitized.slice(
+      0,
+      MAX_CONTENT_LENGTH
+    )}\n\n[Content truncated for safety - remaining ${omittedCharacters} characters omitted]`;
   }
 
   return sanitized;
