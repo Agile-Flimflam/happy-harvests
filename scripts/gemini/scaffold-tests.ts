@@ -10,6 +10,7 @@ import {
   isNewFile,
   getTestFilePath,
   prepareForPrompt,
+  ensureCombinedPromptLength,
 } from './utils';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -32,6 +33,11 @@ function resolveGitExecutable(): string {
   // GIT_EXECUTABLE explicitly.
   return 'git';
 }
+
+// Constants used to construct markdown code fences inside prompt templates without
+// having to embed raw triple-backtick sequences directly in template literals.
+const CODE_FENCE: string = '```';
+const CODE_FENCE_TS: string = '```typescript';
 
 const REPO_ROOT = process.cwd();
 // Restrict PATH to fixed, typically unwritable system directories to avoid using user-controlled
@@ -148,7 +154,7 @@ function sanitizeGitRef(ref: string): string {
   const trimmed = ref.trim();
 
   // Reject obviously dangerous characters for CLI usage.
-  if (trimmed.includes('\u0000') || trimmed.includes('\n') || trimmed.includes('\r')) {
+  if (/[\u0000\n\r]/u.test(trimmed)) {
     throw new Error(`Refusing to use unsafe git ref containing control characters: ${ref}`);
   }
 
@@ -237,6 +243,8 @@ async function generateTestScaffold(
   const safeSourceFilePath: string = prepareForPrompt(sourceFilePath);
   const safeSourceCode: string = prepareForPrompt(sourceCode);
 
+  ensureCombinedPromptLength([safeSourceFilePath, safeSourceCode]);
+
   const prompt = `You are a test generator for a TypeScript/React/Next.js project using Jest and @testing-library/react.
 
 Generate a comprehensive test suite for the following source file. Follow these patterns:
@@ -261,7 +269,7 @@ Generate a comprehensive test suite for the following source file. Follow these 
 **Example Test Patterns:**
 
 For utility functions:
-\`\`\`typescript
+${CODE_FENCE_TS}
 import { functionName } from './source-file';
 
 describe('functionName', () => {
@@ -273,10 +281,10 @@ describe('functionName', () => {
     expect(functionName(edgeInput)).toBe(expected);
   });
 });
-\`\`\`
+${CODE_FENCE}
 
 For React components:
-\`\`\`typescript
+${CODE_FENCE_TS}
 import { render, screen } from '@testing-library/react';
 import { ComponentName } from './source-file';
 
@@ -290,7 +298,7 @@ describe('ComponentName', () => {
     // Test user interactions
   });
 });
-\`\`\`
+${CODE_FENCE}
 
 **Important:**
 - Generate complete, runnable test code
@@ -302,11 +310,11 @@ describe('ComponentName', () => {
 
 Source file path: ${safeSourceFilePath}
 Source code:
-\`\`\`typescript
+${CODE_FENCE_TS}
 ${safeSourceCode}
-\`\`\`
+${CODE_FENCE}
 
-Generate the complete, runnable TypeScript test file code. You may respond either with raw TypeScript test code or with a single fenced \`\`\`typescript\`\`\` code block, but do not include any non-code commentary or explanations.`;
+Generate the complete, runnable TypeScript test file code. You may respond either with raw TypeScript test code or with a single fenced ${CODE_FENCE_TS} code block, but do not include any non-code commentary or explanations.`;
 
   try {
     const result = await model.generateContent(prompt);
@@ -605,9 +613,10 @@ function buildCommitMessage(scaffolds: TestScaffold[]): string {
   // cannot break the commit message format, even if the message is later consumed by other tools.
   const escapedFileList = scaffolds
     .map((scaffold) => {
-      const jsonEncoded = JSON.stringify(scaffold.filePath);
-      // Strip the surrounding quotes added by JSON.stringify while preserving escaped content.
-      return jsonEncoded.slice(1, -1);
+      // Keep the JSON-style quoting to avoid fragile manual slicing; this produces entries like
+      // `"path/with\"quotes.ts"` which are unambiguous and safe for parsers that may consume the
+      // commit message later.
+      return JSON.stringify(scaffold.filePath);
     })
     .join(', ');
 

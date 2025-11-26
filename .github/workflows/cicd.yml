@@ -68,7 +68,7 @@ jobs:
           version: 1.6.0
 
       - name: Start Supabase
-        run: supabase start -x studio,migra,deno-relay
+        run: supabase start
 
       - name: Validate migrations
         run: supabase db reset --yes
@@ -157,7 +157,7 @@ jobs:
 
       - name: Start Supabase
         run: |
-          supabase start -x studio,migra,deno-relay
+          supabase start
           # Export keys to GITHUB_ENV
           STATUS=$(supabase status -o json)
           echo "Supabase Status Output: $STATUS"

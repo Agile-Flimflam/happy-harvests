@@ -28,27 +28,29 @@ on:
   # Label events are handled via the regular pull_request trigger with type "labeled".
   # This avoids using pull_request_target with elevated base-branch permissions, which can
   # be a high‑risk pattern if guard logic is ever bypassed.
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: 'PR number to generate tests for'
-        required: true
-        type: string
-      commit_changes:
-        description: 'Automatically commit and push generated test files'
-        required: false
-        type: boolean
-        default: false
-
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
+workflow_dispatch:
+  inputs:
+    pr_number:
+      description: 'PR number to generate tests for'
+      required: true
+      type: string
+    commit_changes:
+      description: 'Automatically commit and push generated test files'
+      required: false
+      type: boolean
+      default: false
 
 jobs:
   gemini-analysis:
     name: Gemini Code Analysis
     runs-on: ubuntu-latest
+    # Least-privilege permissions: this job only reads code from the repo and
+    # posts comments/PR descriptions via the GitHub API; it does not modify
+    # repository contents.
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     # Run only for PRs from this repository (not forks) to avoid executing untrusted code with secrets,
     # and only on PR open/reopen events (not label changes).
     if: >

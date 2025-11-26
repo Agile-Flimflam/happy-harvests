@@ -4,10 +4,16 @@ import { Octokit } from '@octokit/rest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-// Upper bound on the amount of user-controlled content we will embed directly into a prompt.
+// Upper bound on the amount of user-controlled content we will embed directly into a single
+// prompt field.
 // This helps keep prompts within reasonable size limits and reduces the impact of extremely
 // large or adversarial inputs.
 const MAX_PROMPT_CONTENT_LENGTH: number = 40_000;
+
+// Conservative upper bound on *combined* prompt fields that share the same prompt. Callers
+// should still be mindful of the model's request limits (e.g., tokens) after additional static
+// context is added around the user-controlled pieces.
+const MAX_COMBINED_PROMPT_CONTENT_LENGTH: number = MAX_PROMPT_CONTENT_LENGTH * 2;
 
 /**
  * Prepare arbitrary user-controlled content before embedding it into an LLM prompt.
@@ -41,6 +47,24 @@ export function prepareForPrompt(value: string): string {
   }
 
   return withoutControlChars;
+}
+
+/**
+ * Ensure a collection of prompt fields stays below a combined length limit.
+ */
+export function ensureCombinedPromptLength(
+  values: ReadonlyArray<string>,
+  maxLength: number = MAX_COMBINED_PROMPT_CONTENT_LENGTH
+): void {
+  const totalLength = values.reduce((accumulator, value) => accumulator + value.length, 0);
+
+  if (totalLength > maxLength) {
+    const exceededBy = totalLength - maxLength;
+    throw new Error(
+      `Combined prompt content length exceeds ${maxLength.toLocaleString()} characters by ` +
+        `${exceededBy.toLocaleString()} characters.`
+    );
+  }
 }
 
 /**
@@ -167,7 +191,11 @@ export async function getFileContents(
 
   // Defense in depth: reject obviously unsafe or traversal-like paths even though the
   // GitHub API also validates repository paths.
-  if (!normalizedPath || normalizedPath.startsWith('/') || normalizedPath.includes('..')) {
+  if (normalizedPath.includes('..')) {
+    throw new Error(`Invalid file path: traversal sequences not allowed (${path})`);
+  }
+
+  if (!normalizedPath || normalizedPath.startsWith('/')) {
     throw new Error(`Invalid file path: ${path}`);
   }
 
@@ -193,29 +221,34 @@ export async function getFileContents(
     }
     throw new Error(`File ${path} is not a file`);
   } catch (error: unknown) {
-    if (isErrorWithStatus(error) && error.status === 404) {
+    if (isErrorWithStatusOrCode(error) && error.status === 404) {
       return null;
     }
     throw error;
   }
 }
 
-type ErrorWithStatus = {
+type ErrorWithStatusOrCode = {
   status?: number;
+  code?: number;
 };
 
-function isErrorWithStatus(error: unknown): error is ErrorWithStatus {
+function isErrorWithStatusOrCode(error: unknown): error is ErrorWithStatusOrCode {
   if (typeof error !== 'object' || error === null) {
     return false;
   }
 
-  if (!('status' in error)) {
+  if (!('status' in error) && !('code' in error)) {
     return false;
   }
 
   const candidateStatus: unknown = (error as { status?: unknown }).status;
+  const candidateCode: unknown = (error as { code?: unknown }).code;
 
-  return candidateStatus === undefined || typeof candidateStatus === 'number';
+  return (
+    (candidateStatus === undefined || typeof candidateStatus === 'number') &&
+    (candidateCode === undefined || typeof candidateCode === 'number')
+  );
 }
 
 /**
