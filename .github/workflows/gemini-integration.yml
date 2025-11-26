@@ -114,7 +114,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const prNumber = Number.parseInt('${{ github.event.inputs.pr_number }}', 10);
+            const rawPrNumber = process.env.PR_NUMBER ?? '';
+            const prNumber = Number.parseInt(rawPrNumber, 10);
             if (Number.isNaN(prNumber) || prNumber <= 0 || prNumber > 999999) {
               core.setFailed(
                 `Invalid pr_number input: "${prNumber}". It must be a positive integer less than or equal to 999999.`
@@ -136,6 +137,10 @@ jobs:
             core.setOutput('is_fork', 'false');
             core.setOutput('head_sha', pr.head.sha);
             core.setOutput('head_ref', pr.head.ref);
+        env:
+          # Pass workflow_dispatch input via environment to avoid interpolating it
+          # directly into the script source, which could enable script injection.
+          PR_NUMBER: ${{ github.event.inputs.pr_number }}
 
       - name: Checkout repository (workflow_dispatch)
         if: github.event_name == 'workflow_dispatch' && steps.resolve_pr_head.outputs.is_fork == 'false'
