@@ -1,0 +1,174 @@
+name: Gemini AI Integration
+
+on:
+  pull_request:
+    types: [opened, reopened, labeled]
+    paths:
+      - 'src/**/*.ts'
+      - 'src/**/*.tsx'
+    # NOTE:
+    # - GitHub combines "paths" and "paths-ignore" so that a workflow only runs when
+    #   (a) at least one changed file matches "paths" AND
+    #   (b) no changed files match "paths-ignore".
+    # - Because we ignore YAML files below, a PR that only changes workflow/config
+    #   files (including this workflow file) will NOT trigger this workflow.
+    # - This is intentional: Gemini analysis is only run when application source
+    #   files under "src/" are modified, not for config-only changes.
+    paths-ignore:
+      - '**/*.test.ts'
+      - '**/*.test.tsx'
+      - '**/*.spec.ts'
+      - '**/*.spec.tsx'
+      - '**/*.md'
+      - '**/*.json'
+      - '**/*.yml'
+      - '**/*.yaml'
+      - '**/*.css'
+      - '**/*.html'
+  # Label events are handled via the regular pull_request trigger with type "labeled".
+  # This avoids using pull_request_target with elevated base-branch permissions, which can
+  # be a high‑risk pattern if guard logic is ever bypassed.
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to generate tests for'
+        required: true
+        type: string
+      commit_changes:
+        description: 'Automatically commit and push generated test files'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  gemini-analysis:
+    name: Gemini Code Analysis
+    runs-on: ubuntu-latest
+    # Least-privilege permissions: this job only reads code from the repo and
+    # posts comments/PR descriptions via the GitHub API; it does not modify
+    # repository contents.
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    # Run only for PRs from this repository (not forks) to avoid executing untrusted code with secrets,
+    # and only on PR open/reopen events (not label changes).
+    if: >
+      github.event_name == 'pull_request' &&
+      (github.event.action == 'opened' || github.event.action == 'reopened') &&
+      github.event.pull_request.head.repo != null &&
+      github.event.pull_request.head.repo.fork != true
+    steps:
+      # Safe: this job only runs on non-fork pull requests (see job-level "if" condition),
+      # so we never execute code from untrusted forks.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run Gemini code review
+        run: pnpm exec tsx scripts/gemini/review.ts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate PR description
+        if: github.event.action == 'opened'
+        run: pnpm exec tsx scripts/gemini/describe-pr.ts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  gemini-scaffold:
+    name: Gemini Test Scaffolding
+    runs-on: ubuntu-latest
+    # Only run on manual dispatch, or when label 'generate-tests' is added to a PR
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+        github.event.action == 'labeled' &&
+        github.event.label.name == 'generate-tests' &&
+        github.event.pull_request.head.repo != null &&
+        github.event.pull_request.head.repo.fork != true)
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository (pull_request)
+        if: github.event_name == 'pull_request'
+        # Safe: the gemini-scaffold job only runs when github.event.pull_request.head.repo.fork == false
+        # (see job-level "if" condition), so this checkout never pulls code from untrusted forks.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref }}
+
+      - name: Resolve PR head for workflow_dispatch
+        if: github.event_name == 'workflow_dispatch'
+        id: resolve_pr_head
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const rawPrNumber = process.env.PR_NUMBER ?? '';
+            const prNumber = Number.parseInt(rawPrNumber, 10);
+            if (Number.isNaN(prNumber) || prNumber <= 0 || prNumber > 999999) {
+              core.setFailed(
+                `Invalid pr_number input: "${prNumber}". It must be a positive integer less than or equal to 999999.`
+              );
+              return;
+            }
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+            const isFork = pr.head?.repo?.fork === true;
+            if (isFork) {
+              core.setFailed('Gemini test scaffolding cannot be run for forked pull requests.');
+              core.setOutput('is_fork', 'true');
+              return;
+            }
+
+            core.setOutput('is_fork', 'false');
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('head_ref', pr.head.ref);
+        env:
+          # Pass workflow_dispatch input via environment to avoid interpolating it
+          # directly into the script source, which could enable script injection.
+          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+
+      - name: Checkout repository (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch' && steps.resolve_pr_head.outputs.is_fork == 'false'
+        # Safe: for workflow_dispatch, we explicitly resolve the PR and abort if it is a fork
+        # (see resolve_pr_head step). This checkout only runs when is_fork == 'false'.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Check out the PR's head branch by name so that pushes from scaffold-tests.ts
+          # (which use the branch name) have an upstream to update.
+          ref: ${{ steps.resolve_pr_head.outputs.head_ref }}
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+      - name: Generate and commit test scaffolds
+        run: pnpm exec tsx scripts/gemini/scaffold-tests.ts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # For label-based runs, always commit; for manual workflow_dispatch, respect the
+          # commit_changes input (defaulting to false).
+          COMMIT_CHANGES: ${{ github.event_name == 'pull_request' || github.event.inputs.commit_changes == 'true' }}
+          GITHUB_HEAD_REF: ${{ github.head_ref || github.ref_name }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number || '' }}

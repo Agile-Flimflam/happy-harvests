@@ -172,6 +172,23 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
 12. **Open the app:**
     Navigate to [http://localhost:4000](http://localhost:4000) in your browser. You should be redirected to `/login`. Use the email link login to access the dashboard.
 
+## Gemini-based Code Review & Test Scaffolding
+
+This project includes helper scripts that use Google's Gemini API for code review, PR description generation, and test scaffolding:
+
+- `pnpm gemini:review` – runs an AI-assisted code review for the current PR
+- `pnpm gemini:describe` – generates a PR description based on code changes
+- `pnpm gemini:scaffold` – generates Jest test scaffolding for new TypeScript/TSX files
+
+These commands require the following environment variables to be set (locally or in CI):
+
+```bash
+export GEMINI_API_KEY="your-gemini-api-key"
+export GITHUB_TOKEN="your-github-token"
+```
+
+If either variable is missing or empty, the Gemini scripts will fail with a clear error message.
+
 ## Row Level Security (RLS)
 
 - RLS policies are included as comments in the initial migration (`supabase/migrations/..._initial_schema.sql`) and are essential for securing your data.
@@ -310,6 +327,82 @@ E2E tests run automatically in the CI/CD pipeline:
 - Tests execute after the build job completes
 - Test artifacts (videos, screenshots, HTML reports) are uploaded to GitHub Actions
 - Tests run with retries enabled for flaky test handling
+
+## Testing Database Migrations Locally
+
+Before creating a PR with database migrations, it's important to test them locally to ensure they apply correctly and don't introduce errors.
+
+### Quick Validation
+
+The easiest way to validate all migrations is using the `db:validate` script:
+
+```bash
+pnpm db:validate
+```
+
+**⚠️ Warning:** This script is **destructive** and will reset your local database from scratch. Use with caution if you have important local data that isn't backed up.
+
+This script will:
+
+- Start a local Supabase instance (if not already running)
+- Apply all migrations from scratch using `supabase db reset`
+- Automatically run the seed script (`supabase/seed.sql`) to populate test data
+- Verify migrations complete successfully
+- Provide clear success/failure output
+
+**Note:** `supabase db reset` applies **all migration files** in your local `supabase/migrations/` directory, **including uncommitted or modified files**. If you only want to validate committed migrations, ensure your working directory is clean (or stash/untracked changes) before running `pnpm db:validate`.
+
+### Manual Testing Steps
+
+1. **Start local Supabase** (if not already running):
+
+   ```bash
+   pnpm db:start
+   ```
+
+2. **Test all migrations from scratch**:
+
+   ```bash
+   pnpm db:reset
+   ```
+
+   **⚠️ Warning:** This command is **destructive** - it drops your local database completely.
+
+   This command will:
+   - Drop the existing local database (if any)
+   - Apply all migrations in order
+   - Automatically run the seed script (`supabase/seed.sql`) to populate test data
+
+   **Use with caution if you have important local data that isn't backed up.**
+
+3. **Test a specific migration**:
+   - To test migrations incrementally, you can use:
+     ```bash
+     supabase migration up
+     ```
+   - This applies only pending migrations without resetting the database.
+
+4. **Verify migration syntax**:
+   - The Supabase CLI will validate SQL syntax when applying migrations
+   - Check the output for any errors or warnings
+   - Ensure all migrations are idempotent (can be run multiple times safely)
+
+### Best Practices
+
+- **Always test migrations locally** before creating a PR
+- **Test from a clean state** using `db:reset` to catch issues with migration ordering
+- **Verify migrations are reversible** if you plan to create down migrations
+- **Check for breaking changes** that might affect existing data or application code
+- **Run the validation script** (`pnpm db:validate`) to match CI/CD behavior
+
+### CI/CD Integration
+
+Migrations are automatically validated in the CI/CD pipeline on pull requests:
+
+- The `validate-migrations` job runs on all PRs (not on main branch)
+- It starts a fresh Supabase instance and applies all migrations
+- PRs will fail if migrations have errors, preventing broken migrations from being merged
+- The actual deployment to production only happens when code is merged to `main`
 
 ## Husky Pre-commit Hook
 
