@@ -14,10 +14,12 @@ import {
 // while still capturing enough of the PR for a meaningful description.
 const MAX_DIFF_LENGTH: number = 50_000;
 
+const CODE_FENCE: string = '```';
+
 function stripOuterCodeFence(markup: string): string {
   const trimmed: string = markup.trim();
 
-  if (!trimmed.startsWith('```')) {
+  if (!trimmed.startsWith(CODE_FENCE)) {
     return trimmed;
   }
 
@@ -28,7 +30,7 @@ function stripOuterCodeFence(markup: string): string {
     return trimmed;
   }
 
-  const closingFenceIndex: number = trimmed.lastIndexOf('```');
+  const closingFenceIndex: number = trimmed.lastIndexOf(CODE_FENCE);
 
   // Require a distinct closing fence after the first line; otherwise, leave as-is.
   if (closingFenceIndex <= firstNewlineIndex) {
@@ -144,8 +146,9 @@ Respond with ONLY the markdown description, no additional commentary.`;
     const description: string = stripOuterCodeFence(text);
 
     return description;
-  } catch (error) {
-    core.warning(`Failed to generate PR description: ${error}`);
+  } catch (error: unknown) {
+    const message: string = error instanceof Error ? error.message : String(error);
+    core.warning(`Failed to generate PR description: ${message}`);
     throw error;
   }
 }
@@ -206,12 +209,14 @@ async function run(): Promise<void> {
     });
 
     core.info('PR description updated successfully');
-  } catch (error) {
-    core.setFailed(`PR description generation failed: ${error}`);
+  } catch (error: unknown) {
+    const message: string = error instanceof Error ? error.message : String(error);
+    core.setFailed(`PR description generation failed: ${message}`);
   }
 }
 
-run().catch((error) => {
-  core.setFailed(`Unhandled error: ${error}`);
+run().catch((error: unknown) => {
+  const message: string = error instanceof Error ? error.message : String(error);
+  core.setFailed(`Unhandled error: ${message}`);
   process.exit(1);
 });

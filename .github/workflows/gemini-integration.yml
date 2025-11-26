@@ -55,6 +55,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate PR description
+        if: github.event.action == 'opened'
         run: pnpm exec tsx scripts/gemini/describe-pr.ts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

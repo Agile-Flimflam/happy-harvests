@@ -6,16 +6,22 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { CalendarEvent } from '../types';
 
+function isMetaRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function getMeta(e: CalendarEvent): Record<string, unknown> | undefined {
+  return isMetaRecord(e.meta) ? e.meta : undefined;
+}
+
 function activityTypeOf(e: CalendarEvent): string | undefined {
-  const meta =
-    e.meta && typeof e.meta === 'object' ? (e.meta as Record<string, unknown>) : undefined;
+  const meta = getMeta(e);
   const t = meta?.activity_type;
   return typeof t === 'string' ? t : undefined;
 }
 
 function plantingStatusOf(e: CalendarEvent): string | undefined {
-  const meta =
-    e.meta && typeof e.meta === 'object' ? (e.meta as Record<string, unknown>) : undefined;
+  const meta = getMeta(e);
   const s = meta?.status;
   return typeof s === 'string' ? s : undefined;
 }
@@ -80,8 +86,7 @@ export function EventChip({
     }
     return <Sprout className="size-4 sm:size-3 opacity-80" aria-hidden="true" />;
   }
-  const meta =
-    e.meta && typeof e.meta === 'object' ? (e.meta as Record<string, unknown>) : undefined;
+  const meta = getMeta(e);
   const start = typeof meta?.window_start === 'string' ? meta.window_start : undefined;
   const end = typeof meta?.window_end === 'string' ? meta.window_end : undefined;
   const range = start && end ? `${start.slice(5)}–${end.slice(5)}` : undefined;
@@ -109,7 +114,6 @@ export function EventChip({
         <TooltipTrigger asChild>
           <span
             className={`inline-flex items-center gap-1 rounded-full px-1 py-0 text-[10px] sm:px-1.5 sm:py-0.5 sm:text-xs ${cls} transition-colors transition-shadow hover:shadow-sm active:shadow-md`}
-            title={e.title}
           >
             <Icon />
             <span className={textClasses}>{displayText}</span>

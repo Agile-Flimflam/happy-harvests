@@ -110,7 +110,7 @@ export function MapPicker({
   // Update view state when form coordinates change (but not during drag)
   // Uses a ref to track last processed coordinates to prevent running on every map pan/zoom
   useEffect(() => {
-    if (!isDragging && (latitude != null || longitude != null)) {
+    if (!isDragging && latitude != null && longitude != null) {
       const newLat = latitude ?? DEFAULT_LATITUDE;
       const newLng = longitude ?? DEFAULT_LONGITUDE;
       const lastProcessed = lastProcessedFormCoordsRef.current;

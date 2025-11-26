@@ -60,8 +60,9 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
   const [state, dispatch] = useActionState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
 
+  const locationResolver = zodResolver(LocationSchema) as Resolver<LocationFormValues>;
   const form = useForm<LocationFormValues>({
-    resolver: zodResolver(LocationSchema) as unknown as Resolver<LocationFormValues>,
+    resolver: locationResolver,
     mode: 'onSubmit',
     defaultValues: {
       id: location?.id,
@@ -70,8 +71,8 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
       city: location?.city ?? '',
       state: location?.state ?? '',
       zip: location?.zip ?? '',
-      latitude: (location?.latitude ?? null) as number | null,
-      longitude: (location?.longitude ?? null) as number | null,
+      latitude: location?.latitude ?? null,
+      longitude: location?.longitude ?? null,
       notes: location?.notes ?? '',
     },
   });
@@ -149,9 +150,7 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
       if (state.errors && Object.keys(state.errors).length > 0) {
         // Map server-side errors to RHF fields
         Object.entries(state.errors).forEach(([field, errors]) => {
-          const message = Array.isArray(errors)
-            ? errors[0]
-            : (errors as unknown as string) || 'Invalid value';
+          const message = Array.isArray(errors) ? errors[0] : errors || 'Invalid value';
           form.setError(field as keyof LocationFormValues, { message });
         });
         toast.error(state.message);
@@ -231,8 +230,6 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
         noValidate
         className="space-y-4"
       >
-        {isEditing && <input type="hidden" name="id" value={location?.id} />}
-
         <FormField
           control={form.control}
           name="name"

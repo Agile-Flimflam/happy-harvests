@@ -7,6 +7,7 @@ import Image from 'next/image';
 import {
   createCropVariety,
   updateCropVariety,
+  type Crop,
   type CropVarietyFormState,
   createCropSimple,
   type SimpleCropFormState,
@@ -48,8 +49,10 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 
-type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null };
-type Crop = { id: number; name: string };
+type CropVariety = Tables<'crop_varieties'> & {
+  crops?: { name: string } | null;
+  image_url?: string | null;
+};
 
 interface CropVarietyFormProps {
   cropVariety?: CropVariety | null;
@@ -134,7 +137,7 @@ export function CropVarietyForm({
   // Update initial state type and property name
   const initialState: CropVarietyFormState = { message: '', errors: {}, cropVariety: cropVariety };
   const [state, dispatch] = useActionState(action, initialState);
-  const [cropsLocal, setCropsLocal] = useState<Crop[]>(crops);
+  const [cropsLocal, setCropsLocal] = useState<Crop[]>(crops ?? []);
   const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
   const [newCropType, setNewCropType] = useState<string>('');
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
@@ -178,10 +181,10 @@ export function CropVarietyForm({
       latin_name: cropVariety?.latin_name ?? '',
       is_organic: cropVariety?.is_organic ?? false,
       notes: cropVariety?.notes ?? '',
-      dtm_direct_seed_min: cropVariety?.dtm_direct_seed_min ?? ('' as unknown as number),
-      dtm_direct_seed_max: cropVariety?.dtm_direct_seed_max ?? ('' as unknown as number),
-      dtm_transplant_min: cropVariety?.dtm_transplant_min ?? ('' as unknown as number),
-      dtm_transplant_max: cropVariety?.dtm_transplant_max ?? ('' as unknown as number),
+      dtm_direct_seed_min: cropVariety?.dtm_direct_seed_min ?? undefined,
+      dtm_direct_seed_max: cropVariety?.dtm_direct_seed_max ?? undefined,
+      dtm_transplant_min: cropVariety?.dtm_transplant_min ?? undefined,
+      dtm_transplant_max: cropVariety?.dtm_transplant_max ?? undefined,
       plant_spacing_min: cropVariety?.plant_spacing_min ?? null,
       plant_spacing_max: cropVariety?.plant_spacing_max ?? null,
       row_spacing_min: cropVariety?.row_spacing_min ?? null,
@@ -213,16 +216,21 @@ export function CropVarietyForm({
   }, [state, closeDialog, form]);
 
   useEffect(() => {
+    setCropsLocal(crops ?? []);
+  }, [crops]);
+
+  useEffect(() => {
     if (cropCreateState.message) {
       if (cropCreateState.errors && Object.keys(cropCreateState.errors).length > 0) {
         toast.error(cropCreateState.message);
       } else if (cropCreateState.crop) {
         // Update local crops and select the new one
+        const newCrop = cropCreateState.crop;
         setCropsLocal((prev) => {
-          const next = [...prev, cropCreateState.crop as unknown as Crop];
+          const next = [...prev, newCrop];
           return next.sort((a, b) => a.name.localeCompare(b.name));
         });
-        const createdId = cropCreateState.crop.id as unknown as number;
+        const createdId = newCrop.id;
         form.setValue('crop_id', createdId);
         toast.success(cropCreateState.message);
         setIsCropDialogOpen(false);
@@ -271,9 +279,10 @@ export function CropVarietyForm({
 
   // Compute existing image URL safely
   // image_url is a computed property added by getCropVarieties, not in the base database type
+  const stateCropVariety = state.cropVariety as CropVariety | null;
   const existingImageUrl =
-    !imagePreviewUrl && !removeExistingImage && state.cropVariety
-      ? (state.cropVariety as CropVariety & { image_url?: string | null }).image_url
+    !imagePreviewUrl && !removeExistingImage && stateCropVariety
+      ? stateCropVariety.image_url
       : null;
   const safeExistingImageUrl =
     existingImageUrl && isValidImageUrl(existingImageUrl) ? existingImageUrl : null;
@@ -479,7 +488,7 @@ export function CropVarietyForm({
                         {...field}
                         value={field.value?.toString() ?? ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : '')
+                          field.onChange(e.target.value ? Number(e.target.value) : null)
                         }
                       />
                     </FormControl>
@@ -500,7 +509,7 @@ export function CropVarietyForm({
                         {...field}
                         value={field.value?.toString() ?? ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : '')
+                          field.onChange(e.target.value ? Number(e.target.value) : null)
                         }
                       />
                     </FormControl>
@@ -521,7 +530,7 @@ export function CropVarietyForm({
                         {...field}
                         value={field.value?.toString() ?? ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : '')
+                          field.onChange(e.target.value ? Number(e.target.value) : null)
                         }
                       />
                     </FormControl>
@@ -542,7 +551,7 @@ export function CropVarietyForm({
                         {...field}
                         value={field.value?.toString() ?? ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : '')
+                          field.onChange(e.target.value ? Number(e.target.value) : null)
                         }
                       />
                     </FormControl>

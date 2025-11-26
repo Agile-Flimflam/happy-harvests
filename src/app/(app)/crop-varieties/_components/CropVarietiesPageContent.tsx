@@ -22,7 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { CropVarietyForm } from '../_components/CropVarietyForm';
-import { deleteCropVariety } from '../_actions';
+import { deleteCropVariety, type DeleteCropVarietyResult, type Crop } from '../_actions';
 import { Pencil, Trash2, Plus, Leaf } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -33,7 +33,6 @@ import PageContent from '@/components/page-content';
 type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null } & {
   image_url?: string | null;
 };
-type Crop = { id: number; name: string };
 
 interface CropVarietiesPageContentProps {
   cropVarieties: CropVariety[];
@@ -65,7 +64,7 @@ export function CropVarietiesPageContent({
     if (deleteId == null) return;
     try {
       setDeleting(true);
-      const result = await deleteCropVariety(deleteId);
+      const result: DeleteCropVarietyResult = await deleteCropVariety(deleteId);
       if (result.message.startsWith('Database Error:')) {
         toast.error(result.message);
       } else {
@@ -162,7 +161,7 @@ export function CropVarietiesPageContent({
                       {cropVariety.image_url ? (
                         <Image
                           src={cropVariety.image_url}
-                          alt=""
+                          alt={`${cropVariety.name} variety image`}
                           width={40}
                           height={40}
                           unoptimized
@@ -196,6 +195,7 @@ export function CropVarietiesPageContent({
                         size="icon"
                         onClick={() => handleEdit(cropVariety)}
                         className="mr-2"
+                        aria-label={`Edit ${cropVariety.name}`}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -204,26 +204,27 @@ export function CropVarietiesPageContent({
                         size="icon"
                         onClick={() => openDelete(cropVariety.id)}
                         className="text-red-500 hover:text-red-700"
+                        aria-label={`Delete ${cropVariety.name}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
-                      <ConfirmDialog
-                        open={deleteId != null}
-                        onOpenChange={(open) => {
-                          if (!open) setDeleteId(null);
-                        }}
-                        title="Delete crop variety?"
-                        description="Deletion will fail if the variety is linked to existing crops."
-                        confirmText="Delete"
-                        confirmVariant="destructive"
-                        confirming={deleting}
-                        onConfirm={confirmDelete}
-                      />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            <ConfirmDialog
+              open={deleteId != null}
+              onOpenChange={(open) => {
+                if (!open) setDeleteId(null);
+              }}
+              title="Delete crop variety?"
+              description="Deletion will fail if the variety is linked to existing crops."
+              confirmText="Delete"
+              confirmVariant="destructive"
+              confirming={deleting}
+              onConfirm={confirmDelete}
+            />
           </div>
         )}
       </PageContent>

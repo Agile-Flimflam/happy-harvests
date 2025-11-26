@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils';
 
 import type { Tables } from '@/lib/supabase-server';
 import { LocationForm } from './LocationForm';
-import { deleteLocation } from '../_actions';
+import { deleteLocation, type DeleteLocationResult } from '../_actions';
 
 type Location = Tables<'locations'>;
 
@@ -64,7 +64,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
     if (deleteId == null) return;
     try {
       setDeleting(true);
-      const result = await deleteLocation(deleteId);
+      const result: DeleteLocationResult = await deleteLocation(deleteId);
       if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
         toast.error(result.message);
       } else {
@@ -80,6 +80,11 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
     setIsDialogOpen(false);
     setEditingLocation(null);
   };
+
+  const deletingLocation = deleteId ? locations.find((loc) => loc.id === deleteId) : null;
+  const confirmDescription = deletingLocation
+    ? `${deletingLocation.name ?? 'This location'} must have any associated plots reassigned or deleted before removing it.`
+    : 'You must reassign or delete associated plots first.';
 
   return (
     <>
@@ -204,7 +209,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
             if (!open) setDeleteId(null);
           }}
           title="Delete location?"
-          description="You must reassign or delete associated plots first."
+          description={confirmDescription}
           confirmText="Delete"
           confirmVariant="destructive"
           confirming={deleting}
@@ -227,6 +232,20 @@ function HumidityDisplay({ value, className }: { value: number; className?: stri
     </Tooltip>
   );
 }
+
+type WeatherStateData = {
+  timezone: string;
+  current: {
+    dt: number;
+    sunrise?: number;
+    sunset?: number;
+    temp: number;
+    humidity: number;
+    weather: { id: number; main: string; description: string; icon: string } | null;
+  };
+  moonPhase?: number;
+  moonPhaseLabel?: string;
+};
 
 function WeatherCell({
   id,
@@ -268,8 +287,12 @@ function WeatherCell({
     setState({ status: 'loading' });
     fetch(`/api/locations/${id}/weather`, { cache: 'no-store' })
       .then(async (res) => {
-        if (!res.ok) throw new Error((await res.json()).error || res.statusText);
-        return res.json();
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err?.error || res.statusText);
+        }
+        const data: WeatherStateData = await res.json();
+        return data;
       })
       .then((data) => {
         if (cancelled) return;

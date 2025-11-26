@@ -21,6 +21,7 @@ import {
   ShoppingBasket,
   Calendar,
   CalendarRange,
+  type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CalendarEvent, CalendarFilter, CalendarLocation } from './types';
@@ -33,6 +34,12 @@ import CalendarHeaderWeather from './CalendarHeaderWeather';
 
 // UTC helpers and string-only date math (YYYY-MM-DD)
 const pad2 = (n: number): string => String(n).padStart(2, '0');
+const CALENDAR_FILTERS: readonly CalendarFilter[] = ['all', 'activity', 'planting', 'harvest'];
+const CALENDAR_RANGES: readonly ('month' | 'week' | 'today')[] = ['month', 'week', 'today'];
+const isCalendarFilter = (value: unknown): value is CalendarFilter =>
+  typeof value === 'string' && CALENDAR_FILTERS.some((filter) => filter === value);
+const isCalendarRange = (value: unknown): value is 'month' | 'week' | 'today' =>
+  typeof value === 'string' && CALENDAR_RANGES.some((range) => range === value);
 const isoFromYMD = (y: number, m1: number, d: number): string => `${y}-${pad2(m1)}-${pad2(d)}`;
 const parseISO = (iso: string): { y: number; m1: number; d: number } => {
   const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -129,6 +136,7 @@ export default function CalendarClient({
     date: null,
   });
   const [range, setRange] = React.useState<'month' | 'week' | 'today'>('month');
+  const detailDate = detail.date;
   const primaryLocation = React.useMemo(() => {
     return locations.find((l) => l.latitude != null && l.longitude != null) ?? null;
   }, [locations]);
@@ -150,21 +158,10 @@ export default function CalendarClient({
   React.useEffect(() => {
     // Load persisted settings on client after mount to avoid SSR hydration mismatch
     try {
-      const storedFilter = window.localStorage.getItem('calendar.filter') as CalendarFilter | null;
-      if (
-        storedFilter === 'all' ||
-        storedFilter === 'activity' ||
-        storedFilter === 'planting' ||
-        storedFilter === 'harvest'
-      )
-        setFilter(storedFilter);
-      const storedRange = window.localStorage.getItem('calendar.range') as
-        | 'month'
-        | 'week'
-        | 'today'
-        | null;
-      if (storedRange === 'month' || storedRange === 'week' || storedRange === 'today')
-        setRange(storedRange);
+      const storedFilter = window.localStorage.getItem('calendar.filter');
+      if (isCalendarFilter(storedFilter)) setFilter(storedFilter);
+      const storedRange = window.localStorage.getItem('calendar.range');
+      if (isCalendarRange(storedRange)) setRange(storedRange);
     } catch (e) {
       console.warn('Failed to load persisted calendar settings from localStorage', e);
     }
@@ -398,7 +395,7 @@ export default function CalendarClient({
                       : v === 'planting'
                         ? 'Plantings'
                         : 'Harvests';
-                const Icon =
+                const Icon: LucideIcon =
                   v === 'all'
                     ? CalendarDays
                     : v === 'activity'
@@ -424,7 +421,8 @@ export default function CalendarClient({
               </div>
               {(['month', 'week', 'today'] as const).map((v) => {
                 const label = v[0].toUpperCase() + v.slice(1);
-                const Icon = v === 'month' ? Calendar : v === 'week' ? CalendarRange : CalendarDays;
+                const Icon: LucideIcon =
+                  v === 'month' ? Calendar : v === 'week' ? CalendarRange : CalendarDays;
                 return (
                   <DropdownMenuItem
                     key={v}
@@ -587,10 +585,10 @@ export default function CalendarClient({
       </div>
       {/* Calendar Grid */}
       <div
-        className={`${range === 'week' ? 'md:overflow-x-auto md:-mx-1 md:px-1 md:py-1' : 'overflow-x-auto -mx-1 px-1'} pb-2`}
+        className={`${range === 'week' ? 'md:overflow-x-auto md:-mx-1 md:py-1' : 'overflow-x-auto -mx-1'} pb-2`}
       >
         <div
-          className={`grid ${
+          className={`px-1 md:px-1 grid ${
             range === 'week'
               ? 'grid-cols-1 md:grid-cols-7'
               : range === 'today'
@@ -651,21 +649,21 @@ export default function CalendarClient({
         open={detail.open}
         onOpenChange={(open) => setDetail((d) => ({ open, date: open ? d.date : null }))}
       >
-        <DayDetailDialog
-          dateISO={detail.date ?? ''}
-          events={detail.date ? byDay.get(detail.date) || [] : []}
-          locations={locations.filter((l) => l.latitude != null && l.longitude != null)}
-          onPrev={() => {
-            if (!detail.date) return;
-            const prevISO = addDaysISO(detail.date, -1);
-            setDetail({ open: true, date: prevISO });
-          }}
-          onNext={() => {
-            if (!detail.date) return;
-            const nextISO = addDaysISO(detail.date, 1);
-            setDetail({ open: true, date: nextISO });
-          }}
-        />
+        {detailDate ? (
+          <DayDetailDialog
+            dateISO={detailDate}
+            events={byDay.get(detailDate) || []}
+            locations={locations.filter((l) => l.latitude != null && l.longitude != null)}
+            onPrev={() => {
+              const prevISO = addDaysISO(detailDate, -1);
+              setDetail({ open: true, date: prevISO });
+            }}
+            onNext={() => {
+              const nextISO = addDaysISO(detailDate, 1);
+              setDetail({ open: true, date: nextISO });
+            }}
+          />
+        ) : null}
       </Dialog>
     </div>
   );

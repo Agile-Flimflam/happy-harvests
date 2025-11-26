@@ -8,6 +8,7 @@ import {
   getFileContents,
   prepareForPrompt,
 } from './utils';
+import { z } from 'zod';
 
 interface ReviewIssue {
   file: string;
@@ -29,6 +30,15 @@ interface ReviewResult {
   success: boolean;
   issues: ReviewIssue[];
 }
+
+const reviewIssueArraySchema = z.array(
+  z.object({
+    line: z.number(),
+    severity: z.enum(['error', 'warning', 'info']),
+    message: z.string(),
+    category: z.enum(['type-safety', 'tailwind', 'security', 'other']),
+  })
+);
 
 async function reviewCodeWithGemini(
   gemini: GoogleGenerativeAI,
@@ -101,10 +111,10 @@ Respond with valid JSON as the only content. You may optionally wrap it in a \`\
     }
 
     try {
-      const issues: ReviewIssue[] = JSON.parse(jsonText);
+      const issuesWithoutFile = reviewIssueArraySchema.parse(JSON.parse(jsonText));
 
       // Add file path to each issue
-      const issuesWithFile: ReviewIssue[] = issues.map((issue) => ({
+      const issuesWithFile: ReviewIssue[] = issuesWithoutFile.map((issue) => ({
         ...issue,
         file: filePath,
       }));
@@ -113,15 +123,17 @@ Respond with valid JSON as the only content. You may optionally wrap it in a \`\
         success: true,
         issues: issuesWithFile,
       };
-    } catch (parseError) {
-      core.warning(`Failed to parse review response for ${filePath}: ${parseError}`);
+    } catch (parseError: unknown) {
+      const message: string = parseError instanceof Error ? parseError.message : String(parseError);
+      core.warning(`Failed to parse review response for ${filePath}: ${message}`);
       return {
         success: false,
         issues: [],
       };
     }
-  } catch (error) {
-    core.warning(`Failed to review ${filePath}: ${error}`);
+  } catch (error: unknown) {
+    const message: string = error instanceof Error ? error.message : String(error);
+    core.warning(`Failed to review ${filePath}: ${message}`);
     return {
       success: false,
       issues: [],
@@ -173,8 +185,9 @@ ${fileIssues
         issue_number: prNumber,
         body,
       });
-    } catch (error) {
-      core.warning(`Failed to post comment for ${file}: ${error}`);
+    } catch (error: unknown) {
+      const message: string = error instanceof Error ? error.message : String(error);
+      core.warning(`Failed to post comment for ${file}: ${message}`);
     }
   }
 }
@@ -245,12 +258,14 @@ async function run(): Promise<void> {
     );
 
     core.info(`Review complete. Found ${allIssues.length} issues.`);
-  } catch (error) {
-    core.setFailed(`Code review failed: ${error}`);
+  } catch (error: unknown) {
+    const message: string = error instanceof Error ? error.message : String(error);
+    core.setFailed(`Code review failed: ${message}`);
   }
 }
 
-run().catch((error) => {
-  core.setFailed(`Unhandled error: ${error}`);
+run().catch((error: unknown) => {
+  const message: string = error instanceof Error ? error.message : String(error);
+  core.setFailed(`Unhandled error: ${message}`);
   process.exit(1);
 });
