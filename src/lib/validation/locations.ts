@@ -1,10 +1,18 @@
 import { z } from 'zod';
 import { MIN_LATITUDE, MAX_LATITUDE, MIN_LONGITUDE, MAX_LONGITUDE } from '@/lib/geo-constants';
 
+const hasValue = (value: string | null | undefined): boolean => {
+  return value != null && value.trim() !== '';
+};
+
+const isValidCoordinateValue = (coord: number | null | undefined): coord is number => {
+  return coord != null && typeof coord === 'number' && !Number.isNaN(coord);
+};
+
 /**
  * Validates that a coordinate pair (latitude, longitude) is within valid WGS84 ranges.
  * This is a shared utility to ensure consistent validation across the codebase.
- * 
+ *
  * @param latitude - The latitude value to validate
  * @param longitude - The longitude value to validate
  * @returns true if both coordinates are valid numbers within WGS84 ranges, false otherwise
@@ -27,7 +35,7 @@ export function isValidCoordinatePair(
 }
 
 // Base schema that accepts Mapbox geocoding response format
-// Mapbox returns: street (address_line1), city (address_level2), state (address_level1), 
+// Mapbox returns: street (address_line1), city (address_level2), state (address_level1),
 // zip (postal_code), latitude, longitude (from geometry.coordinates)
 export const LocationSchema = z
   .object({
@@ -39,53 +47,45 @@ export const LocationSchema = z
     zip: z.string().optional().nullable(),
     latitude: z
       .union([
-        z.coerce.number().min(MIN_LATITUDE, { message: `Latitude must be >= ${MIN_LATITUDE}` }).max(MAX_LATITUDE, { message: `Latitude must be <= ${MAX_LATITUDE}` }),
+        z.coerce
+          .number()
+          .min(MIN_LATITUDE, { message: `Latitude must be >= ${MIN_LATITUDE}` })
+          .max(MAX_LATITUDE, { message: `Latitude must be <= ${MAX_LATITUDE}` }),
         z.null(),
       ])
       .optional(),
     longitude: z
       .union([
-        z.coerce.number().min(MIN_LONGITUDE, { message: `Longitude must be >= ${MIN_LONGITUDE}` }).max(MAX_LONGITUDE, { message: `Longitude must be <= ${MAX_LONGITUDE}` }),
+        z.coerce
+          .number()
+          .min(MIN_LONGITUDE, { message: `Longitude must be >= ${MIN_LONGITUDE}` })
+          .max(MAX_LONGITUDE, { message: `Longitude must be <= ${MAX_LONGITUDE}` }),
         z.null(),
       ])
       .optional(),
     notes: z.string().optional().nullable(),
   })
   .superRefine((data, ctx) => {
-    // Helper to check if a value is truthy (not null, undefined, or empty string)
-    const hasValue = (value: string | null | undefined): boolean => {
-      return value != null && value.trim() !== '';
-    };
-
-    // Helper to check if a coordinate is valid (not null, not undefined, and is a valid number)
-    const isValidCoordinate = (coord: number | null | undefined): boolean => {
-      return coord != null && typeof coord === 'number' && !Number.isNaN(coord);
-    };
-
     // Helper to check coordinate state
-    const hasLatitude = isValidCoordinate(data.latitude);
-    const hasLongitude = isValidCoordinate(data.longitude);
+    const hasLatitude = isValidCoordinateValue(data.latitude);
+    const hasLongitude = isValidCoordinateValue(data.longitude);
+    const coordinatesAreValidPair = isValidCoordinatePair(data.latitude, data.longitude);
 
     // Check if we have a complete address (indicating Mapbox selection)
     const hasCompleteAddress =
-      hasValue(data.street) &&
-      hasValue(data.city) &&
-      hasValue(data.state) &&
-      hasValue(data.zip);
+      hasValue(data.street) && hasValue(data.city) && hasValue(data.state) && hasValue(data.zip);
 
     // If complete address is provided (Mapbox selection), coordinates should be set
-    if (hasCompleteAddress) {
-      // Check if coordinates are missing (null or undefined)
-      if (!hasLatitude || !hasLongitude) {
-        // Only show this error if both coordinates are missing to avoid duplicate messages
-        // If only one is missing, the coordinate pair validation below will handle it
-        if (!hasLatitude && !hasLongitude) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Coordinates are missing for the selected address. Please try selecting the address again or set coordinates manually on the map.',
-            path: ['latitude'],
-          });
-        }
+    if (hasCompleteAddress && !coordinatesAreValidPair) {
+      // Only show this error if both coordinates are missing to avoid duplicate messages.
+      // If only one is missing, the coordinate pair validation below will handle it.
+      if (!hasLatitude && !hasLongitude) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'Coordinates are missing for the selected address. Please try selecting the address again or set coordinates manually on the map.',
+          path: ['latitude'],
+        });
       }
     }
 
@@ -109,5 +109,3 @@ export const LocationSchema = z
   });
 
 export type LocationFormValues = z.infer<typeof LocationSchema>;
-
-

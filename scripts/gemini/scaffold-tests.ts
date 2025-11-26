@@ -824,38 +824,45 @@ These are boilerplate tests - please review and enhance them based on your speci
   });
 }
 
-try {
-  core.info('Starting test scaffolding...');
+async function run() {
+  try {
+    core.info('Starting test scaffolding...');
 
-  const gemini = initGeminiClient();
-  const octokit = initGitHubClient();
-  const prContext = await resolvePRContext(octokit);
+    const gemini = initGeminiClient();
+    const octokit = initGitHubClient();
+    const prContext = await resolvePRContext(octokit);
 
-  core.info(`Scaffolding tests for PR #${prContext.prNumber}`);
+    core.info(`Scaffolding tests for PR #${prContext.prNumber}`);
 
-  const filesNeedingTests = await identifyFilesNeedingTests(octokit, prContext);
+    const filesNeedingTests = await identifyFilesNeedingTests(octokit, prContext);
 
-  if (filesNeedingTests.length === 0) {
-    core.info('All new files already have corresponding test files.');
-  } else {
-    core.info(`Generating test scaffolds for ${filesNeedingTests.length} files`);
-
-    const scaffolds = await generateScaffolds(gemini, octokit, prContext, filesNeedingTests);
-
-    if (scaffolds.length === 0) {
-      core.info('No test scaffolds generated.');
+    if (filesNeedingTests.length === 0) {
+      core.info('All new files already have corresponding test files.');
     } else {
-      core.info(`Processed test scaffolds for ${scaffolds.length} files`);
+      core.info(`Generating test scaffolds for ${filesNeedingTests.length} files`);
 
-      const shouldCommit = process.env.COMMIT_CHANGES === 'true';
+      const scaffolds = await generateScaffolds(gemini, octokit, prContext, filesNeedingTests);
 
-      if (shouldCommit) {
-        await commitScaffolds(octokit, prContext, scaffolds);
+      if (scaffolds.length === 0) {
+        core.info('No test scaffolds generated.');
       } else {
-        await postScaffoldsComment(octokit, prContext, scaffolds);
+        core.info(`Processed test scaffolds for ${scaffolds.length} files`);
+
+        const shouldCommit = process.env.COMMIT_CHANGES === 'true';
+
+        if (shouldCommit) {
+          await commitScaffolds(octokit, prContext, scaffolds);
+        } else {
+          await postScaffoldsComment(octokit, prContext, scaffolds);
+        }
       }
     }
+  } catch (error) {
+    core.setFailed(`Test scaffolding failed: ${error}`);
   }
-} catch (error) {
-  core.setFailed(`Test scaffolding failed: ${error}`);
 }
+
+run().catch((error) => {
+  core.setFailed(`Unhandled error: ${error}`);
+  process.exit(1);
+});

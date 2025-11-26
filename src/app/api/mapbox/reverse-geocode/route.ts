@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { reverseGeocode } from '@/lib/mapbox.server';
+import { reverseGeocode, MapboxReverseGeocodeError } from '@/lib/mapbox.server';
 import { isValidCoordinatePair } from '@/lib/validation/locations';
 
 export const dynamic = 'force-dynamic';
@@ -7,12 +7,12 @@ export const dynamic = 'force-dynamic';
 /**
  * API route for Mapbox reverse geocoding.
  * This endpoint proxies reverse geocoding requests to keep the Mapbox access token secure.
- * 
+ *
  * Query parameters:
  * - latitude: number (required)
  * - longitude: number (required)
  * - types: string (optional, defaults to 'address')
- * 
+ *
  * Security benefits:
  * - Mapbox access token is kept server-side
  * - Can add rate limiting and request validation
@@ -39,10 +39,7 @@ export async function GET(req: NextRequest) {
 
     // Validate coordinates using shared validation function
     if (!isValidCoordinatePair(latitude, longitude)) {
-      return NextResponse.json(
-        { error: 'Invalid coordinates provided' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid coordinates provided' }, { status: 400 });
     }
 
     // Call server-side reverse geocoding function
@@ -51,14 +48,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    const status = message.includes('authentication') ? 401 : 
-                   message.includes('Too many requests') ? 429 :
-                   message.includes('temporarily unavailable') ? 503 : 500;
-    
-    return NextResponse.json(
-      { error: message },
-      { status }
-    );
+    const status = error instanceof MapboxReverseGeocodeError ? error.statusCode : 500;
+
+    return NextResponse.json({ error: message }, { status });
   }
 }
-

@@ -36,9 +36,9 @@ let globalFormControlListenerSetup = false;
 export function setupFormControlProperty(formElement: HTMLFormElement | null): void {
   if (!formElement) return;
 
-  // Check if 'control' property already exists and is properly set up
+  // Check if 'control' property already exists and has both getter and setter configured
   const descriptor = Object.getOwnPropertyDescriptor(formElement, 'control');
-  if (descriptor && (descriptor.get || descriptor.set)) {
+  if (descriptor && descriptor.get && descriptor.set) {
     // Property already exists with getter/setter - likely already set up correctly
     return;
   }

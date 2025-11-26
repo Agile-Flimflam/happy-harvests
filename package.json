@@ -19,9 +19,9 @@
     "test:e2e:ui": "playwright test --ui",
     "playwright:install": "playwright install --with-deps",
     "analyze": "ANALYZE=true next build",
-    "gemini:review": "tsx scripts/gemini/review.ts",
-    "gemini:describe": "tsx scripts/gemini/describe-pr.ts",
-    "gemini:scaffold": "tsx scripts/gemini/scaffold-tests.ts"
+    "gemini:review": "tsx --env-file=.env.local scripts/gemini/review.ts",
+    "gemini:describe": "tsx --env-file=.env.local scripts/gemini/describe-pr.ts",
+    "gemini:scaffold": "tsx --env-file=.env.local scripts/gemini/scaffold-tests.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

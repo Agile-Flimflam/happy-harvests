@@ -11,12 +11,18 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 // (Dialog footer handled by parent FormDialog)
 import { ExternalLink, X, CheckCircle2 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { UsaStates } from 'usa-states';
 import { useForm, type SubmitHandler, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LocationSchema, type LocationFormValues } from '@/lib/validation/locations';
-import { 
+import {
   Form,
   FormControl,
   FormField,
@@ -39,11 +45,12 @@ interface LocationFormProps {
 const usStates = new UsaStates();
 const states = usStates.states;
 
-// Timeout delays (in milliseconds) for setting up form control property
-// These delays ensure the form control property is set up before browser extensions try to access it
-// 0ms: immediate attempt (redundant with direct call, but ensures consistency)
-// 10ms: catches async form setup after initial render
-// 50ms: final fallback for edge cases where form association happens asynchronously
+// Timeout delays (in milliseconds) for setting up the form control property.
+// These values are tuned to mirror how browser extensions attempt to read form.control:
+//   • 0ms: immediate attempt during initial render (safeguards against synchronous checks).
+//   • 10ms: allows microtasks or short async rendering churn to finish before the retry.
+//   • 50ms: final fallback that catches extensions that inspect the DOM slightly later (e.g., due to batched updates).
+// The staggered retry pattern keeps the property available even when React or the browser schedules rendering work asynchronously.
 const FORM_CONTROL_SETUP_DELAYS = [0, 10, 50] as const;
 
 export function LocationForm({ location, closeDialog, formId }: LocationFormProps) {
@@ -142,7 +149,9 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
       if (state.errors && Object.keys(state.errors).length > 0) {
         // Map server-side errors to RHF fields
         Object.entries(state.errors).forEach(([field, errors]) => {
-          const message = Array.isArray(errors) ? errors[0] : (errors as unknown as string) || 'Invalid value';
+          const message = Array.isArray(errors)
+            ? errors[0]
+            : (errors as unknown as string) || 'Invalid value';
           form.setError(field as keyof LocationFormValues, { message });
         });
         toast.error(state.message);
@@ -266,7 +275,8 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
                 </FormControl>
                 <FormMessage />
                 <p className="text-xs text-muted-foreground">
-                  Start typing a street address (suggestions appear after a few characters). Selected address will auto-populate all fields below.
+                  Start typing a street address (suggestions appear after a few characters).
+                  Selected address will auto-populate all fields below.
                 </p>
               </FormItem>
             )}
@@ -344,7 +354,7 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
 
         <fieldset className="border p-4 rounded-md space-y-3">
           <legend className="text-sm font-medium px-1">Location & Coordinates</legend>
-          
+
           <div className="space-y-3">
             <MapPicker height="h-[300px] sm:h-[400px]" />
             <p className="text-xs text-muted-foreground">
@@ -356,7 +366,9 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div>
-              <label className="text-sm font-medium" htmlFor="latitude-display">Latitude</label>
+              <label className="text-sm font-medium" htmlFor="latitude-display">
+                Latitude
+              </label>
               {hasCoordinates ? (
                 <Input
                   id="latitude-display"
@@ -372,7 +384,9 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
               )}
             </div>
             <div>
-              <label className="text-sm font-medium" htmlFor="longitude-display">Longitude</label>
+              <label className="text-sm font-medium" htmlFor="longitude-display">
+                Longitude
+              </label>
               {hasCoordinates ? (
                 <Input
                   id="longitude-display"
@@ -390,7 +404,9 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
           </div>
 
           <div>
-            <label className="text-sm font-medium" htmlFor="timezone">Timezone</label>
+            <label className="text-sm font-medium" htmlFor="timezone">
+              Timezone
+            </label>
             {location?.timezone || state.location?.timezone ? (
               <Input
                 id="timezone"
@@ -410,7 +426,7 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
                 : 'Automatically set based on location coordinates'}
             </p>
           </div>
-          
+
           <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
             <Button
               type="button"
@@ -445,5 +461,3 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
     </Form>
   );
 }
-
-

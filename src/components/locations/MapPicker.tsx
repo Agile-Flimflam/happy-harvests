@@ -27,7 +27,8 @@ const DEFAULT_LONGITUDE = -98.5795;
 const DEFAULT_ZOOM = 3;
 
 // Threshold for coordinate comparison (in degrees)
-// 0.0001 degrees ≈ 11 meters at the equator
+// 0.0001 degrees is roughly 11 meters at the equator and decreases toward the poles,
+// so this is an approximation meant only to prevent frequent updates from tiny drifts.
 // Used to determine if coordinates have changed significantly enough to trigger updates
 const COORDINATE_CHANGE_THRESHOLD = 0.0001;
 
@@ -68,7 +69,7 @@ export function MapPicker({
   const lastProcessedFormCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
 
   // SECURITY CONSIDERATION: Mapbox access token usage
-  // 
+  //
   // IMPORTANT: The mapbox-gl library requires the token to be passed as a prop, which means
   // it will be embedded in the client-side JavaScript bundle. This is a limitation of the library.
   //
@@ -113,7 +114,7 @@ export function MapPicker({
       const newLat = latitude ?? DEFAULT_LATITUDE;
       const newLng = longitude ?? DEFAULT_LONGITUDE;
       const lastProcessed = lastProcessedFormCoordsRef.current;
-      
+
       // Only update if coordinates actually changed from what we last processed
       const coordsChanged =
         !lastProcessed ||
@@ -138,73 +139,73 @@ export function MapPicker({
 
   // Reverse geocode to get address from coordinates
   // Uses backend API route to keep Mapbox access token secure server-side
-  const reverseGeocode = useCallback(
-    async (lat: number, lng: number) => {
-      // Track that we're attempting to reverse geocode these coordinates
-      lastReverseGeocodedRef.current = { lat, lng };
+  const reverseGeocode = useCallback(async (lat: number, lng: number) => {
+    // Track that we're attempting to reverse geocode these coordinates
+    lastReverseGeocodedRef.current = { lat, lng };
 
-      setIsReverseGeocoding(true);
-      setReverseGeocodeError(null);
+    setIsReverseGeocoding(true);
+    setReverseGeocodeError(null);
 
-      try {
-        // Use backend API route instead of direct Mapbox API call
-        // This keeps the access token secure on the server
-        const url = new URL('/api/mapbox/reverse-geocode', window.location.origin);
-        url.searchParams.set('latitude', String(lat));
-        url.searchParams.set('longitude', String(lng));
-        url.searchParams.set('types', 'address');
+    try {
+      // Use backend API route instead of direct Mapbox API call
+      // This keeps the access token secure on the server
+      const url = new URL('/api/mapbox/reverse-geocode', window.location.origin);
+      url.searchParams.set('latitude', String(lat));
+      url.searchParams.set('longitude', String(lng));
+      url.searchParams.set('types', 'address');
 
-        // Use backend API route - token is kept server-side and never exposed in URLs
-        const response = await fetch(url.toString(), {
-          method: 'GET',
-          cache: 'no-store',
-          // Ensure credentials are not sent (token is server-side)
-          credentials: 'same-origin',
-        });
+      // Use backend API route - token is kept server-side and never exposed in URLs
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        cache: 'no-store',
+        // Ensure credentials are not sent (token is server-side)
+        credentials: 'same-origin',
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          const errorMessage = errorData.error || response.statusText;
-          
-          if (response.status === 401) {
-            throw new Error('Mapbox authentication failed. Please check your access token.');
-          } else if (response.status === 429) {
-            throw new Error('Too many requests. Please try again in a moment.');
-          } else if (response.status >= 500) {
-            throw new Error('Mapbox service is temporarily unavailable. Please try again later.');
-          } else {
-            throw new Error(errorMessage || 'Unable to retrieve address for this location. You can still use the coordinates.');
-          }
-        }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || response.statusText;
 
-        const data = await response.json();
-        if (data && (data.place_name || data.address)) {
-          setPopupInfo({
-            place_name: data.place_name,
-            address: data.address || data.place_name,
-          });
-          setShowPopup(true);
-          setReverseGeocodeError(null);
+        if (response.status === 401) {
+          throw new Error('Mapbox authentication failed. Please check your access token.');
+        } else if (response.status === 429) {
+          throw new Error('Too many requests. Please try again in a moment.');
+        } else if (response.status >= 500) {
+          throw new Error('Mapbox service is temporarily unavailable. Please try again later.');
         } else {
-          // No address found, but that's okay - coordinates are still valid
-          setPopupInfo(null);
-          setShowPopup(false);
-          setReverseGeocodeError(null);
+          throw new Error(
+            errorMessage ||
+              'Unable to retrieve address for this location. You can still use the coordinates.'
+          );
         }
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error
-            ? err.message
-            : 'Unable to retrieve address information. The coordinates are still valid.';
-        setReverseGeocodeError(errorMessage);
+      }
+
+      const data = await response.json();
+      if (data && (data.place_name || data.address)) {
+        setPopupInfo({
+          place_name: data.place_name,
+          address: data.address || data.place_name,
+        });
+        setShowPopup(true);
+        setReverseGeocodeError(null);
+      } else {
+        // No address found, but that's okay - coordinates are still valid
         setPopupInfo(null);
         setShowPopup(false);
-      } finally {
-        setIsReverseGeocoding(false);
+        setReverseGeocodeError(null);
       }
-    },
-    []
-  );
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : 'Unable to retrieve address information. The coordinates are still valid.';
+      setReverseGeocodeError(errorMessage);
+      setPopupInfo(null);
+      setShowPopup(false);
+    } finally {
+      setIsReverseGeocoding(false);
+    }
+  }, []);
 
   // Keep the ref updated with the latest reverseGeocode function
   useEffect(() => {
@@ -218,8 +219,8 @@ export function MapPicker({
       setIsDragging(false);
 
       // Update form coordinates
-      setValue('latitude', lat, { shouldValidate: true });
-      setValue('longitude', lng, { shouldValidate: true });
+      setValue('latitude', lat, { shouldValidate: true, shouldDirty: true });
+      setValue('longitude', lng, { shouldValidate: true, shouldDirty: true });
 
       // Reverse geocode to get address
       reverseGeocode(lat, lng);
@@ -234,8 +235,8 @@ export function MapPicker({
       const { lat, lng } = event.lngLat;
 
       // Update form coordinates
-      setValue('latitude', lat, { shouldValidate: true });
-      setValue('longitude', lng, { shouldValidate: true });
+      setValue('latitude', lat, { shouldValidate: true, shouldDirty: true });
+      setValue('longitude', lng, { shouldValidate: true, shouldDirty: true });
 
       // Reverse geocode to get address
       reverseGeocode(lat, lng);
@@ -294,7 +295,8 @@ export function MapPicker({
           <div className="flex items-center gap-2 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>
-              Mapbox access token is not configured. Please set NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN in your environment variables.
+              Mapbox access token is not configured. Please set NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN in
+              your environment variables.
             </span>
           </div>
         </CardContent>
@@ -397,4 +399,3 @@ export function MapPicker({
     </Card>
   );
 }
-
