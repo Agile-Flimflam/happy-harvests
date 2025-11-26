@@ -2,7 +2,10 @@ name: Gemini AI Integration
 
 on:
   pull_request:
-    types: [opened, reopened, labeled]
+    # Only run Gemini workflows for PRs targeting main
+    branches: [main]
+    # Trigger on PR open/reopen, label changes, and new commits (synchronize)
+    types: [opened, reopened, synchronize, labeled]
     paths:
       - 'src/**/*.ts'
       - 'src/**/*.tsx'
@@ -52,10 +55,10 @@ jobs:
       pull-requests: write
       issues: write
     # Run only for PRs from this repository (not forks) to avoid executing untrusted code with secrets,
-    # and only on PR open/reopen events (not label changes).
+    # and only on PR open/reopen/synchronize events (not label changes).
     if: >
       github.event_name == 'pull_request' &&
-      (github.event.action == 'opened' || github.event.action == 'reopened') &&
+      (github.event.action == 'opened' || github.event.action == 'reopened' || github.event.action == 'synchronize') &&
       github.event.pull_request.head.repo != null &&
       github.event.pull_request.head.repo.fork != true
     steps:
