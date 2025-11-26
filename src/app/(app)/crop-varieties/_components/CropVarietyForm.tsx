@@ -87,6 +87,8 @@ function isValidBlobUrl(url: string): boolean {
     // Check if origin starts with dangerous protocol schemes (javascript:, data:, vbscript:)
     // These protocols use a single colon ':', not '://'
     const lowerOrigin = origin.toLowerCase();
+    // Reject any origin that uses an executable protocol (javascript:, data:, etc.)
+    // so we never accidentally treat those values as safe blob URLs.
     if (
       lowerOrigin.startsWith('javascript:') ||
       lowerOrigin.startsWith('data:') ||
