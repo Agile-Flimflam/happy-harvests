@@ -35,7 +35,7 @@ async function reviewCodeWithGemini(
   filePath: string,
   fileContent: string
 ): Promise<ReviewResult> {
-  const model = gemini.getGenerativeModel({ model: 'gemini-1.0-pro' });
+  const model = gemini.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const safeFilePath: string = prepareForPrompt(filePath);
   const safeFileContent: string = prepareForPrompt(fileContent);
