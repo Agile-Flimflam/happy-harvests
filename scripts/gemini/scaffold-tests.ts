@@ -238,7 +238,7 @@ async function generateTestScaffold(
   sourceFilePath: string,
   sourceCode: string
 ): Promise<string> {
-  const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = gemini.getGenerativeModel({ model: 'gemini-1.0-pro' });
 
   const safeSourceFilePath: string = prepareForPrompt(sourceFilePath);
   const safeSourceCode: string = prepareForPrompt(sourceCode);
