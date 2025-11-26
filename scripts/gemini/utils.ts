@@ -8,12 +8,19 @@ import * as path from 'node:path';
 // prompt field.
 // This helps keep prompts within reasonable size limits and reduces the impact of extremely
 // large or adversarial inputs.
-const MAX_PROMPT_CONTENT_LENGTH: number = 40_000;
+//
+// Note: We leave a small buffer (e.g. 1000 chars) below the "half of combined max" threshold
+// to account for truncation messages ("[Content truncated...]") and overhead, ensuring that
+// two truncated fields don't accidentally sum to slightly more than MAX_COMBINED_PROMPT_CONTENT_LENGTH.
+const MAX_PROMPT_CONTENT_LENGTH: number = 39_000;
 
 // Conservative upper bound on *combined* prompt fields that share the same prompt. Callers
 // should still be mindful of the model's request limits (e.g., tokens) after additional static
 // context is added around the user-controlled pieces.
-const MAX_COMBINED_PROMPT_CONTENT_LENGTH: number = MAX_PROMPT_CONTENT_LENGTH * 2;
+//
+// This is set to 80,000 characters, allowing two fully-saturated fields (39k each) to fit comfortably
+// with room for truncation notices.
+const MAX_COMBINED_PROMPT_CONTENT_LENGTH: number = 80_000;
 
 /**
  * Prepare arbitrary user-controlled content before embedding it into an LLM prompt.

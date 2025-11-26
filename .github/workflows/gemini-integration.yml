@@ -28,17 +28,17 @@ on:
   # Label events are handled via the regular pull_request trigger with type "labeled".
   # This avoids using pull_request_target with elevated base-branch permissions, which can
   # be a high‑risk pattern if guard logic is ever bypassed.
-workflow_dispatch:
-  inputs:
-    pr_number:
-      description: 'PR number to generate tests for'
-      required: true
-      type: string
-    commit_changes:
-      description: 'Automatically commit and push generated test files'
-      required: false
-      type: boolean
-      default: false
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to generate tests for'
+        required: true
+        type: string
+      commit_changes:
+        description: 'Automatically commit and push generated test files'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   gemini-analysis:

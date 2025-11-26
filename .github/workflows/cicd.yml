@@ -149,11 +149,13 @@ jobs:
         run: pnpm exec playwright install --with-deps
 
       - name: Install Supabase CLI
-        uses: supabase/setup-cli@554656f7218fa3ad34b5d8faee1301fadea43e70 # v2.62.5
-        with:
-          # Use the latest stable Supabase CLI. If you need fully reproducible builds,
-          # intentionally pin this to a specific, existing CLI version.
-          version: 2.62.5
+        run: |
+          SUPABASE_CLI_VERSION="2.62.5"
+          ARCHIVE="supabase_${SUPABASE_CLI_VERSION}_linux_amd64.tar.gz"
+          curl -fSL "https://github.com/supabase/cli/releases/download/v${SUPABASE_CLI_VERSION}/${ARCHIVE}" -o "$ARCHIVE"
+          tar -xzf "$ARCHIVE"
+          sudo mv supabase /usr/local/bin/supabase
+          supabase --version
 
       - name: Start Supabase
         run: |

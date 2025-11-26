@@ -218,7 +218,7 @@ function isLikelyValidBranchRef(ref: string): boolean {
   // - disallow some patterns that are known-invalid or special in git refs
   // The character class explicitly escapes `[` and `]` and also rejects backslash
   // to avoid ambiguity across regex engines.
-  if (/[~^:\s?*\[\\\]]/.test(trimmed)) return false;
+  if (/[~^:\s?*[\\\]]/.test(trimmed)) return false;
   if (trimmed.includes('..')) return false;
   if (trimmed.endsWith('.')) return false;
   if (trimmed.endsWith('/')) return false;
