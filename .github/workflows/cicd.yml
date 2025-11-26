@@ -65,7 +65,7 @@ jobs:
         with:
           # Use the latest stable Supabase CLI. If you need fully reproducible builds,
           # intentionally pin this to a specific, existing CLI version.
-          version: 1.6.0
+          version: 2.62.5
 
       - name: Start Supabase
         run: supabase start
@@ -153,7 +153,7 @@ jobs:
         with:
           # Use the latest stable Supabase CLI. If you need fully reproducible builds,
           # intentionally pin this to a specific, existing CLI version.
-          version: 1.6.0
+          version: 2.62.5
 
       - name: Start Supabase
         run: |
@@ -289,7 +289,7 @@ jobs:
         with:
           # Use the latest stable Supabase CLI. If you need fully reproducible builds,
           # intentionally pin this to a specific, existing CLI version.
-          version: 1.6.0
+          version: 2.62.5
 
       - name: Push migrations to production
         run: supabase db push --project-ref $SUPABASE_PROJECT_ID
