@@ -106,6 +106,9 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      supabase:
+        specifier: ^2.62.5
+        version: 2.62.5
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.3.1
@@ -3329,6 +3332,13 @@ packages:
         integrity: sha512-Ko0uX15oIUS7wJ3Rb30Fs6SkVbLmPBAKdlm7q9+ak9bbIeFf0MwuBsQV6z7+X768/cHsfg+WlysDWJcmthjsjQ==,
       }
 
+  bin-links@6.0.0:
+    resolution:
+      {
+        integrity: sha512-X4CiKlcV2GjnCMwnKAfbVWpHa++65th9TuzAEYtZoATiOE2DQKhSp4CJlyLoTqdhBKlXjpXjCTYPNNFS33Fi6w==,
+      }
+    engines: { node: ^20.17.0 || >=22.9.0 }
+
   binaryextensions@6.11.0:
     resolution:
       {
@@ -3515,6 +3525,13 @@ packages:
         integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==,
       }
     engines: { node: '>=6' }
+
+  cmd-shim@8.0.0:
+    resolution:
+      {
+        integrity: sha512-Jk/BK6NCapZ58BKUxlSI+ouKRbjH1NLZCgJkYoab+vEHUY3f6OzpNBN9u7HFSv9J6TRDGs4PLOHezoKGaFRSCA==,
+      }
+    engines: { node: ^20.17.0 || >=22.9.0 }
 
   cmdk@1.1.1:
     resolution:
@@ -5823,6 +5840,13 @@ packages:
       }
     engines: { node: '>= 18' }
 
+  minizlib@3.1.0:
+    resolution:
+      {
+        integrity: sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==,
+      }
+    engines: { node: '>= 18' }
+
   mkdirp@3.0.1:
     resolution:
       {
@@ -5939,6 +5963,13 @@ packages:
         integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==,
       }
     engines: { node: '>=0.10.0' }
+
+  npm-normalize-package-bin@5.0.0:
+    resolution:
+      {
+        integrity: sha512-CJi3OS4JLsNMmr2u07OJlhcrPxCeOeP/4xq67aWNai6TNWWbTrlNDgl8NcFKVlcBKp18GPj+EzbNIgrBfZhsag==,
+      }
+    engines: { node: ^20.17.0 || >=22.9.0 }
 
   npm-run-path@4.0.1:
     resolution:
@@ -6295,6 +6326,13 @@ packages:
       }
     engines: { node: ^14.15.0 || ^16.10.0 || >=18.0.0 }
 
+  proc-log@6.1.0:
+    resolution:
+      {
+        integrity: sha512-iG+GYldRf2BQ0UDUAd6JQ/RwzaQy6mXmsk/IzlYyal4A4SNFw54MeH4/tLkF4I5WoWG9SQwuqWzS99jaFQHBuQ==,
+      }
+    engines: { node: ^20.17.0 || >=22.9.0 }
+
   prompts@2.4.2:
     resolution:
       {
@@ -6441,6 +6479,13 @@ packages:
         integrity: sha512-w8nqGImo45dmMIfljjMwOGtbmC/mk4CMYhWIicdSflH91J9TyCyczcPFXJzrZ/ZXcgGRFeP6BU0BEJTw6tZdfQ==,
       }
     engines: { node: '>=0.10.0' }
+
+  read-cmd-shim@6.0.0:
+    resolution:
+      {
+        integrity: sha512-1zM5HuOfagXCBWMN83fuFI/x+T/UhZ7k+KIzhrHXcQoeX5+7gmaDYjELQHmmzIodumBHeByBJT4QYS7ufAgs7A==,
+      }
+    engines: { node: ^20.17.0 || >=22.9.0 }
 
   read-pkg@9.0.1:
     resolution:
@@ -7016,6 +7061,14 @@ packages:
       babel-plugin-macros:
         optional: true
 
+  supabase@2.62.5:
+    resolution:
+      {
+        integrity: sha512-KjR57sEwNpTLOMHo+Nt9bHtq9RGWV0GGp6MWALp7RQtOcZdUopUOH+hoOojAuVyk4ChOipB7POu0y3vssW272A==,
+      }
+    engines: { npm: '>=8' }
+    hasBin: true
+
   supports-color@7.2.0:
     resolution:
       {
@@ -7080,6 +7133,13 @@ packages:
     resolution:
       {
         integrity: sha512-5S7Va8hKfV7W5U6g3aYxXmlPoZVAwUMy9AOKyF2fVuZa2UD3qZjg578OrLRt8PcNN1PleVaL/5/yYATNL0ICUw==,
+      }
+    engines: { node: '>=18' }
+
+  tar@7.5.2:
+    resolution:
+      {
+        integrity: sha512-7NyxrTE4Anh8km8iEy7o0QYPs+0JKBTj5ZaqHg6B39erLg0qYXN3BijtShwbsNSvQ+LN75+KV+C4QR/f6Gwnpg==,
       }
     engines: { node: '>=18' }
 
@@ -7553,6 +7613,13 @@ packages:
         integrity: sha512-7KxauUdBmSdWnmpaGFg+ppNjKF8uNLry8LyzjauQDOVONfFLNKrKvQOxZ/VuTIcS/gge/YNahf5RIIQWTSarlg==,
       }
     engines: { node: ^12.13.0 || ^14.15.0 || >=16.0.0 }
+
+  write-file-atomic@7.0.0:
+    resolution:
+      {
+        integrity: sha512-YnlPC6JqnZl6aO4uRc+dx5PHguiR9S6WeoLtpxNT9wIG+BDya7ZNE1q7KOjVgaA73hKhKLpVPgJ5QA9THQ5BRg==,
+      }
+    engines: { node: ^20.17.0 || >=22.9.0 }
 
   ws@7.5.10:
     resolution:
@@ -9753,6 +9820,14 @@ snapshots:
 
   bignumber.js@9.3.1: {}
 
+  bin-links@6.0.0:
+    dependencies:
+      cmd-shim: 8.0.0
+      npm-normalize-package-bin: 5.0.0
+      proc-log: 6.1.0
+      read-cmd-shim: 6.0.0
+      write-file-atomic: 7.0.0
+
   binaryextensions@6.11.0:
     dependencies:
       editions: 6.22.0
@@ -9850,6 +9925,8 @@ snapshots:
       wrap-ansi: 7.0.0
 
   clsx@2.1.1: {}
+
+  cmd-shim@8.0.0: {}
 
   cmdk@1.1.1(@types/react-dom@19.1.7(@types/react@19.1.11))(@types/react@19.1.11)(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
     dependencies:
@@ -10731,7 +10808,7 @@ snapshots:
   https-proxy-agent@7.0.6:
     dependencies:
       agent-base: 7.1.4
-      debug: 4.4.1
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -11560,6 +11637,10 @@ snapshots:
     dependencies:
       minipass: 7.1.2
 
+  minizlib@3.1.0:
+    dependencies:
+      minipass: 7.1.2
+
   mkdirp@3.0.1: {}
 
   mrmime@2.0.1: {}
@@ -11620,6 +11701,8 @@ snapshots:
       validate-npm-package-license: 3.0.4
 
   normalize-path@3.0.0: {}
+
+  npm-normalize-package-bin@5.0.0: {}
 
   npm-run-path@4.0.1:
     dependencies:
@@ -11818,6 +11901,8 @@ snapshots:
       ansi-styles: 5.2.0
       react-is: 18.3.1
 
+  proc-log@6.1.0: {}
+
   prompts@2.4.2:
     dependencies:
       kleur: 3.0.3
@@ -11904,6 +11989,8 @@ snapshots:
       '@types/react': 19.1.11
 
   react@19.1.1: {}
+
+  read-cmd-shim@6.0.0: {}
 
   read-pkg@9.0.1:
     dependencies:
@@ -12303,6 +12390,15 @@ snapshots:
     optionalDependencies:
       '@babel/core': 7.28.5
 
+  supabase@2.62.5:
+    dependencies:
+      bin-links: 6.0.0
+      https-proxy-agent: 7.0.6
+      node-fetch: 3.3.2
+      tar: 7.5.2
+    transitivePeerDependencies:
+      - supports-color
+
   supports-color@7.2.0:
     dependencies:
       has-flag: 4.0.0
@@ -12341,6 +12437,14 @@ snapshots:
       minipass: 7.1.2
       minizlib: 3.0.2
       mkdirp: 3.0.1
+      yallist: 5.0.0
+
+  tar@7.5.2:
+    dependencies:
+      '@isaacs/fs-minipass': 4.0.1
+      chownr: 3.0.0
+      minipass: 7.1.2
+      minizlib: 3.1.0
       yallist: 5.0.0
 
   terminal-link@4.0.0:
@@ -12673,6 +12777,11 @@ snapshots:
     dependencies:
       imurmurhash: 0.1.4
       signal-exit: 3.0.7
+
+  write-file-atomic@7.0.0:
+    dependencies:
+      imurmurhash: 0.1.4
+      signal-exit: 4.1.0
 
   ws@7.5.10: {}
 

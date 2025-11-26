@@ -163,7 +163,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # For label-based runs, always commit; for manual workflow_dispatch, respect the
           # commit_changes input (defaulting to false).
-          COMMIT_CHANGES: "${{ github.event_name == 'workflow_dispatch' ? github.event.inputs.commit_changes : 'true' }}"
+          COMMIT_CHANGES: ${{ github.event_name == 'pull_request' || github.event.inputs.commit_changes == 'true' }}
           GITHUB_HEAD_REF: ${{ github.head_ref || github.ref_name }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number || '' }}
