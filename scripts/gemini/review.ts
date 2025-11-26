@@ -179,26 +179,29 @@ ${fileIssues
   }
 }
 
-try {
-  core.info('Starting Gemini code review...');
+async function run(): Promise<void> {
+  try {
+    core.info('Starting Gemini code review...');
 
-  const gemini = initGeminiClient();
-  const octokit = initGitHubClient();
-  const prContext = getPRContext();
+    const gemini = initGeminiClient();
+    const octokit = initGitHubClient();
+    const prContext = getPRContext();
 
-  core.info(`Reviewing PR #${prContext.prNumber} in ${prContext.owner}/${prContext.repo}`);
+    core.info(`Reviewing PR #${prContext.prNumber} in ${prContext.owner}/${prContext.repo}`);
 
-  // Get changed TypeScript/TSX code files once for this review run
-  const codeFiles = await getChangedCodeFiles(
-    octokit,
-    prContext.owner,
-    prContext.repo,
-    prContext.prNumber
-  );
+    // Get changed TypeScript/TSX code files once for this review run
+    const codeFiles = await getChangedCodeFiles(
+      octokit,
+      prContext.owner,
+      prContext.repo,
+      prContext.prNumber
+    );
 
-  if (codeFiles.length === 0) {
-    core.info('No TypeScript/TSX files changed in this PR.');
-  } else {
+    if (codeFiles.length === 0) {
+      core.info('No TypeScript/TSX files changed in this PR.');
+      return;
+    }
+
     core.info(`Found ${codeFiles.length} code files to review`);
 
     // Review each file
@@ -242,7 +245,12 @@ try {
     );
 
     core.info(`Review complete. Found ${allIssues.length} issues.`);
+  } catch (error) {
+    core.setFailed(`Code review failed: ${error}`);
   }
-} catch (error) {
-  core.setFailed(`Code review failed: ${error}`);
 }
+
+run().catch((error) => {
+  core.setFailed(`Unhandled error: ${error}`);
+  process.exit(1);
+});
