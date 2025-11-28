@@ -1,18 +1,18 @@
-name: "Setup Node.js and pnpm"
-description: "Setup pnpm, setup Node.js, and install dependencies"
+name: 'Setup Node.js and pnpm'
+description: 'Setup pnpm, setup Node.js, and install dependencies'
 
 inputs:
   node-version:
-    description: "Node.js version to use"
+    description: 'Node.js version to use'
     required: false
-    default: "20"
+    default: '20'
   pnpm-version:
-    description: "pnpm version to use"
+    description: 'pnpm version to use'
     required: false
-    default: "9"
+    default: '9'
 
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
     - name: Setup pnpm
       uses: pnpm/action-setup@v4
@@ -23,7 +23,7 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
-        cache: "pnpm"
+        cache: 'pnpm'
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile

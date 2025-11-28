@@ -15,7 +15,7 @@ export type CropVarietyFormState = {
   message: string;
   errors?: Record<string, string[] | undefined>;
   cropVariety?: CropVariety | null;
-}
+};
 
 // No JSON helper needed in new schema
 
@@ -48,7 +48,10 @@ function isSupportedImageType(file: File): boolean {
 function isFileLike(value: unknown): value is File {
   return (
     (typeof File !== 'undefined' && value instanceof File) ||
-    (typeof value === 'object' && value !== null && 'size' in (value as Record<string, unknown>) && 'type' in (value as Record<string, unknown>))
+    (typeof value === 'object' &&
+      value !== null &&
+      'size' in (value as Record<string, unknown>) &&
+      'type' in (value as Record<string, unknown>))
   );
 }
 
@@ -113,7 +116,9 @@ export async function createCropVariety(
       if (!isSupportedImageType(file)) {
         // Rollback row if image invalid
         await supabase.from('crop_varieties').delete().eq('id', inserted.id);
-        return { message: 'Validation failed. Unsupported image type. Allowed: JPEG, PNG, WEBP, AVIF.' };
+        return {
+          message: 'Validation failed. Unsupported image type. Allowed: JPEG, PNG, WEBP, AVIF.',
+        };
       }
       if (file.size > 5 * 1024 * 1024) {
         await supabase.from('crop_varieties').delete().eq('id', inserted.id);
@@ -173,7 +178,10 @@ export async function updateCropVariety(
     .single();
   if (fetchError || !existing) {
     console.error('Supabase Error (fetch existing):', fetchError);
-    return { message: `Database Error: ${fetchError?.message || 'Not found'}`, cropVariety: prevState.cropVariety };
+    return {
+      message: `Database Error: ${fetchError?.message || 'Not found'}`,
+      cropVariety: prevState.cropVariety,
+    };
   }
   const validatedFields = CropVarietySchema.safeParse({
     id,
@@ -228,10 +236,16 @@ export async function updateCropVariety(
 
     if (file && file.size > 0) {
       if (!isSupportedImageType(file)) {
-        return { message: 'Validation failed. Unsupported image type. Allowed: JPEG, PNG, WEBP, AVIF.', cropVariety: prevState.cropVariety };
+        return {
+          message: 'Validation failed. Unsupported image type. Allowed: JPEG, PNG, WEBP, AVIF.',
+          cropVariety: prevState.cropVariety,
+        };
       }
       if (file.size > 5 * 1024 * 1024) {
-        return { message: 'Validation failed. Image size exceeds 5MB.', cropVariety: prevState.cropVariety };
+        return {
+          message: 'Validation failed. Image size exceeds 5MB.',
+          cropVariety: prevState.cropVariety,
+        };
       }
 
       // Delete old image if exists (best-effort)
@@ -251,7 +265,10 @@ export async function updateCropVariety(
         });
       if (uploadError) {
         console.error('Storage upload error:', uploadError);
-        return { message: `Image upload failed: ${uploadError.message}`, cropVariety: prevState.cropVariety };
+        return {
+          message: `Image upload failed: ${uploadError.message}`,
+          cropVariety: prevState.cropVariety,
+        };
       }
       cropVarietyDataToUpdate.image_path = path;
     }
@@ -272,7 +289,11 @@ export async function updateCropVariety(
   }
 }
 
-export async function deleteCropVariety(id: string | number): Promise<{ message: string }> {
+export type DeleteCropVarietyResult = {
+  message: string;
+};
+
+export async function deleteCropVariety(id: string | number): Promise<DeleteCropVarietyResult> {
   const supabase = await createSupabaseServerClient();
   const numericId = typeof id === 'number' ? id : parseInt(id, 10);
   if (!numericId || Number.isNaN(numericId)) {
@@ -293,7 +314,10 @@ export async function deleteCropVariety(id: string | number): Promise<{ message:
     if (error) {
       console.error('Supabase Error:', error);
       if (error.code === '23503') {
-        return { message: 'Database Error: Cannot delete crop variety because it is currently associated with one or more crops.' };
+        return {
+          message:
+            'Database Error: Cannot delete crop variety because it is currently associated with one or more crops.',
+        };
       }
       return { message: `Database Error: ${error.message}` };
     }
@@ -306,7 +330,7 @@ export async function deleteCropVariety(id: string | number): Promise<{ message:
 }
 
 // Inline Crop creation for the Crop Varieties page
-type Crop = Database['public']['Tables']['crops']['Row'];
+export type Crop = Database['public']['Tables']['crops']['Row'];
 type CropInsert = Database['public']['Tables']['crops']['Insert'];
 type CropType = Enums<'crop_type'>;
 
@@ -316,7 +340,7 @@ export type SimpleCropFormState = {
   message: string;
   errors?: Record<string, string[] | undefined>;
   crop?: Crop | null;
-}
+};
 
 export async function createCropSimple(
   prevState: SimpleCropFormState,
@@ -328,7 +352,10 @@ export async function createCropSimple(
     crop_type: formData.get('crop_type'),
   });
   if (!validated.success) {
-    return { message: 'Validation failed. Could not create crop.', errors: validated.error.flatten().fieldErrors };
+    return {
+      message: 'Validation failed. Could not create crop.',
+      errors: validated.error.flatten().fieldErrors,
+    };
   }
   const insertData: CropInsert = {
     name: validated.data.name,
@@ -343,7 +370,12 @@ export async function createCropSimple(
   return { message: 'Crop created successfully.', crop: data as Crop, errors: {} };
 }
 
-export async function getCropVarieties(): Promise<{ cropVarieties?: (CropVariety & { crops: { name: string } | null } & { image_url?: string | null })[]; error?: string }> {
+export async function getCropVarieties(): Promise<{
+  cropVarieties?: (CropVariety & { crops: { name: string } | null } & {
+    image_url?: string | null;
+  })[];
+  error?: string;
+}> {
   const supabase = await createSupabaseServerClient();
   try {
     const { data, error } = await supabase
@@ -357,9 +389,13 @@ export async function getCropVarieties(): Promise<{ cropVarieties?: (CropVariety
     const withUrls = (data || []).map((row) => {
       if (row.image_path) {
         const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(row.image_path);
-        return { ...row, image_url: pub?.publicUrl || null } as CropVariety & { crops: { name: string } | null } & { image_url?: string | null };
+        return { ...row, image_url: pub?.publicUrl || null } as CropVariety & {
+          crops: { name: string } | null;
+        } & { image_url?: string | null };
       }
-      return { ...row, image_url: null } as CropVariety & { crops: { name: string } | null } & { image_url?: string | null };
+      return { ...row, image_url: null } as CropVariety & { crops: { name: string } | null } & {
+        image_url?: string | null;
+      };
     });
     withUrls.sort((a, b) => {
       const cropA = (a.crops?.name || '').toString();
@@ -374,5 +410,3 @@ export async function getCropVarieties(): Promise<{ cropVarieties?: (CropVariety
     return { error: 'An unexpected error occurred while fetching crop varieties.' };
   }
 }
-
-

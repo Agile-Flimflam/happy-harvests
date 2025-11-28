@@ -8,6 +8,7 @@ import {
   getFileContents,
   prepareForPrompt,
 } from './utils';
+import { z } from 'zod';
 
 interface ReviewIssue {
   file: string;
@@ -30,12 +31,21 @@ interface ReviewResult {
   issues: ReviewIssue[];
 }
 
+const reviewIssueArraySchema = z.array(
+  z.object({
+    line: z.number(),
+    severity: z.enum(['error', 'warning', 'info']),
+    message: z.string(),
+    category: z.enum(['type-safety', 'tailwind', 'security', 'other']),
+  })
+);
+
 async function reviewCodeWithGemini(
   gemini: GoogleGenerativeAI,
   filePath: string,
   fileContent: string
 ): Promise<ReviewResult> {
-  const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = gemini.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const safeFilePath: string = prepareForPrompt(filePath);
   const safeFileContent: string = prepareForPrompt(fileContent);
@@ -101,10 +111,10 @@ Respond with valid JSON as the only content. You may optionally wrap it in a \`\
     }
 
     try {
-      const issues: ReviewIssue[] = JSON.parse(jsonText);
+      const issuesWithoutFile = reviewIssueArraySchema.parse(JSON.parse(jsonText));
 
       // Add file path to each issue
-      const issuesWithFile: ReviewIssue[] = issues.map((issue) => ({
+      const issuesWithFile: ReviewIssue[] = issuesWithoutFile.map((issue) => ({
         ...issue,
         file: filePath,
       }));
@@ -113,15 +123,17 @@ Respond with valid JSON as the only content. You may optionally wrap it in a \`\
         success: true,
         issues: issuesWithFile,
       };
-    } catch (parseError) {
-      core.warning(`Failed to parse review response for ${filePath}: ${parseError}`);
+    } catch (parseError: unknown) {
+      const message: string = parseError instanceof Error ? parseError.message : String(parseError);
+      core.warning(`Failed to parse review response for ${filePath}: ${message}`);
       return {
         success: false,
         issues: [],
       };
     }
-  } catch (error) {
-    core.warning(`Failed to review ${filePath}: ${error}`);
+  } catch (error: unknown) {
+    const message: string = error instanceof Error ? error.message : String(error);
+    core.warning(`Failed to review ${filePath}: ${message}`);
     return {
       success: false,
       issues: [],
@@ -173,32 +185,36 @@ ${fileIssues
         issue_number: prNumber,
         body,
       });
-    } catch (error) {
-      core.warning(`Failed to post comment for ${file}: ${error}`);
+    } catch (error: unknown) {
+      const message: string = error instanceof Error ? error.message : String(error);
+      core.warning(`Failed to post comment for ${file}: ${message}`);
     }
   }
 }
 
-try {
-  core.info('Starting Gemini code review...');
+async function run(): Promise<void> {
+  try {
+    core.info('Starting Gemini code review...');
 
-  const gemini = initGeminiClient();
-  const octokit = initGitHubClient();
-  const prContext = getPRContext();
+    const gemini = initGeminiClient();
+    const octokit = initGitHubClient();
+    const prContext = getPRContext();
 
-  core.info(`Reviewing PR #${prContext.prNumber} in ${prContext.owner}/${prContext.repo}`);
+    core.info(`Reviewing PR #${prContext.prNumber} in ${prContext.owner}/${prContext.repo}`);
 
-  // Get changed TypeScript/TSX code files once for this review run
-  const codeFiles = await getChangedCodeFiles(
-    octokit,
-    prContext.owner,
-    prContext.repo,
-    prContext.prNumber
-  );
+    // Get changed TypeScript/TSX code files once for this review run
+    const codeFiles = await getChangedCodeFiles(
+      octokit,
+      prContext.owner,
+      prContext.repo,
+      prContext.prNumber
+    );
 
-  if (codeFiles.length === 0) {
-    core.info('No TypeScript/TSX files changed in this PR.');
-  } else {
+    if (codeFiles.length === 0) {
+      core.info('No TypeScript/TSX files changed in this PR.');
+      return;
+    }
+
     core.info(`Found ${codeFiles.length} code files to review`);
 
     // Review each file
@@ -242,7 +258,14 @@ try {
     );
 
     core.info(`Review complete. Found ${allIssues.length} issues.`);
+  } catch (error: unknown) {
+    const message: string = error instanceof Error ? error.message : String(error);
+    core.setFailed(`Code review failed: ${message}`);
   }
-} catch (error) {
-  core.setFailed(`Code review failed: ${error}`);
 }
+
+run().catch((error: unknown) => {
+  const message: string = error instanceof Error ? error.message : String(error);
+  core.setFailed(`Unhandled error: ${message}`);
+  process.exit(1);
+});

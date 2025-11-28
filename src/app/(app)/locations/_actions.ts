@@ -3,7 +3,7 @@
 import { createSupabaseServerClient, type Database, type Tables } from '@/lib/supabase-server';
 import { revalidatePath } from 'next/cache';
 import { fetchWeatherByCoords } from '@/lib/openweather';
-import { LocationSchema } from '@/lib/validation/locations';
+import { LocationSchema, type LocationFormValues } from '@/lib/validation/locations';
 
 // Schema now centralized in src/lib/validation/locations
 
@@ -13,7 +13,7 @@ type LocationUpdate = Database['public']['Tables']['locations']['Update'];
 
 export type LocationFormState = {
   message: string;
-  errors?: Record<string, string[] | undefined>;
+  errors?: Partial<Record<keyof LocationFormValues, string | string[]>>;
   location?: Location | null;
 };
 
@@ -64,12 +64,13 @@ export async function createLocation(
     notes: validated.data.notes ?? null,
   };
   // Populate timezone if coordinates are provided
-  if (
-    typeof validated.data.latitude === 'number' &&
-    typeof validated.data.longitude === 'number'
-  ) {
+  if (typeof validated.data.latitude === 'number' && typeof validated.data.longitude === 'number') {
     try {
-      const weather = await fetchWeatherByCoords(validated.data.latitude, validated.data.longitude, { units: 'imperial' });
+      const weather = await fetchWeatherByCoords(
+        validated.data.latitude,
+        validated.data.longitude,
+        { units: 'imperial' }
+      );
       payload.timezone = weather.timezone ?? null;
     } catch (e) {
       console.error('OpenWeather timezone fetch failed on create:', e);
@@ -121,30 +122,25 @@ export async function updateLocation(
     notes: validated.data.notes ?? null,
   };
   // Populate or clear timezone depending on coordinates
-  if (
-    typeof validated.data.latitude === 'number' &&
-    typeof validated.data.longitude === 'number'
-  ) {
+  if (typeof validated.data.latitude === 'number' && typeof validated.data.longitude === 'number') {
     try {
-      const weather = await fetchWeatherByCoords(validated.data.latitude, validated.data.longitude, { units: 'imperial' });
+      const weather = await fetchWeatherByCoords(
+        validated.data.latitude,
+        validated.data.longitude,
+        { units: 'imperial' }
+      );
       updateData.timezone = weather.timezone ?? null;
     } catch (e) {
       console.error('OpenWeather timezone fetch failed on update:', e);
       // Keep timezone as null if fetch fails
     }
-  } else if (
-    validated.data.latitude == null &&
-    validated.data.longitude == null
-  ) {
+  } else if (validated.data.latitude == null && validated.data.longitude == null) {
     // If coords cleared, also clear timezone
     updateData.timezone = null;
   } else {
     // If only one coordinate is provided, avoid changing timezone by not setting it
   }
-  const { error } = await supabase
-    .from('locations')
-    .update(updateData)
-    .eq('id', id);
+  const { error } = await supabase.from('locations').update(updateData).eq('id', id);
   if (error) {
     return { message: `Database Error: ${error.message}`, location: prevState.location };
   }
@@ -152,7 +148,9 @@ export async function updateLocation(
   return { message: 'Location updated successfully.', location: null, errors: {} };
 }
 
-export async function deleteLocation(id: string): Promise<{ message: string }> {
+export type DeleteLocationResult = { message: string };
+
+export async function deleteLocation(id: string): Promise<DeleteLocationResult> {
   const supabase = await createSupabaseServerClient();
   if (!id) return { message: 'Error: Missing Location ID for delete.' };
   // Optional pre-check: if plots exist, warn earlier
@@ -165,12 +163,17 @@ export async function deleteLocation(id: string): Promise<{ message: string }> {
     console.error('Count error on plots:', countError.message);
   }
   if ((count ?? 0) > 0) {
-    return { message: 'Error: Cannot delete location while plots are associated. Reassign or delete plots first.' };
+    return {
+      message:
+        'Error: Cannot delete location while plots are associated. Reassign or delete plots first.',
+    };
   }
   const { error } = await supabase.from('locations').delete().eq('id', id);
   if (error) {
     if (error.code === '23503') {
-      return { message: 'Database Error: Cannot delete location due to existing associated plots.' };
+      return {
+        message: 'Database Error: Cannot delete location due to existing associated plots.',
+      };
     }
     return { message: `Database Error: ${error.message}` };
   }
@@ -191,7 +194,9 @@ export async function getLocations(): Promise<{ locations?: Location[]; error?: 
   return { locations: (data as Location[]) || [] };
 }
 
-export async function getLocationWithPlots(id: string): Promise<{ location?: LocationWithPlots; error?: string }> {
+export async function getLocationWithPlots(
+  id: string
+): Promise<{ location?: LocationWithPlots; error?: string }> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('locations')
@@ -202,5 +207,3 @@ export async function getLocationWithPlots(id: string): Promise<{ location?: Loc
   const loc = data as LocationWithMaybePlots;
   return { location: { ...loc, plots: loc.plots || [] } };
 }
-
-
