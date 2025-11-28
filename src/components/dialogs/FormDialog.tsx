@@ -32,7 +32,7 @@ type FormDialogProps = {
 
 // Helper to find the dialog content element
 const getDialogContent = (
-  ref: React.RefObject<HTMLDivElement>,
+  ref: React.RefObject<HTMLDivElement | null>,
   eventOrElement?: Event | HTMLElement
 ) => {
   if (ref.current) return ref.current;
@@ -50,7 +50,7 @@ const getDialogContent = (
 };
 
 // Helper to determine if outside interaction should be prevented
-const shouldPreventInteraction = (event: Event, ref: React.RefObject<HTMLDivElement>) => {
+const shouldPreventInteraction = (event: Event, ref: React.RefObject<HTMLDivElement | null>) => {
   const dialogContent = getDialogContent(ref, event);
 
   if (dialogContent?.hasAttribute('data-mapbox-selection-in-progress')) {
