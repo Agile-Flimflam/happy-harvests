@@ -5,7 +5,7 @@ import { createSupabaseServerClient, type Tables } from '@/lib/supabase-server';
 export default async function PlantsPage() {
   const { cropVarieties, error } = await getCropVarieties();
   const supabase = await createSupabaseServerClient();
-  const { data: crops } = await supabase
+  const { data: crops, error: cropsError } = await supabase
     .from('crops')
     .select('id, name, crop_type, created_at')
     .returns<Array<Pick<Tables<'crops'>, 'id' | 'name' | 'crop_type' | 'created_at'>>>()
@@ -13,6 +13,10 @@ export default async function PlantsPage() {
 
   if (error) {
     return <div className="text-red-500">Error loading crop varieties: {error}</div>;
+  }
+
+  if (cropsError) {
+    return <div className="text-red-500">Error loading crops: {cropsError.message}</div>;
   }
 
   const typedCrops =

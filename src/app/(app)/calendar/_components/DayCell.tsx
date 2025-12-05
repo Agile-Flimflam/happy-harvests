@@ -34,7 +34,7 @@ export function DayCell({
       a.getDate() === b.getDate()
     );
   }
-  const key = fmt(date);
+  const dateKey = fmt(date);
   const isOtherMonth = date.getMonth() !== currentMonth;
   const isToday = isSameDay(date, today);
   const isWeekend = date.getDay() === 0 || date.getDay() === 6;
@@ -48,14 +48,13 @@ export function DayCell({
 
   return (
     <div
-      key={key}
       className={`${isWeekView ? 'md:min-h-28 min-h-32' : 'min-h-28'} rounded-lg border border-border/30 transition-colors transition-shadow hover:border-border/70 hover:shadow-md active:shadow-lg active:bg-accent/10 focus-within:ring-2 focus-within:ring-ring/40 ${isOtherMonth ? 'bg-muted/30 text-muted-foreground' : 'bg-background'} ${isWeekend && !isOtherMonth ? 'bg-muted/20' : ''} ${isToday ? 'ring-2 ring-primary/50' : ''}`}
-      onClick={() => onOpenDetail(key)}
+      onClick={() => onOpenDetail(dateKey)}
       role="button"
       tabIndex={0}
       aria-label={date.toLocaleDateString()}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onOpenDetail(key);
+        if (e.key === 'Enter' || e.key === ' ') onOpenDetail(dateKey);
       }}
     >
       {/* Inner content container with overflow control */}

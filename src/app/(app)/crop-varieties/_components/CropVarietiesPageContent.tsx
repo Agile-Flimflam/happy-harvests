@@ -185,10 +185,16 @@ export function CropVarietiesPageContent({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {cropVariety.dtm_direct_seed_min}-{cropVariety.dtm_direct_seed_max}
+                      {cropVariety.dtm_direct_seed_min != null &&
+                      cropVariety.dtm_direct_seed_max != null
+                        ? `${cropVariety.dtm_direct_seed_min}-${cropVariety.dtm_direct_seed_max}`
+                        : 'N/A'}
                     </TableCell>
                     <TableCell>
-                      {cropVariety.dtm_transplant_min}-{cropVariety.dtm_transplant_max}
+                      {cropVariety.dtm_transplant_min != null &&
+                      cropVariety.dtm_transplant_max != null
+                        ? `${cropVariety.dtm_transplant_min}-${cropVariety.dtm_transplant_max}`
+                        : 'N/A'}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
