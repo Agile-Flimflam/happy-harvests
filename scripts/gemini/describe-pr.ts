@@ -15,6 +15,7 @@ import {
 // while still capturing enough of the PR for a meaningful description.
 const MAX_DIFF_LENGTH: number = 50_000;
 
+// Standard markdown code fence (plain ASCII, no zero-width characters).
 const CODE_FENCE: string = '```';
 const PROMPT_SECTION_BOUNDARY_PREFIX: string = '[[BEGIN_';
 const PROMPT_SECTION_BOUNDARY_SUFFIX: string = ']]';

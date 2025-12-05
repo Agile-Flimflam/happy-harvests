@@ -100,10 +100,10 @@ Respond with valid JSON only (optionally wrapped in a \`\`\`json\`\`\` fence), w
 
     // Clean up the response - remove a single outer markdown code block wrapper if present.
     // Uses exact backticks (no zero-width characters) and guards against mismatched fences.
-    let jsonText = text.trim();
+    let jsonText = text.replace(/\u200b/gi, '').trim();
     // Plain backtick fence; avoid zero-width characters to ensure stripping works.
     const fence: string = '```';
-    const fenceWithOptionalLanguage = /^```[a-zA-Z0-9+-]*\s*\n/;
+    const fenceWithOptionalLanguage: RegExp = /^```[a-zA-Z0-9+-]*\s*\n/;
     const fenceMatch = jsonText.match(fenceWithOptionalLanguage);
 
     if (fenceMatch) {

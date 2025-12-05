@@ -54,13 +54,7 @@ function isSupportedImageType(file: File): boolean {
 }
 
 function isFileLike(value: unknown): value is File {
-  return (
-    (typeof File !== 'undefined' && value instanceof File) ||
-    (typeof value === 'object' &&
-      value !== null &&
-      'size' in (value as Record<string, unknown>) &&
-      'type' in (value as Record<string, unknown>))
-  );
+  return typeof File !== 'undefined' && value instanceof File;
 }
 
 export async function createCropVariety(
@@ -413,7 +407,7 @@ export async function createCropSimple(
 }
 
 export async function getCropVarieties(): Promise<{
-  cropVarieties?: CropVarietyWithCropName[];
+  cropVarieties: CropVarietyWithCropName[];
   error?: string;
 }> {
   const supabase = await createSupabaseServerClient();
@@ -424,7 +418,7 @@ export async function getCropVarieties(): Promise<{
       .order('name', { ascending: true });
     if (error) {
       console.error('Supabase Error fetching crop varieties:', error);
-      return { error: `Database Error: ${error.message}` };
+      return { cropVarieties: [], error: `Database Error: ${error.message}` };
     }
     const withUrls: CropVarietyWithCropName[] = (data || []).map((row) => {
       const imageUrl = row.image_path
@@ -442,6 +436,9 @@ export async function getCropVarieties(): Promise<{
     return { cropVarieties: withUrls };
   } catch (e) {
     console.error('Unexpected Error fetching crop varieties:', e);
-    return { error: 'An unexpected error occurred while fetching crop varieties.' };
+    return {
+      cropVarieties: [],
+      error: 'An unexpected error occurred while fetching crop varieties.',
+    };
   }
 }

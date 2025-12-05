@@ -262,6 +262,7 @@ function parseWeatherData(value: unknown): WeatherStateData | null {
     return null;
   }
   const weather = curr.weather;
+  let parsedWeather: { id: number; main: string; description: string; icon: string } | null = null;
   if (weather != null) {
     if (typeof weather !== 'object') return null;
     const w = weather as Record<string, unknown>;
@@ -273,6 +274,12 @@ function parseWeatherData(value: unknown): WeatherStateData | null {
     ) {
       return null;
     }
+    parsedWeather = {
+      id: w.id,
+      main: w.main,
+      description: w.description,
+      icon: w.icon,
+    };
   }
   return {
     timezone: data.timezone,
@@ -282,15 +289,7 @@ function parseWeatherData(value: unknown): WeatherStateData | null {
       sunset: typeof curr.sunset === 'number' ? curr.sunset : undefined,
       temp: curr.temp,
       humidity: curr.humidity,
-      weather:
-        weather != null
-          ? {
-              id: (weather as Record<string, unknown>).id as number,
-              main: (weather as Record<string, unknown>).main as string,
-              description: (weather as Record<string, unknown>).description as string,
-              icon: (weather as Record<string, unknown>).icon as string,
-            }
-          : null,
+      weather: parsedWeather,
     },
     moonPhase: typeof data.moonPhase === 'number' ? data.moonPhase : undefined,
     moonPhaseLabel: typeof data.moonPhaseLabel === 'string' ? data.moonPhaseLabel : undefined,

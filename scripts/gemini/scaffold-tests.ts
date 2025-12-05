@@ -72,8 +72,9 @@ function resolveGitExecutable(): string {
 }
 
 // Constants for standard markdown code fences (plain ASCII, no zero-width chars).
-const CODE_FENCE: string = '```';
-const CODE_FENCE_TS: string = '```typescript';
+// Constructed via concatenation to avoid hidden characters.
+const CODE_FENCE: string = '`' + '`' + '`';
+const CODE_FENCE_TS: string = `${CODE_FENCE}typescript`;
 
 const REPO_ROOT = process.cwd();
 // Restrict PATH to fixed, typically unwritable system directories to avoid using user-controlled
@@ -356,7 +357,7 @@ Generate the complete, runnable TypeScript test file code. You may respond eithe
   try {
     const result = await model.generateContent(prompt);
     const response = result.response;
-    const text = response.text();
+    const text = response.text().replace(/\u200b/gi, '');
 
     // Clean up the response - remove a single outer markdown code fence if present, while leaving
     // any inner fenced code blocks inside the generated test code intact.
@@ -672,10 +673,10 @@ function getPrNumberFromEnvOrContext(defaultPrNumber: number): number {
   const prNumberEnv = process.env.PR_NUMBER;
   if (!prNumberEnv) return defaultPrNumber;
 
-  const parsed = Number.parseInt(prNumberEnv, 10);
-  if (Number.isNaN(parsed)) {
+  const parsed: number = Number.parseInt(prNumberEnv, 10);
+  if (!Number.isFinite(parsed) || Number.isNaN(parsed) || parsed <= 0) {
     core.warning(
-      `Environment variable PR_NUMBER="${prNumberEnv}" is not a valid number; falling back to default PR number ${defaultPrNumber}.`
+      `Environment variable PR_NUMBER="${prNumberEnv}" is not a valid positive number; falling back to default PR number ${defaultPrNumber}.`
     );
     return defaultPrNumber;
   }
