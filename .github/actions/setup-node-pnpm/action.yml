@@ -9,7 +9,7 @@ inputs:
   pnpm-version:
     description: 'pnpm version to use'
     required: false
-    default: '9'
+    default: '9.15.0'
 
 runs:
   using: 'composite'
@@ -28,8 +28,7 @@ runs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        # Keep GitHub Actions aligned with the repo-pinned Node version
-        node-version-file: .nvmrc
+        node-version: ${{ inputs.node-version }}
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
