@@ -79,17 +79,10 @@ function isValidBlobUrl(url: string): boolean {
     }
     // Validate the origin - reject dangerous protocols
     const origin = parsedUrl.origin;
-    const protocol = parsedUrl.protocol.toLowerCase();
-    // Disallow executable protocols outright (Sonar was flagging inline startsWith checks)
-    if (protocol === 'javascript:' || protocol === 'data:' || protocol === 'vbscript:') {
-      return false;
-    }
-    // Accept 'null' origin (common for local blob URLs created via URL.createObjectURL)
-    if (origin === 'null') {
-      return true;
-    }
-    // Non-null origins must explicitly be HTTP/S.
-    return protocol === 'http:' || protocol === 'https:';
+    // Allowlist origin protocols to avoid javascript/data/vbscript execution vectors.
+    const originProtocol = origin === 'null' ? 'null' : new URL(origin).protocol.toLowerCase();
+    const allowedOriginProtocols = new Set<string>(['null', 'http:', 'https:']);
+    return allowedOriginProtocols.has(originProtocol);
   } catch {
     // Invalid URL format - reject (this catches blob:javascript:alert(1) type attacks)
     return false;
