@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, startTransition } from 'react';
-import type { ChangeEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { useActionState } from 'react';
 import Image from 'next/image';
 import {
@@ -113,6 +113,27 @@ function isValidImageUrl(url: string | null | undefined): url is string {
   } catch {
     // Invalid URL format
     return false;
+  }
+}
+
+/**
+ * Strips HTML tag delimiters to ensure user-provided text stays as plain text.
+ * Prevents DOM text from being reinterpreted as HTML when rendered downstream.
+ */
+function sanitizePlainText(value: string): string {
+  return value.replace(/[<>]/g, '');
+}
+
+function sanitizeInlineCropForm(event: FormEvent<HTMLFormElement>) {
+  const formEl = event.currentTarget;
+  const nameInput = formEl.elements.namedItem('name') as HTMLInputElement | null;
+  const cropTypeInput = formEl.elements.namedItem('crop_type') as HTMLInputElement | null;
+
+  if (nameInput) {
+    nameInput.value = sanitizePlainText(nameInput.value);
+  }
+  if (cropTypeInput) {
+    cropTypeInput.value = sanitizePlainText(cropTypeInput.value);
   }
 }
 
@@ -230,13 +251,16 @@ export function CropVarietyForm({
   }, [cropCreateState, form]);
 
   const onSubmit = async (values: CropVarietyFormValues) => {
+    const sanitizedName = sanitizePlainText(values.name);
+    const sanitizedLatinName = sanitizePlainText(values.latin_name);
+    const sanitizedNotes = sanitizePlainText(values.notes ?? '');
     const fd = new FormData();
     if (isEditing && cropVariety?.id) fd.append('id', String(cropVariety.id));
     fd.append('crop_id', String(values.crop_id));
-    fd.append('name', values.name);
-    fd.append('latin_name', values.latin_name);
+    fd.append('name', sanitizedName);
+    fd.append('latin_name', sanitizedLatinName);
     fd.append('is_organic', values.is_organic ? 'on' : 'off');
-    fd.append('notes', values.notes ?? '');
+    fd.append('notes', sanitizedNotes);
     fd.append('dtm_direct_seed_min', String(values.dtm_direct_seed_min));
     fd.append('dtm_direct_seed_max', String(values.dtm_direct_seed_max));
     fd.append('dtm_transplant_min', String(values.dtm_transplant_min));
@@ -671,7 +695,7 @@ export function CropVarietyForm({
           <DialogHeader>
             <DialogTitle>Add New Crop</DialogTitle>
           </DialogHeader>
-          <form action={createCropAction} className="space-y-4">
+          <form action={createCropAction} className="space-y-4" onSubmit={sanitizeInlineCropForm}>
             <div>
               <Label htmlFor="new_crop_name">Name</Label>
               <Input
