@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { UsaStates } from 'usa-states';
-import { useForm, type SubmitHandler, type Resolver } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LocationSchema, type LocationFormValues } from '@/lib/validation/locations';
 import {
@@ -71,9 +71,8 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
   const [state, dispatch] = useActionState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const locationResolver = zodResolver(LocationSchema) as Resolver<LocationFormValues>;
   const form = useForm<LocationFormValues>({
-    resolver: locationResolver,
+    resolver: zodResolver(LocationSchema),
     mode: 'onSubmit',
     defaultValues: {
       id: location?.id,

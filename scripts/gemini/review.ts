@@ -10,6 +10,12 @@ import {
 } from './utils';
 import { z } from 'zod';
 
+const REVIEW_FOCUS_OPTIONS = ['critical-only', 'high-only', 'all'] as const;
+type ReviewFocus = (typeof REVIEW_FOCUS_OPTIONS)[number];
+
+const COMMENT_MODE_OPTIONS = ['summary', 'inline'] as const;
+type CommentMode = (typeof COMMENT_MODE_OPTIONS)[number];
+
 interface ReviewIssue {
   file: string;
   line: number;
@@ -46,11 +52,41 @@ function sanitizeEnvPromptValue(envValue: string | undefined, fallback: string):
   return prepareForPrompt(trimmed);
 }
 
-const reviewFocus: string = sanitizeEnvPromptValue(
+function sanitizePromptToken<TAllowed extends string>(
+  envValue: string | undefined,
+  fallback: TAllowed,
+  allowedValues: readonly TAllowed[]
+): TAllowed {
+  const preparedValue = sanitizeEnvPromptValue(envValue, fallback);
+  const isSafeToken = /^[a-z0-9_-]{1,50}$/i.test(preparedValue);
+
+  if (!isSafeToken) {
+    core.warning(
+      `Discarding potentially unsafe prompt token "${preparedValue}". Falling back to "${fallback}".`
+    );
+    return fallback;
+  }
+
+  if (!allowedValues.includes(preparedValue as TAllowed)) {
+    core.warning(
+      `Unsupported prompt token "${preparedValue}". Allowed values: ${allowedValues.join(', ')}. Falling back to "${fallback}".`
+    );
+    return fallback;
+  }
+
+  return preparedValue as TAllowed;
+}
+
+const reviewFocus: ReviewFocus = sanitizePromptToken(
   process.env.GEMINI_REVIEW_FOCUS,
-  'critical-only'
+  'critical-only',
+  REVIEW_FOCUS_OPTIONS
 );
-const commentMode: string = sanitizeEnvPromptValue(process.env.GEMINI_COMMENT_MODE, 'summary');
+const commentMode: CommentMode = sanitizePromptToken(
+  process.env.GEMINI_COMMENT_MODE,
+  'summary',
+  COMMENT_MODE_OPTIONS
+);
 
 const FILE_CONTENT_BOUNDARY = '===FILE-CONTENT-BOUNDARY===';
 

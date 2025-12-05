@@ -76,6 +76,19 @@ function resolveGitExecutable(): string {
 const CODE_FENCE: string = '`' + '`' + '`';
 const CODE_FENCE_TS: string = `${CODE_FENCE}typescript`;
 
+// Remove a single, outer markdown code fence while preserving inner fenced blocks.
+function stripSingleOuterFence(content: string): string {
+  const trimmed: string = content.trim();
+  const fencePattern: RegExp = /^(\u200b?```[a-zA-Z0-9+-]*\s*\n)([\s\S]*?)(\n?\u200b?```\s*)$/;
+  const match = trimmed.match(fencePattern);
+
+  if (!match) {
+    return trimmed;
+  }
+
+  return match[2].trim();
+}
+
 const REPO_ROOT = process.cwd();
 // Restrict PATH to fixed, typically unwritable system directories to avoid using user-controlled
 // executables, but preserve a minimal, explicitly whitelisted set of environment variables that Git
@@ -357,23 +370,16 @@ Generate the complete, runnable TypeScript test file code. You may respond eithe
   try {
     const result = await model.generateContent(prompt);
     const response = result.response;
-    const text = response.text().replace(/\u200b/gi, '');
+    const rawText: string = response.text();
 
-    // Clean up the response - remove a single outer markdown code fence if present, while leaving
-    // any inner fenced code blocks inside the generated test code intact.
-    let testCode = text.trim();
-    // Strip a single outer markdown fence (standard triple backticks with optional language).
-    const openingFenceMatch = testCode.match(/^```[a-zA-Z0-9+-]*\s*\n/);
-    if (openingFenceMatch) {
-      const openingFenceEnd: number = openingFenceMatch[0].length;
-      const closingFenceStart: number = testCode.lastIndexOf('```');
+    // First, attempt to strip an outer fence on the raw response (handles zero-width prefixed fences).
+    const withoutOuterFence: string = stripSingleOuterFence(rawText);
+    // Normalize zero-width spaces after fence handling to avoid breaking regexes.
+    const normalized: string = withoutOuterFence.replace(/\u200b/gi, '');
+    // Second pass to catch any standard fences that remain after normalization.
+    const testCode: string = stripSingleOuterFence(normalized);
 
-      if (closingFenceStart > openingFenceEnd) {
-        testCode = testCode.slice(openingFenceEnd, closingFenceStart).trim();
-      }
-    }
-
-    return testCode;
+    return testCode.trim();
   } catch (error) {
     core.warning(`Failed to generate test for ${sourceFilePath}: ${error}`);
     throw error;

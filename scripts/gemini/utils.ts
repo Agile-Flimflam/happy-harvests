@@ -31,10 +31,12 @@ const MAX_COMBINED_PROMPT_CONTENT_LENGTH: number = 80_000;
 export function prepareForPrompt(value: string): string {
   // Break markdown code fences by inserting a zero-width space to prevent closing our fences.
   const brokenFence: string = '`' + '\u200b' + '``';
+  // Match unbroken markdown code fences; avoid hidden zero-width characters in the pattern itself.
+  const codeFencePattern: RegExp = /```/g;
   // Normalize markdown fences and newlines first so downstream logic sees a consistent shape.
   const normalized: string = value
     // Break markdown code fences so they can't interfere with our prompt structure.
-    .replace(/```/g, brokenFence)
+    .replace(codeFencePattern, brokenFence)
     // Normalize newlines to reduce ambiguity across platforms.
     .replace(/\r\n?/g, '\n');
 

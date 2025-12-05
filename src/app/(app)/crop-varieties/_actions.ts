@@ -409,7 +409,8 @@ export async function createCropSimple(
     console.error('Supabase Error (createCropSimple):', error);
     return { message: `Database Error: ${error.message}` };
   }
-  // No revalidate here; caller updates local state
+  // Invalidate cached crop lists so dropdowns render the new crop without a manual refresh.
+  revalidatePath('/crop-varieties');
   return { message: 'Crop created successfully.', crop: data, errors: {} };
 }
 
