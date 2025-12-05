@@ -24,7 +24,8 @@ runs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ inputs.node-version }}
+        # Keep GitHub Actions aligned with the repo-pinned Node version
+        node-version-file: .nvmrc
         cache: 'pnpm'
 
     - name: Install dependencies
