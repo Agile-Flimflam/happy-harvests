@@ -10,16 +10,24 @@ import { CropVarietySchema, SimpleCropSchema } from '@/lib/validation/crop-varie
 type CropVariety = Database['public']['Tables']['crop_varieties']['Row'];
 type CropVarietyInsert = Database['public']['Tables']['crop_varieties']['Insert'];
 type CropVarietyUpdate = Database['public']['Tables']['crop_varieties']['Update'];
+type CropVarietyWithImageUrl = CropVariety & { image_url: string | null };
 
 export type CropVarietyFormState = {
   message: string;
   errors?: Record<string, string[] | undefined>;
-  cropVariety?: CropVariety | null;
+  cropVariety?: CropVarietyWithImageUrl | null;
 };
 
 // No JSON helper needed in new schema
 
 const STORAGE_BUCKET = 'crop_variety_images';
+function getPublicImageUrl(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  path: string | null
+): string | null {
+  if (!path) return null;
+  return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data?.publicUrl ?? null;
+}
 
 function getFileExtension(file: File): string {
   const name = file.name || '';
@@ -109,6 +117,7 @@ export async function createCropVariety(
       return { message: `Database Error: ${insertError?.message || 'Insert failed'}` };
     }
 
+    let imagePath: string | null = inserted.image_path ?? null;
     // Handle optional image upload
     const fileEntry = formData.get('image');
     const file = isFileLike(fileEntry) ? fileEntry : null;
@@ -142,6 +151,7 @@ export async function createCropVariety(
         return { message: `Image upload failed: ${uploadError.message}` };
       }
 
+      imagePath = path;
       const { error: updateError } = await supabase
         .from('crop_varieties')
         .update({ image_path: path })
@@ -153,7 +163,12 @@ export async function createCropVariety(
     }
 
     revalidatePath('/crop-varieties');
-    return { message: 'Crop variety created successfully.', cropVariety: null, errors: {} };
+    const imageUrl = getPublicImageUrl(supabase, imagePath);
+    return {
+      message: 'Crop variety created successfully.',
+      cropVariety: { ...inserted, image_path: imagePath, image_url: imageUrl },
+      errors: {},
+    };
   } catch (e) {
     console.error('Unexpected Error:', e);
     return { message: 'An unexpected error occurred.' };
@@ -229,9 +244,11 @@ export async function updateCropVariety(
     const fileEntry = formData.get('image');
     const file = isFileLike(fileEntry) ? fileEntry : null;
 
+    let imagePath: string | null = existing.image_path ?? null;
     if (removeImage && existing.image_path) {
       await supabase.storage.from(STORAGE_BUCKET).remove([existing.image_path]);
       cropVarietyDataToUpdate.image_path = null;
+      imagePath = null;
     }
 
     if (file && file.size > 0) {
@@ -271,6 +288,7 @@ export async function updateCropVariety(
         };
       }
       cropVarietyDataToUpdate.image_path = path;
+      imagePath = path;
     }
 
     const { error } = await supabase
@@ -281,8 +299,25 @@ export async function updateCropVariety(
       console.error('Supabase Error:', error);
       return { message: `Database Error: ${error.message}`, cropVariety: prevState.cropVariety };
     }
+    const { data: updatedRow, error: fetchUpdatedError } = await supabase
+      .from('crop_varieties')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (fetchUpdatedError || !updatedRow) {
+      console.error('Supabase Error (fetch updated):', fetchUpdatedError);
+      return {
+        message: `Database Error: ${fetchUpdatedError?.message || 'Not found'}`,
+        cropVariety: prevState.cropVariety,
+      };
+    }
+    const imageUrl = getPublicImageUrl(supabase, imagePath ?? updatedRow.image_path ?? null);
     revalidatePath('/crop-varieties');
-    return { message: 'Crop variety updated successfully.', cropVariety: null, errors: {} };
+    return {
+      message: 'Crop variety updated successfully.',
+      cropVariety: { ...updatedRow, image_url: imageUrl },
+      errors: {},
+    };
   } catch (e) {
     console.error('Unexpected Error:', e);
     return { message: 'An unexpected error occurred.', cropVariety: prevState.cropVariety };

@@ -17,14 +17,51 @@ import * as fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const SAFE_PATH = '/usr/bin:/bin';
+const ALLOWED_GIT_DIRS: string[] = ['/usr/bin', '/bin'];
+
+function sanitizeGitExecutable(candidate: string): string | null {
+  const trimmed = candidate.trim();
+
+  // Reject empty values or values containing control characters / newlines.
+  if (!trimmed || /[\u0000-\u001F\u007F]/u.test(trimmed)) {
+    return null;
+  }
+
+  // Allow absolute paths only if they resolve to git inside an allowlist directory.
+  if (path.isAbsolute(trimmed)) {
+    const normalized = path.normalize(trimmed);
+    const dir = path.dirname(normalized);
+    const base = path.basename(normalized);
+
+    if (base !== 'git') return null;
+    if (!ALLOWED_GIT_DIRS.includes(dir)) return null;
+
+    return normalized;
+  }
+
+  // For non-absolute values, require a simple executable name that will be resolved via SAFE_PATH.
+  // Disallow path separators and limit characters to a safe set.
+  if (trimmed.includes('/') || trimmed.includes('\\')) return null;
+  if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) return null;
+
+  return trimmed;
+}
 
 function resolveGitExecutable(): string {
   const gitExecutableFromEnv: string | undefined = process.env.GIT_EXECUTABLE;
 
-  if (gitExecutableFromEnv && gitExecutableFromEnv.trim().length > 0) {
-    // Allow callers to explicitly override the git executable location for
-    // environments where git is not installed in a standard system path.
-    return gitExecutableFromEnv.trim();
+  if (gitExecutableFromEnv) {
+    const sanitized = sanitizeGitExecutable(gitExecutableFromEnv);
+    if (sanitized) {
+      // Allow callers to explicitly override the git executable location for
+      // environments where git is not installed in a standard system path,
+      // but only when the path is validated against a strict allowlist.
+      return sanitized;
+    }
+
+    core.warning(
+      `Ignoring unsafe GIT_EXECUTABLE value "${gitExecutableFromEnv}", falling back to default "git".`
+    );
   }
 
   // Fall back to relying on PATH resolution for "git". The SAFE_ENV below

@@ -31,7 +31,7 @@ import PageHeader from '@/components/page-header';
 import PageContent from '@/components/page-content';
 
 type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null } & {
-  image_url?: string | null;
+  image_url: string | null;
 };
 
 interface CropVarietiesPageContentProps {

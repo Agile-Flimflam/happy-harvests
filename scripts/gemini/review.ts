@@ -89,6 +89,7 @@ Respond with valid JSON only (optionally wrapped in a \`\`\`json\`\`\` fence), w
     // Clean up the response - remove a single outer markdown code block wrapper if present.
     // Uses exact backticks (no zero-width characters) and guards against mismatched fences.
     let jsonText = text.trim();
+    // Plain backtick fence; avoid zero-width characters to ensure stripping works.
     const fence: string = '```';
     if (jsonText.startsWith(fence)) {
       const firstNewlineIndex: number = jsonText.indexOf('\n');

@@ -51,7 +51,7 @@ import {
 
 type CropVariety = Tables<'crop_varieties'> & {
   crops?: { name: string } | null;
-  image_url?: string | null;
+  image_url: string | null;
 };
 
 interface CropVarietyFormProps {
@@ -333,9 +333,7 @@ export function CropVarietyForm({
 
   // Compute existing image URL safely
   // image_url is a computed property added by getCropVarieties, not in the base database type
-  const stateCropVariety: CropVariety | null = state.cropVariety
-    ? { ...state.cropVariety, image_url: cropVariety?.image_url ?? null }
-    : (cropVariety ?? null);
+  const stateCropVariety: CropVariety | null = state.cropVariety ?? cropVariety ?? null;
   const existingImageUrl =
     !imagePreviewUrl && !removeExistingImage && stateCropVariety
       ? stateCropVariety.image_url
@@ -544,7 +542,7 @@ export function CropVarietyForm({
                         {...field}
                         value={field.value?.toString() ?? ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : '')
+                          field.onChange(e.target.value ? Number(e.target.value) : undefined)
                         }
                       />
                     </FormControl>
@@ -565,7 +563,7 @@ export function CropVarietyForm({
                         {...field}
                         value={field.value?.toString() ?? ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : '')
+                          field.onChange(e.target.value ? Number(e.target.value) : undefined)
                         }
                       />
                     </FormControl>
@@ -586,7 +584,7 @@ export function CropVarietyForm({
                         {...field}
                         value={field.value?.toString() ?? ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : '')
+                          field.onChange(e.target.value ? Number(e.target.value) : undefined)
                         }
                       />
                     </FormControl>
@@ -607,7 +605,7 @@ export function CropVarietyForm({
                         {...field}
                         value={field.value?.toString() ?? ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : '')
+                          field.onChange(e.target.value ? Number(e.target.value) : undefined)
                         }
                       />
                     </FormControl>
