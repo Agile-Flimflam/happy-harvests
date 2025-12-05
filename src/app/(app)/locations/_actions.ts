@@ -31,6 +31,9 @@ function numberOrNull(v: FormDataEntryValue | null): number | null {
   return Number.isFinite(n) ? n : (null as number | null);
 }
 
+const UUID_REGEX: RegExp =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
 export async function createLocation(
   prevState: LocationFormState,
   formData: FormData
@@ -89,9 +92,13 @@ export async function updateLocation(
   formData: FormData
 ): Promise<LocationFormState> {
   const supabase = await createSupabaseServerClient();
-  const id = String(formData.get('id') || '');
+  const idValue = formData.get('id');
+  const id = typeof idValue === 'string' ? idValue.trim() : '';
   if (!id) {
     return { message: 'Error: Missing Location ID for update.' };
+  }
+  if (!UUID_REGEX.test(id)) {
+    return { message: 'Error: Invalid Location ID format.' };
   }
   const validated = LocationSchema.safeParse({
     id,
@@ -149,11 +156,15 @@ export type DeleteLocationResult = { message: string };
 export async function deleteLocation(id: string): Promise<DeleteLocationResult> {
   const supabase = await createSupabaseServerClient();
   if (!id) return { message: 'Error: Missing Location ID for delete.' };
+  const trimmedId = id.trim();
+  if (!UUID_REGEX.test(trimmedId)) {
+    return { message: 'Error: Invalid Location ID format.' };
+  }
   // Optional pre-check: if plots exist, warn earlier
   const { count, error: countError } = await supabase
     .from('plots')
     .select('plot_id', { count: 'exact', head: true })
-    .eq('location_id', id);
+    .eq('location_id', trimmedId);
   if (countError) {
     // Proceed anyway; the delete will fail if FK violation
     console.error('Count error on plots:', countError.message);
@@ -164,7 +175,7 @@ export async function deleteLocation(id: string): Promise<DeleteLocationResult> 
         'Error: Cannot delete location while plots are associated. Reassign or delete plots first.',
     };
   }
-  const { error } = await supabase.from('locations').delete().eq('id', id);
+  const { error } = await supabase.from('locations').delete().eq('id', trimmedId);
   if (error) {
     if (error.code === '23503') {
       return {

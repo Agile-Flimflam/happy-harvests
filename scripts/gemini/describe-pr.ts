@@ -16,7 +16,8 @@ import {
 const MAX_DIFF_LENGTH: number = 50_000;
 
 // Standard markdown code fence (plain ASCII, no zero-width characters).
-const CODE_FENCE: string = '```';
+// Built via concatenation to ensure no hidden characters are present.
+const CODE_FENCE: string = '`' + '`' + '`';
 const PROMPT_SECTION_BOUNDARY_PREFIX: string = '[[BEGIN_';
 const PROMPT_SECTION_BOUNDARY_SUFFIX: string = ']]';
 const PROMPT_SECTION_BOUNDARY_END_PREFIX: string = '[[END_';

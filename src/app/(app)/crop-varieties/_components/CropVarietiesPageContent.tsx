@@ -164,7 +164,6 @@ export function CropVarietiesPageContent({
                           alt={`${cropVariety.name} variety image`}
                           width={40}
                           height={40}
-                          unoptimized
                           className="h-10 w-10 rounded object-cover border"
                         />
                       ) : (
