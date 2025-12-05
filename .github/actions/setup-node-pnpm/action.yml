@@ -14,19 +14,22 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: ${{ inputs.pnpm-version }}
-        # Use standalone to avoid registry fetch flakiness during install
-        standalone: true
+    - name: Download pnpm (static)
+      shell: bash
+      run: |
+        set -euo pipefail
+        PNPM_VERSION="${{ inputs.pnpm-version }}"
+        BIN_DIR="$HOME/.local/bin"
+        mkdir -p "$BIN_DIR"
+        curl -fsSL "https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/pnpm-linuxstatic-x64" -o "$BIN_DIR/pnpm"
+        chmod +x "$BIN_DIR/pnpm"
+        echo "$BIN_DIR" >> "$GITHUB_PATH"
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         # Keep GitHub Actions aligned with the repo-pinned Node version
         node-version-file: .nvmrc
-        cache: 'pnpm'
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
