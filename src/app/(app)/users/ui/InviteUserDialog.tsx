@@ -1,14 +1,28 @@
-'use client'
+'use client';
 
-import * as React from 'react'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { toast } from 'sonner'
-import { z } from 'zod'
-import { useForm, type SubmitHandler, type Resolver } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import * as React from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { toast } from 'sonner';
+import { z } from 'zod';
+import { useForm, type SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus } from 'lucide-react';
 import {
   Form,
@@ -17,43 +31,46 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'
+} from '@/components/ui/form';
 
 type Props = {
-  onInvite: (input: { email: string; role: 'admin' | 'member' }) => Promise<{ ok: boolean; error?: string }>
-}
+  onInvite: (input: {
+    email: string;
+    role: 'admin' | 'member';
+  }) => Promise<{ ok: boolean; error?: string }>;
+};
 
 export default function InviteUserDialog({ onInvite }: Props) {
-  const [open, setOpen] = React.useState(false)
-  const [pending, setPending] = React.useState(false)
+  const [open, setOpen] = React.useState(false);
+  const [pending, setPending] = React.useState(false);
 
   const InviteUserSchema = z.object({
     email: z.string().email({ message: 'Enter a valid email address' }),
     role: z.enum(['admin', 'member'], { message: 'Select a role' }),
-  })
-  type InviteUserValues = z.infer<typeof InviteUserSchema>
+  });
+  type InviteUserValues = z.infer<typeof InviteUserSchema>;
 
   const form = useForm<InviteUserValues>({
-    resolver: zodResolver(InviteUserSchema) as unknown as Resolver<InviteUserValues>,
+    resolver: zodResolver(InviteUserSchema),
     mode: 'onSubmit',
     defaultValues: { email: '', role: 'member' },
-  })
+  });
 
   const onSubmit: SubmitHandler<InviteUserValues> = async (values) => {
     try {
-      setPending(true)
-      const res = await onInvite({ email: values.email, role: values.role })
+      setPending(true);
+      const res = await onInvite({ email: values.email, role: values.role });
       if (!res.ok) {
-        toast.error(res.error || 'Failed to send invite')
-        return
+        toast.error(res.error || 'Failed to send invite');
+        return;
       }
-      toast.success('Invitation sent')
-      form.reset({ email: '', role: 'member' })
-      setOpen(false)
+      toast.success('Invitation sent');
+      form.reset({ email: '', role: 'member' });
+      setOpen(false);
     } finally {
-      setPending(false)
+      setPending(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -65,7 +82,6 @@ export default function InviteUserDialog({ onInvite }: Props) {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          
           <DialogTitle>Invite User</DialogTitle>
           <DialogDescription>Send an invitation email and assign a role.</DialogDescription>
         </DialogHeader>
@@ -78,7 +94,12 @@ export default function InviteUserDialog({ onInvite }: Props) {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="new.user@example.com" disabled={pending} {...field} />
+                    <Input
+                      type="email"
+                      placeholder="new.user@example.com"
+                      disabled={pending}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -92,7 +113,9 @@ export default function InviteUserDialog({ onInvite }: Props) {
                   <FormLabel>Role</FormLabel>
                   <FormControl>
                     <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="member">member</SelectItem>
                         <SelectItem value="admin">admin</SelectItem>
@@ -104,14 +127,21 @@ export default function InviteUserDialog({ onInvite }: Props) {
               )}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={pending}>Cancel</Button>
-              <Button type="submit" disabled={pending}>{pending ? 'Sending…' : 'Send invite'}</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+                disabled={pending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? 'Sending…' : 'Send invite'}
+              </Button>
             </DialogFooter>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
-
-

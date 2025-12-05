@@ -1,21 +1,28 @@
 'use client';
 
-import { useEffect, useRef, startTransition } from 'react';
+import { useEffect, useRef, startTransition, useMemo, useLayoutEffect, useCallback } from 'react';
 import { useActionState } from 'react';
 import { createLocation, updateLocation, type LocationFormState } from '../_actions';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 // (Dialog footer handled by parent FormDialog)
-import { ExternalLink } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ExternalLink, X, CheckCircle2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { UsaStates } from 'usa-states';
-import { useForm, type SubmitHandler, type Resolver } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LocationSchema, type LocationFormValues } from '@/lib/validation/locations';
-import { 
+import {
   Form,
   FormControl,
   FormField,
@@ -23,6 +30,9 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { AddressAutocomplete } from '@/components/locations/AddressAutocomplete';
+import { MapPicker } from '@/components/locations/MapPicker';
+import { setupFormControlProperty } from '@/lib/form-utils';
 
 type Location = Tables<'locations'>;
 
@@ -34,6 +44,25 @@ interface LocationFormProps {
 
 const usStates = new UsaStates();
 const states = usStates.states;
+const VALID_LOCATION_FIELDS: Array<keyof LocationFormValues> = [
+  'id',
+  'name',
+  'street',
+  'city',
+  'state',
+  'zip',
+  'latitude',
+  'longitude',
+  'notes',
+];
+
+// Timeout delays (in milliseconds) for setting up the form control property.
+// These values are tuned to mirror how browser extensions attempt to read form.control:
+//   • 0ms: immediate attempt during initial render (safeguards against synchronous checks).
+//   • 10ms: allows microtasks or short async rendering churn to finish before the retry.
+//   • 50ms: final fallback that catches extensions that inspect the DOM slightly later (e.g., due to batched updates).
+// The staggered retry pattern keeps the property available even when React or the browser schedules rendering work asynchronously.
+const FORM_CONTROL_SETUP_DELAYS = [0, 10, 50] as const;
 
 export function LocationForm({ location, closeDialog, formId }: LocationFormProps) {
   const isEditing = Boolean(location?.id);
@@ -43,7 +72,7 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
   const formRef = useRef<HTMLFormElement>(null);
 
   const form = useForm<LocationFormValues>({
-    resolver: zodResolver(LocationSchema) as unknown as Resolver<LocationFormValues>,
+    resolver: zodResolver(LocationSchema),
     mode: 'onSubmit',
     defaultValues: {
       id: location?.id,
@@ -52,8 +81,8 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
       city: location?.city ?? '',
       state: location?.state ?? '',
       zip: location?.zip ?? '',
-      latitude: (location?.latitude ?? null) as number | null,
-      longitude: (location?.longitude ?? null) as number | null,
+      latitude: location?.latitude ?? null,
+      longitude: location?.longitude ?? null,
       notes: location?.notes ?? '',
     },
   });
@@ -88,13 +117,57 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  // Workaround for browser extensions that try to access form.control
+  // Set up the form control property on the native form element before any inputs are rendered
+  // This prevents browser extension errors when they try to access form.control
+  // Using useLayoutEffect as backup in case callback ref doesn't run in time
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Try multiple times to ensure form is set up before extensions run
+    const setupFormControl = () => {
+      const formElement = formRef.current;
+      if (!formElement) return;
+
+      // Set up the control property using the helper function
+      setupFormControlProperty(formElement);
+    };
+
+    // Try immediately
+    setupFormControl();
+
+    // Also try after microtasks to catch any async form setup
+    const timeoutIds = FORM_CONTROL_SETUP_DELAYS.map((delay) => {
+      return setTimeout(() => {
+        setupFormControl();
+      }, delay);
+    });
+
+    // Cleanup: only clear the timeouts
+    // Note: We do NOT delete the control property because:
+    // 1. Multiple component instances may share the same form
+    // 2. The property is harmless and doesn't cause memory leaks
+    // 3. Browser extensions may still need it after component unmounts
+    // 4. The property is defined with configurable: true, but deletion can fail
+    //    in edge cases, and silently failing cleanup is worse than leaving it
+    return () => {
+      timeoutIds.forEach((id) => clearTimeout(id));
+    };
+  }, []);
+
   useEffect(() => {
     if (state.message) {
       if (state.errors && Object.keys(state.errors).length > 0) {
         // Map server-side errors to RHF fields
         Object.entries(state.errors).forEach(([field, errors]) => {
-          const message = Array.isArray(errors) ? errors[0] : (errors as unknown as string) || 'Invalid value';
-          form.setError(field as keyof LocationFormValues, { message });
+          const fieldKey = VALID_LOCATION_FIELDS.find((validKey) => validKey === field);
+          if (!fieldKey) {
+            // Unexpected field from server; surface via toast but avoid mis-mapping
+            toast.error(`Server returned error for unknown field: ${field}`);
+            return;
+          }
+          const message = Array.isArray(errors) ? errors[0] : errors || 'Invalid value';
+          form.setError(fieldKey, { message });
         });
         toast.error(state.message);
       } else {
@@ -103,6 +176,41 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
       }
     }
   }, [state, closeDialog, form]);
+
+  // Watch form values for address preview and clear functionality
+  const street = form.watch('street');
+  const city = form.watch('city');
+  const stateValue = form.watch('state');
+  const zip = form.watch('zip');
+  const latitude = form.watch('latitude');
+  const longitude = form.watch('longitude');
+
+  // Build address preview string
+  const addressPreview = useMemo(() => {
+    const parts = [street, city, stateValue, zip].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : null;
+  }, [street, city, stateValue, zip]);
+
+  // Check if address is complete
+  const hasCompleteAddress = Boolean(street && city && stateValue && zip);
+  const hasCoordinates = latitude != null && longitude != null;
+
+  // Clear address function
+  // Preserves coordinates since we cannot reliably determine if they were set via address autocomplete
+  // or manually via map interaction. Users can manually clear coordinates via the map if needed.
+  const handleClearAddress = () => {
+    form.setValue('street', '');
+    form.setValue('city', '');
+    form.setValue('state', '');
+    form.setValue('zip', '');
+    // Preserve coordinates - they may have been set manually via map interaction
+    // Users can clear coordinates directly on the map if needed
+    form.clearErrors('street');
+    form.clearErrors('city');
+    form.clearErrors('state');
+    form.clearErrors('zip');
+    toast.info('Address cleared');
+  };
 
   const onSubmit: SubmitHandler<LocationFormValues> = async (values) => {
     const fd = new FormData();
@@ -120,11 +228,24 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
     });
   };
 
+  // Helper to set up form control property for browser extensions
+  const setupFormControlOnRef = useCallback((formElement: HTMLFormElement | null) => {
+    setupFormControlProperty(formElement);
+  }, []);
+
   return (
     <Form {...form}>
-      <form id={formId} ref={formRef} onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
-        {isEditing && <input type="hidden" name="id" value={location?.id} />}
-
+      <form
+        id={formId}
+        ref={(el) => {
+          formRef.current = el;
+          // Set up form control property as soon as form is available
+          setupFormControlOnRef(el);
+        }}
+        onSubmit={form.handleSubmit(onSubmit)}
+        noValidate
+        className="space-y-4"
+      >
         <FormField
           control={form.control}
           name="name"
@@ -140,21 +261,55 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
         />
 
         <fieldset className="border p-4 rounded-md space-y-3">
-          <legend className="text-sm font-medium px-1">Address</legend>
+          <div className="flex items-center justify-between">
+            <legend className="text-sm font-medium px-1">Address</legend>
+            {hasCompleteAddress && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleClearAddress}
+                className="h-7 text-xs"
+              >
+                <X className="h-3 w-3" />
+                Clear address
+              </Button>
+            )}
+          </div>
 
           <FormField
             control={form.control}
             name="street"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Street</FormLabel>
+                <FormLabel>Street Address</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value ?? ''} />
+                  <AddressAutocomplete field={field} placeholder="Start typing an address..." />
                 </FormControl>
                 <FormMessage />
+                <p className="text-xs text-muted-foreground">
+                  Start typing a street address (suggestions appear after a few characters).
+                  Selected address will auto-populate all fields below.
+                </p>
               </FormItem>
             )}
           />
+
+          {/* Address Preview */}
+          {addressPreview && (
+            <div className="flex items-start gap-2 rounded-md border bg-muted/50 p-3 text-sm">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground">Selected Address</p>
+                <p className="text-muted-foreground break-words">{addressPreview}</p>
+                {hasCoordinates && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Coordinates: {latitude?.toFixed(6)}, {longitude?.toFixed(6)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <FormField
@@ -211,62 +366,91 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
         </fieldset>
 
         <fieldset className="border p-4 rounded-md space-y-3">
-          <legend className="text-sm font-medium px-1">Coordinates</legend>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="latitude"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Latitude</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="any"
-                      value={field.value != null ? String(field.value) : ''}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="longitude"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Longitude</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="any"
-                      value={field.value != null ? String(field.value) : ''}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <legend className="text-sm font-medium px-1">Location & Coordinates</legend>
+
+          <div className="space-y-3">
+            <MapPicker height="h-[300px] sm:h-[400px]" />
+            <p className="text-xs text-muted-foreground">
+              {hasCoordinates
+                ? 'Drag the marker or click on the map to update coordinates. Coordinates will auto-update when you select an address above.'
+                : 'Click on the map or select an address above to set coordinates.'}
+            </p>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div>
+              <label className="text-sm font-medium" htmlFor="latitude-display">
+                Latitude
+              </label>
+              {hasCoordinates ? (
+                <Input
+                  id="latitude-display"
+                  name="latitude-display"
+                  value={latitude != null ? String(latitude) : ''}
+                  placeholder="Not set"
+                  readOnly
+                  disabled
+                  className="mt-1 bg-muted text-muted-foreground cursor-not-allowed"
+                />
+              ) : (
+                <Skeleton className="h-9 w-full mt-1" />
+              )}
+            </div>
+            <div>
+              <label className="text-sm font-medium" htmlFor="longitude-display">
+                Longitude
+              </label>
+              {hasCoordinates ? (
+                <Input
+                  id="longitude-display"
+                  name="longitude-display"
+                  value={longitude != null ? String(longitude) : ''}
+                  placeholder="Not set"
+                  readOnly
+                  disabled
+                  className="mt-1 bg-muted text-muted-foreground cursor-not-allowed"
+                />
+              ) : (
+                <Skeleton className="h-9 w-full mt-1" />
+              )}
+            </div>
+          </div>
+
           <div>
-            <label className="text-sm font-medium" htmlFor="timezone">Timezone</label>
-            <Input
-              id="timezone"
-              name="timezone"
-              value={location?.timezone || state.location?.timezone || ''}
-              placeholder="Will be detected when coordinates are provided"
-              readOnly
-              disabled
-              className="mt-1 bg-muted text-muted-foreground cursor-not-allowed"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Automatically set based on location coordinates</p>
+            <label className="text-sm font-medium" htmlFor="timezone">
+              Timezone
+            </label>
+            {location?.timezone || state.location?.timezone ? (
+              <Input
+                id="timezone"
+                name="timezone"
+                value={location?.timezone || state.location?.timezone || ''}
+                placeholder="Will be detected when coordinates are provided"
+                readOnly
+                disabled
+                className="mt-1 bg-muted text-muted-foreground cursor-not-allowed"
+              />
+            ) : (
+              <Skeleton className="h-9 w-full mt-1" />
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              {hasCoordinates
+                ? 'Will be automatically detected when location is saved'
+                : 'Automatically set based on location coordinates'}
+            </p>
           </div>
-          <div className="flex justify-end">
-            <Button type="button" variant="ghost" onClick={handleOpenInGoogleMaps}>
-              <ExternalLink />
-              Open in Google Maps
+
+          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleOpenInGoogleMaps}
+              disabled={!hasCoordinates && !addressPreview}
+              className="w-full sm:w-auto"
+            >
+              <ExternalLink className="h-4 w-4" />
+              <span className="hidden sm:inline">Open in Google Maps</span>
+              <span className="sm:hidden">Google Maps</span>
             </Button>
           </div>
         </fieldset>
@@ -290,5 +474,3 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
     </Form>
   );
 }
-
-

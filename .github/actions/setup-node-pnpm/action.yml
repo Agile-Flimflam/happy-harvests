@@ -1,29 +1,41 @@
-name: "Setup Node.js and pnpm"
-description: "Setup pnpm, setup Node.js, and install dependencies"
+name: 'Setup Node.js and pnpm'
+description: 'Setup pnpm, setup Node.js, and install dependencies'
 
 inputs:
   node-version:
-    description: "Node.js version to use"
+    description: 'Node.js version to use'
     required: false
-    default: "20"
+    default: '20.18.0'
   pnpm-version:
-    description: "pnpm version to use"
+    description: 'pnpm version to use'
     required: false
-    default: "9"
+    default: '9.15.0'
 
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
     - name: Setup pnpm
       uses: pnpm/action-setup@v4
       with:
         version: ${{ inputs.pnpm-version }}
+        run_install: false
+
+    - name: Ensure pnpm available (corepack fallback)
+      shell: bash
+      run: |
+        set -euo pipefail
+        if ! command -v pnpm >/dev/null 2>&1; then
+          echo "pnpm not found in PATH; enabling via corepack..."
+          corepack enable
+          corepack prepare "pnpm@${{ inputs.pnpm-version }}" --activate
+        fi
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
-        cache: "pnpm"
+        cache: pnpm
+        cache-dependency-path: pnpm-lock.yaml
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile

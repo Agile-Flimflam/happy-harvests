@@ -21,6 +21,7 @@ import {
   ShoppingBasket,
   Calendar,
   CalendarRange,
+  type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CalendarEvent, CalendarFilter, CalendarLocation } from './types';
@@ -33,6 +34,12 @@ import CalendarHeaderWeather from './CalendarHeaderWeather';
 
 // UTC helpers and string-only date math (YYYY-MM-DD)
 const pad2 = (n: number): string => String(n).padStart(2, '0');
+const CALENDAR_FILTERS: readonly CalendarFilter[] = ['all', 'activity', 'planting', 'harvest'];
+const CALENDAR_RANGES: readonly ('month' | 'week' | 'today')[] = ['month', 'week', 'today'];
+const isCalendarFilter = (value: unknown): value is CalendarFilter =>
+  typeof value === 'string' && CALENDAR_FILTERS.some((filter) => filter === value);
+const isCalendarRange = (value: unknown): value is 'month' | 'week' | 'today' =>
+  typeof value === 'string' && CALENDAR_RANGES.some((range) => range === value);
 const isoFromYMD = (y: number, m1: number, d: number): string => `${y}-${pad2(m1)}-${pad2(d)}`;
 const parseISO = (iso: string): { y: number; m1: number; d: number } => {
   const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -107,39 +114,13 @@ const toLocalMidnightDate = (iso: string): Date => new Date(iso + 'T00:00:00');
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
-// Event type priority constants (lower number = higher priority)
-const PRIORITY_HARVEST = 0;
-const PRIORITY_PLANTING = 1;
-const PRIORITY_ACTIVITY = 2;
-
-// Event type priority mapping
-const EVENT_TYPE_PRIORITY: Record<'harvest' | 'planting' | 'activity', number> = {
-  harvest: PRIORITY_HARVEST,
-  planting: PRIORITY_PLANTING,
-  activity: PRIORITY_ACTIVITY,
-} as const;
-
-// Filter configuration mapping
-const FILTER_CONFIG: Record<
-  'all' | 'activity' | 'planting' | 'harvest',
-  { label: string; Icon: typeof CalendarDays }
-> = {
-  all: { label: 'All', Icon: CalendarDays },
-  activity: { label: 'Activities', Icon: Wrench },
-  planting: { label: 'Plantings', Icon: Sprout },
-  harvest: { label: 'Harvests', Icon: ShoppingBasket },
-} as const;
-
-// Helper function to capitalize first letter of a string
-const capitalizeFirst = (str: string): string => {
-  if (str.length === 0) return str;
-  return str[0].toUpperCase() + str.slice(1);
-};
-
 export default function CalendarClient({
   events,
   locations = [],
-}: Readonly<{ events: CalendarEvent[]; locations?: Array<CalendarLocation> }>) {
+}: {
+  events: CalendarEvent[];
+  locations?: Array<CalendarLocation>;
+}) {
   // Today in UTC ISO (kept fresh by periodic checks that detect UTC day rollover)
   const [todayISO, setTodayISO] = React.useState<string>(() => {
     const nowInit = new Date();
@@ -155,20 +136,21 @@ export default function CalendarClient({
     date: null,
   });
   const [range, setRange] = React.useState<'month' | 'week' | 'today'>('month');
+  const detailDate = detail.date;
   const primaryLocation = React.useMemo(() => {
     return locations.find((l) => l.latitude != null && l.longitude != null) ?? null;
   }, [locations]);
 
   React.useEffect(() => {
     try {
-      globalThis.localStorage.setItem('calendar.filter', filter);
+      window.localStorage.setItem('calendar.filter', filter);
     } catch (e) {
       console.warn('Failed to persist calendar.filter to localStorage', e);
     }
   }, [filter]);
   React.useEffect(() => {
     try {
-      globalThis.localStorage.setItem('calendar.range', range);
+      window.localStorage.setItem('calendar.range', range);
     } catch (e) {
       console.warn('Failed to persist calendar.range to localStorage', e);
     }
@@ -176,23 +158,10 @@ export default function CalendarClient({
   React.useEffect(() => {
     // Load persisted settings on client after mount to avoid SSR hydration mismatch
     try {
-      const storedFilter = globalThis.localStorage.getItem(
-        'calendar.filter'
-      ) as CalendarFilter | null;
-      if (
-        storedFilter === 'all' ||
-        storedFilter === 'activity' ||
-        storedFilter === 'planting' ||
-        storedFilter === 'harvest'
-      )
-        setFilter(storedFilter);
-      const storedRange = globalThis.localStorage.getItem('calendar.range') as
-        | 'month'
-        | 'week'
-        | 'today'
-        | null;
-      if (storedRange === 'month' || storedRange === 'week' || storedRange === 'today')
-        setRange(storedRange);
+      const storedFilter = window.localStorage.getItem('calendar.filter');
+      if (isCalendarFilter(storedFilter)) setFilter(storedFilter);
+      const storedRange = window.localStorage.getItem('calendar.range');
+      if (isCalendarRange(storedRange)) setRange(storedRange);
     } catch (e) {
       console.warn('Failed to load persisted calendar settings from localStorage', e);
     }
@@ -418,8 +387,22 @@ export default function CalendarClient({
                 Type
               </div>
               {(['all', 'activity', 'planting', 'harvest'] as const).map((v) => {
-                const { label, Icon } = FILTER_CONFIG[v];
-
+                const label =
+                  v === 'all'
+                    ? 'All'
+                    : v === 'activity'
+                      ? 'Activities'
+                      : v === 'planting'
+                        ? 'Plantings'
+                        : 'Harvests';
+                const Icon: LucideIcon =
+                  v === 'all'
+                    ? CalendarDays
+                    : v === 'activity'
+                      ? Wrench
+                      : v === 'planting'
+                        ? Sprout
+                        : ShoppingBasket;
                 return (
                   <DropdownMenuItem
                     key={v}
@@ -437,13 +420,9 @@ export default function CalendarClient({
                 Range
               </div>
               {(['month', 'week', 'today'] as const).map((v) => {
-                const label = capitalizeFirst(v);
-                const rangeIconMap = {
-                  month: Calendar,
-                  week: CalendarRange,
-                  today: CalendarDays,
-                } as const;
-                const Icon = rangeIconMap[v];
+                const label = v[0].toUpperCase() + v.slice(1);
+                const Icon: LucideIcon =
+                  v === 'month' ? Calendar : v === 'week' ? CalendarRange : CalendarDays;
                 return (
                   <DropdownMenuItem
                     key={v}
@@ -524,7 +503,7 @@ export default function CalendarClient({
                   className={`rounded px-1.5 py-1 text-xs whitespace-nowrap border transition-colors active:scale-95 ${range === v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`}
                   onClick={() => setRange(v)}
                 >
-                  {capitalizeFirst(v)}
+                  {v[0].toUpperCase() + v.slice(1)}
                 </button>
               ))}
             </div>
@@ -535,7 +514,14 @@ export default function CalendarClient({
           {/* Filter toggles */}
           <div className="flex items-center gap-0.5 flex-wrap" role="tablist" aria-label="Filter">
             {(['all', 'activity', 'planting', 'harvest'] as const).map((v) => {
-              const { label } = FILTER_CONFIG[v];
+              const fullLabel =
+                v === 'all'
+                  ? 'All'
+                  : v === 'activity'
+                    ? 'Activities'
+                    : v === 'planting'
+                      ? 'Plantings'
+                      : 'Harvests';
               return (
                 <button
                   key={v}
@@ -544,7 +530,7 @@ export default function CalendarClient({
                   className={`rounded px-1.5 py-1 text-xs whitespace-nowrap border transition-colors active:scale-95 ${filter === v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`}
                   onClick={() => setFilter(v)}
                 >
-                  {label}
+                  {fullLabel}
                 </button>
               );
             })}
@@ -599,14 +585,16 @@ export default function CalendarClient({
       </div>
       {/* Calendar Grid */}
       <div
-        className={`${range === 'week' ? 'md:overflow-x-auto md:-mx-1 md:px-1 md:py-1' : 'overflow-x-auto -mx-1 px-1'} pb-2`}
+        className={`${range === 'week' ? 'md:overflow-x-auto md:-mx-1 md:py-1' : 'overflow-x-auto -mx-1'} pb-2`}
       >
         <div
-          className={`grid ${(() => {
-            if (range === 'week') return 'grid-cols-1 md:grid-cols-7';
-            if (range === 'today') return 'grid-cols-1';
-            return 'grid-cols-7';
-          })()} ${range === 'week' ? 'gap-2 md:gap-3' : 'gap-2'} ${range === 'week' ? '' : 'min-w-fit'}`}
+          className={`px-1 md:px-1 grid ${
+            range === 'week'
+              ? 'grid-cols-1 md:grid-cols-7'
+              : range === 'today'
+                ? 'grid-cols-1'
+                : 'grid-cols-7'
+          } ${range === 'week' ? 'gap-2 md:gap-3' : 'gap-2'} ${range === 'week' ? '' : 'min-w-fit'}`}
         >
           {(() => {
             if (range === 'today') {
@@ -632,10 +620,10 @@ export default function CalendarClient({
           {cells.map(({ iso, dateLocal }) => {
             const key = iso;
             const dayEventsRaw = byDay.get(iso) || [];
-            const eventsWithPriority = dayEventsRaw.map((e) => {
-              const p = EVENT_TYPE_PRIORITY[e.type];
-              return { e, p };
-            });
+            const eventsWithPriority = dayEventsRaw.map((e) => ({
+              e,
+              p: e.type === 'harvest' ? 0 : e.type === 'planting' ? 1 : 2,
+            }));
             eventsWithPriority.sort((a, b) => {
               if (a.p !== b.p) return a.p - b.p;
               return (a.e.title || '').localeCompare(b.e.title || '');
@@ -661,21 +649,21 @@ export default function CalendarClient({
         open={detail.open}
         onOpenChange={(open) => setDetail((d) => ({ open, date: open ? d.date : null }))}
       >
-        <DayDetailDialog
-          dateISO={detail.date ?? ''}
-          events={detail.date ? byDay.get(detail.date) || [] : []}
-          locations={locations.filter((l) => l.latitude != null && l.longitude != null)}
-          onPrev={() => {
-            if (!detail.date) return;
-            const prevISO = addDaysISO(detail.date, -1);
-            setDetail({ open: true, date: prevISO });
-          }}
-          onNext={() => {
-            if (!detail.date) return;
-            const nextISO = addDaysISO(detail.date, 1);
-            setDetail({ open: true, date: nextISO });
-          }}
-        />
+        {detailDate ? (
+          <DayDetailDialog
+            dateISO={detailDate}
+            events={byDay.get(detailDate) || []}
+            locations={locations.filter((l) => l.latitude != null && l.longitude != null)}
+            onPrev={() => {
+              const prevISO = addDaysISO(detailDate, -1);
+              setDetail({ open: true, date: prevISO });
+            }}
+            onNext={() => {
+              const nextISO = addDaysISO(detailDate, 1);
+              setDetail({ open: true, date: nextISO });
+            }}
+          />
+        ) : null}
       </Dialog>
     </div>
   );

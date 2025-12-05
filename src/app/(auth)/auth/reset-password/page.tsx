@@ -18,8 +18,22 @@ export default function ResetPasswordPage() {
     setIsSubmitting(true);
     setMessage('');
     setError('');
+
+    // Build redirect URL from explicitly configured allowlisted origins.
+    // This must match a Redirect URL in Supabase Auth settings.
+    const configuredBaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL || process.env.NEXT_PUBLIC_SITE_URL;
+    if (!configuredBaseUrl) {
+      setIsSubmitting(false);
+      setError('Password reset is unavailable: redirect URL not configured.');
+      console.error(
+        'Reset password blocked: configure NEXT_PUBLIC_SUPABASE_REDIRECT_URL (allowlisted in Supabase) or NEXT_PUBLIC_SITE_URL.'
+      );
+      return;
+    }
+    const normalizedBase = configuredBaseUrl.replace(/\/$/, '');
     const supabase = createClient();
-    const redirectTo = `${window.location.origin}/auth/update-password`;
+    const redirectTo = `${normalizedBase}/auth/update-password`;
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo,
     });
@@ -52,14 +66,16 @@ export default function ResetPasswordPage() {
         <Button type="submit" disabled={isSubmitting} className="w-full">
           {isSubmitting ? 'Sending…' : 'Send reset email'}
         </Button>
-        {message && <p className="text-sm text-center text-green-600">{message}</p>}
-        {error && <p className="text-sm text-center text-red-600">{error}</p>}
+        <div aria-live="polite" className="min-h-[1.5rem]">
+          {message && <p className="text-sm text-center text-green-600">{message}</p>}
+          {error && <p className="text-sm text-center text-red-600">{error}</p>}
+        </div>
       </form>
       <div className="text-center text-sm">
-        <Link href="/login" className="text-primary underline-offset-4 hover:underline">Back to login</Link>
+        <Link href="/login" className="text-primary underline-offset-4 hover:underline">
+          Back to login
+        </Link>
       </div>
     </div>
   );
 }
-
-

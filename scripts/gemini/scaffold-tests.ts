@@ -17,14 +17,51 @@ import * as fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const SAFE_PATH = '/usr/bin:/bin';
+const ALLOWED_GIT_DIRS: string[] = ['/usr/bin', '/bin'];
+
+function sanitizeGitExecutable(candidate: string): string | null {
+  const trimmed = candidate.trim();
+
+  // Reject empty values or values containing control characters / newlines.
+  if (!trimmed || /[\u0000-\u001F\u007F]/u.test(trimmed)) {
+    return null;
+  }
+
+  // Allow absolute paths only if they resolve to git inside an allowlist directory.
+  if (path.isAbsolute(trimmed)) {
+    const normalized = path.normalize(trimmed);
+    const dir = path.dirname(normalized);
+    const base = path.basename(normalized);
+
+    if (base !== 'git') return null;
+    if (!ALLOWED_GIT_DIRS.includes(dir)) return null;
+
+    return normalized;
+  }
+
+  // For non-absolute values, require a simple executable name that will be resolved via SAFE_PATH.
+  // Disallow path separators and limit characters to a safe set.
+  if (trimmed.includes('/') || trimmed.includes('\\')) return null;
+  if (!/^[a-zA-Z0-9._-]+$/.test(trimmed)) return null;
+
+  return trimmed;
+}
 
 function resolveGitExecutable(): string {
   const gitExecutableFromEnv: string | undefined = process.env.GIT_EXECUTABLE;
 
-  if (gitExecutableFromEnv && gitExecutableFromEnv.trim().length > 0) {
-    // Allow callers to explicitly override the git executable location for
-    // environments where git is not installed in a standard system path.
-    return gitExecutableFromEnv.trim();
+  if (gitExecutableFromEnv) {
+    const sanitized = sanitizeGitExecutable(gitExecutableFromEnv);
+    if (sanitized) {
+      // Allow callers to explicitly override the git executable location for
+      // environments where git is not installed in a standard system path,
+      // but only when the path is validated against a strict allowlist.
+      return sanitized;
+    }
+
+    core.warning(
+      `Ignoring unsafe GIT_EXECUTABLE value "${gitExecutableFromEnv}", falling back to default "git".`
+    );
   }
 
   // Fall back to relying on PATH resolution for "git". The SAFE_ENV below
@@ -34,10 +71,23 @@ function resolveGitExecutable(): string {
   return 'git';
 }
 
-// Constants used to construct markdown code fences inside prompt templates without
-// having to embed raw triple-backtick sequences directly in template literals.
-const CODE_FENCE: string = '```';
-const CODE_FENCE_TS: string = '```typescript';
+// Constants for standard markdown code fences (plain ASCII, no zero-width chars).
+// Constructed via concatenation to avoid hidden characters.
+const CODE_FENCE: string = '`' + '`' + '`';
+const CODE_FENCE_TS: string = `${CODE_FENCE}typescript`;
+
+// Remove a single, outer markdown code fence while preserving inner fenced blocks.
+function stripSingleOuterFence(content: string): string {
+  const trimmed: string = content.trim();
+  const fencePattern: RegExp = /^(\u200b?```[a-zA-Z0-9+-]*\s*\n)([\s\S]*?)(\n?\u200b?```\s*)$/;
+  const match = trimmed.match(fencePattern);
+
+  if (!match) {
+    return trimmed;
+  }
+
+  return match[2].trim();
+}
 
 const REPO_ROOT = process.cwd();
 // Restrict PATH to fixed, typically unwritable system directories to avoid using user-controlled
@@ -238,9 +288,10 @@ async function generateTestScaffold(
   sourceFilePath: string,
   sourceCode: string
 ): Promise<string> {
-  const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = gemini.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-  const safeSourceFilePath: string = prepareForPrompt(sourceFilePath);
+  // Ensure the path cannot break prompt structure by stripping newlines after prepareForPrompt.
+  const safeSourceFilePath: string = prepareForPrompt(sourceFilePath).replace(/\r?\n/g, ' ');
   const safeSourceCode: string = prepareForPrompt(sourceCode);
 
   ensureCombinedPromptLength([safeSourceFilePath, safeSourceCode]);
@@ -319,19 +370,16 @@ Generate the complete, runnable TypeScript test file code. You may respond eithe
   try {
     const result = await model.generateContent(prompt);
     const response = result.response;
-    const text = response.text();
+    const rawText: string = response.text();
 
-    // Clean up the response - remove a single outer markdown code fence if present, while leaving
-    // any inner fenced code blocks inside the generated test code intact.
-    let testCode = text.trim();
-    if (testCode.startsWith('```')) {
-      testCode = testCode
-        .replace(/^```(?:typescript|ts|tsx)?\s*/, '')
-        .replace(/\n```$/, '')
-        .trim();
-    }
+    // First, attempt to strip an outer fence on the raw response (handles zero-width prefixed fences).
+    const withoutOuterFence: string = stripSingleOuterFence(rawText);
+    // Normalize zero-width spaces after fence handling to avoid breaking regexes.
+    const normalized: string = withoutOuterFence.replace(/\u200b/gi, '');
+    // Second pass to catch any standard fences that remain after normalization.
+    const testCode: string = stripSingleOuterFence(normalized);
 
-    return testCode;
+    return testCode.trim();
   } catch (error) {
     core.warning(`Failed to generate test for ${sourceFilePath}: ${error}`);
     throw error;
@@ -361,17 +409,24 @@ async function resolvePRContext(octokit: ReturnType<typeof initGitHubClient>) {
     const prNumberFromEnv = process.env.PR_NUMBER;
     if (!prNumberFromEnv) throw error;
 
+    const parsedPrNumber: number = Number.parseInt(prNumberFromEnv, 10);
+    if (!Number.isFinite(parsedPrNumber) || Number.isNaN(parsedPrNumber) || parsedPrNumber <= 0) {
+      throw new Error(
+        `Invalid PR_NUMBER="${prNumberFromEnv}" provided; expected a positive integer pull request number.`
+      );
+    }
+
     const context = github.context;
     const { data: pr } = await octokit.rest.pulls.get({
       owner: context.repo.owner,
       repo: context.repo.repo,
-      pull_number: Number.parseInt(prNumberFromEnv, 10),
+      pull_number: parsedPrNumber,
     });
 
     return {
       owner: context.repo.owner,
       repo: context.repo.repo,
-      prNumber: Number.parseInt(prNumberFromEnv, 10),
+      prNumber: parsedPrNumber,
       baseSha: pr.base.sha,
       headSha: pr.head.sha,
     };
@@ -631,10 +686,10 @@ function getPrNumberFromEnvOrContext(defaultPrNumber: number): number {
   const prNumberEnv = process.env.PR_NUMBER;
   if (!prNumberEnv) return defaultPrNumber;
 
-  const parsed = Number.parseInt(prNumberEnv, 10);
-  if (Number.isNaN(parsed)) {
+  const parsed: number = Number.parseInt(prNumberEnv, 10);
+  if (!Number.isFinite(parsed) || Number.isNaN(parsed) || parsed <= 0) {
     core.warning(
-      `Environment variable PR_NUMBER="${prNumberEnv}" is not a valid number; falling back to default PR number ${defaultPrNumber}.`
+      `Environment variable PR_NUMBER="${prNumberEnv}" is not a valid positive number; falling back to default PR number ${defaultPrNumber}.`
     );
     return defaultPrNumber;
   }
@@ -790,6 +845,8 @@ async function postScaffoldsComment(
   prContext: { owner: string; repo: string; prNumber: number },
   scaffolds: TestScaffold[]
 ) {
+  const escapeForFence = (code: string): string => code.replace(/```/g, '``\u200b`');
+
   const commentBody = `## 🧪 Test Scaffolding Generated
 
 I've generated test boilerplate for ${scaffolds.length} new file(s) that don't have corresponding test files:
@@ -800,7 +857,7 @@ ${scaffolds
 ### \`${scaffold.filePath}\`
 
 \`\`\`typescript
-${scaffold.testCode}
+${escapeForFence(scaffold.testCode)}
 \`\`\`
 `
   )
@@ -824,38 +881,51 @@ These are boilerplate tests - please review and enhance them based on your speci
   });
 }
 
-try {
-  core.info('Starting test scaffolding...');
+async function run() {
+  try {
+    core.info('Starting test scaffolding...');
 
-  const gemini = initGeminiClient();
-  const octokit = initGitHubClient();
-  const prContext = await resolvePRContext(octokit);
+    const gemini = initGeminiClient();
+    const octokit = initGitHubClient();
+    const prContext = await resolvePRContext(octokit);
 
-  core.info(`Scaffolding tests for PR #${prContext.prNumber}`);
+    core.info(`Scaffolding tests for PR #${prContext.prNumber}`);
 
-  const filesNeedingTests = await identifyFilesNeedingTests(octokit, prContext);
+    const filesNeedingTests = await identifyFilesNeedingTests(octokit, prContext);
 
-  if (filesNeedingTests.length === 0) {
-    core.info('All new files already have corresponding test files.');
-  } else {
-    core.info(`Generating test scaffolds for ${filesNeedingTests.length} files`);
-
-    const scaffolds = await generateScaffolds(gemini, octokit, prContext, filesNeedingTests);
-
-    if (scaffolds.length === 0) {
-      core.info('No test scaffolds generated.');
+    if (filesNeedingTests.length === 0) {
+      core.info('All new files already have corresponding test files.');
     } else {
-      core.info(`Processed test scaffolds for ${scaffolds.length} files`);
+      core.info(`Generating test scaffolds for ${filesNeedingTests.length} files`);
 
-      const shouldCommit = process.env.COMMIT_CHANGES === 'true';
+      const scaffolds = await generateScaffolds(gemini, octokit, prContext, filesNeedingTests);
 
-      if (shouldCommit) {
-        await commitScaffolds(octokit, prContext, scaffolds);
+      if (scaffolds.length === 0) {
+        core.info('No test scaffolds generated.');
       } else {
-        await postScaffoldsComment(octokit, prContext, scaffolds);
+        core.info(`Processed test scaffolds for ${scaffolds.length} files`);
+
+        const shouldCommit = process.env.COMMIT_CHANGES === 'true';
+        const allowAiCommit = process.env.ALLOW_AI_COMMIT === 'true';
+
+        if (shouldCommit && allowAiCommit) {
+          await commitScaffolds(octokit, prContext, scaffolds);
+        } else if (shouldCommit && !allowAiCommit) {
+          core.warning(
+            'COMMIT_CHANGES was requested, but ALLOW_AI_COMMIT is not true. Skipping auto-commit and posting scaffolds for human review.'
+          );
+          await postScaffoldsComment(octokit, prContext, scaffolds);
+        } else {
+          await postScaffoldsComment(octokit, prContext, scaffolds);
+        }
       }
     }
+  } catch (error) {
+    core.setFailed(`Test scaffolding failed: ${error}`);
   }
-} catch (error) {
-  core.setFailed(`Test scaffolding failed: ${error}`);
 }
+
+run().catch((error) => {
+  core.setFailed(`Unhandled error: ${error}`);
+  process.exit(1);
+});

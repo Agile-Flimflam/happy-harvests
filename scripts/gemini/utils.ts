@@ -29,10 +29,14 @@ const MAX_COMBINED_PROMPT_CONTENT_LENGTH: number = 80_000;
  * try to "solve" prompt injection; callers must still treat model outputs as untrusted.
  */
 export function prepareForPrompt(value: string): string {
+  // Break markdown code fences by inserting a zero-width space to prevent closing our fences.
+  const brokenFence: string = '`' + '\u200b' + '``';
+  // Match unbroken markdown code fences; avoid hidden zero-width characters in the pattern itself.
+  const codeFencePattern: RegExp = /```/g;
   // Normalize markdown fences and newlines first so downstream logic sees a consistent shape.
   const normalized: string = value
     // Break markdown code fences so they can't interfere with our prompt structure.
-    .replaceAll('```', '``\u200b`')
+    .replace(codeFencePattern, brokenFence)
     // Normalize newlines to reduce ambiguity across platforms.
     .replace(/\r\n?/g, '\n');
 
@@ -215,14 +219,13 @@ export async function getFileContents(
     });
 
     if ('content' in data && 'encoding' in data) {
-      const allowedEncodings: ReadonlyArray<BufferEncoding> = ['base64', 'utf-8'];
-      const encoding: string = typeof data.encoding === 'string' ? data.encoding : '';
-
-      if (!allowedEncodings.includes(encoding as BufferEncoding)) {
-        throw new Error(`Unsupported encoding "${String(data.encoding)}" for file ${path}`);
+      // GitHub API guarantees `encoding` is "base64" for file contents.
+      // Always decode from base64 and then return utf-8 text.
+      if (data.encoding !== 'base64') {
+        throw new Error(`Unexpected encoding "${String(data.encoding)}" for file ${path}`);
       }
 
-      const buffer: Buffer = Buffer.from(data.content, encoding as BufferEncoding);
+      const buffer: Buffer = Buffer.from(data.content, 'base64');
       const content: string = buffer.toString('utf-8');
       return content;
     }
@@ -293,7 +296,18 @@ export function getTestFilePath(sourcePath: string): { testPath: string; specPat
  */
 export function filterCodeFiles(files: ReadonlyArray<ChangedFileSummary>): ChangedFileSummary[] {
   return files.filter((file) => {
-    const ext: string = path.extname(file.filename);
+    const normalizedPath: string = file.filename.replace(/\\/g, '/');
+    const lowerPath: string = normalizedPath.toLowerCase();
+    const ext: string = path.extname(lowerPath);
+
+    // Explicitly exclude non-code/doc files and UI component shared library
+    if (ext === '.json' || ext === '.md') {
+      return false;
+    }
+
+    if (lowerPath.includes('components/ui/')) {
+      return false;
+    }
 
     // Only consider .ts/.tsx files
     if (ext !== '.ts' && ext !== '.tsx') {

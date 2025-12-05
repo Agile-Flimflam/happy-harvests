@@ -2,29 +2,10 @@ name: Gemini AI Integration
 
 on:
   pull_request:
-    types: [opened, reopened, labeled]
-    paths:
-      - 'src/**/*.ts'
-      - 'src/**/*.tsx'
-    # NOTE:
-    # - GitHub combines "paths" and "paths-ignore" so that a workflow only runs when
-    #   (a) at least one changed file matches "paths" AND
-    #   (b) no changed files match "paths-ignore".
-    # - Because we ignore YAML files below, a PR that only changes workflow/config
-    #   files (including this workflow file) will NOT trigger this workflow.
-    # - This is intentional: Gemini analysis is only run when application source
-    #   files under "src/" are modified, not for config-only changes.
-    paths-ignore:
-      - '**/*.test.ts'
-      - '**/*.test.tsx'
-      - '**/*.spec.ts'
-      - '**/*.spec.tsx'
-      - '**/*.md'
-      - '**/*.json'
-      - '**/*.yml'
-      - '**/*.yaml'
-      - '**/*.css'
-      - '**/*.html'
+    # Only run Gemini workflows for PRs targeting main
+    branches: [main]
+    # Trigger on PR open/reopen, label changes, and new commits (synchronize)
+    types: [opened, reopened, synchronize, labeled]
   # Label events are handled via the regular pull_request trigger with type "labeled".
   # This avoids using pull_request_target with elevated base-branch permissions, which can
   # be a high‑risk pattern if guard logic is ever bypassed.
@@ -51,11 +32,14 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
-    # Run only for PRs from this repository (not forks) to avoid executing untrusted code with secrets,
-    # and only on PR open/reopen events (not label changes).
+    # Run only for PRs from this repository (not forks) to avoid executing untrusted code with secrets.
+    # Only run for PR open/reopen/new commits. Skip label events to avoid
+    # duplicate/irrelevant analysis when labels (e.g., generate-tests) change.
     if: >
       github.event_name == 'pull_request' &&
-      (github.event.action == 'opened' || github.event.action == 'reopened') &&
+      (github.event.action == 'opened' ||
+       github.event.action == 'reopened' ||
+       github.event.action == 'synchronize') &&
       github.event.pull_request.head.repo != null &&
       github.event.pull_request.head.repo.fork != true
     steps:
@@ -74,6 +58,8 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_REVIEW_FOCUS: critical-only
+          GEMINI_COMMENT_MODE: summary
 
       - name: Generate PR description
         if: github.event.action == 'opened'

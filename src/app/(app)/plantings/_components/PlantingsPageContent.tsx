@@ -3,13 +3,27 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { Tables } from '@/lib/supabase-server';
-import { Button } from "@/components/ui/button";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Button } from '@/components/ui/button';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import FormDialog from "@/components/dialogs/FormDialog";
-import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import FormDialog from '@/components/dialogs/FormDialog';
+import { Card } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { deletePlanting, markPlantingAsPlanted } from '../_actions';
 import { NurserySowForm } from './NurserySowForm';
 import { DirectSeedForm } from './DirectSeedForm';
@@ -25,9 +39,9 @@ import {
   Shovel,
   Move,
   History,
-  RotateCcw
+  RotateCcw,
 } from 'lucide-react';
-import { toast } from "sonner";
+import { toast } from 'sonner';
 import { addDaysUtc, formatDateLocal } from '@/lib/date';
 import { positiveOrNull } from '@/lib/utils';
 import PageHeader from '@/components/page-header';
@@ -48,12 +62,36 @@ import { PLANTING_STATUS } from '@/lib/plantings/constants';
 import StatusBadge from '@/components/plantings/StatusBadge';
 
 type Planting = Tables<'plantings'>;
-type CropVariety = Pick<Tables<'crop_varieties'>, 'id' | 'name' | 'latin_name' | 'dtm_direct_seed_min' | 'dtm_direct_seed_max' | 'dtm_transplant_min' | 'dtm_transplant_max'> & { crops?: { name: string } | null };
-type Bed = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & { plots?: { locations: { name: string } | null } | null };
+type CropVariety = Pick<
+  Tables<'crop_varieties'>,
+  | 'id'
+  | 'name'
+  | 'latin_name'
+  | 'dtm_direct_seed_min'
+  | 'dtm_direct_seed_max'
+  | 'dtm_transplant_min'
+  | 'dtm_transplant_max'
+> & { crops?: { name: string } | null };
+type Bed = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & {
+  plots?: { locations: { name: string } | null } | null;
+};
 
 type PlantingWithDetails = Planting & {
-  crop_varieties: { name: string; latin_name: string; dtm_direct_seed_min?: number | null; dtm_direct_seed_max?: number | null; dtm_transplant_min?: number | null; dtm_transplant_max?: number | null; crops: { name: string } | null } | null;
-  beds: { id: number; length_inches: number | null; width_inches: number | null; plots: { locations: { name: string } | null } | null } | null;
+  crop_varieties: {
+    name: string;
+    latin_name: string;
+    dtm_direct_seed_min?: number | null;
+    dtm_direct_seed_max?: number | null;
+    dtm_transplant_min?: number | null;
+    dtm_transplant_max?: number | null;
+    crops: { name: string } | null;
+  } | null;
+  beds: {
+    id: number;
+    length_inches: number | null;
+    width_inches: number | null;
+    plots: { locations: { name: string } | null } | null;
+  } | null;
   nurseries: { name: string } | null;
   planted_qty?: number | null;
   planted_weight_grams?: number | null;
@@ -66,7 +104,9 @@ const renderPlantingLocation = (planting: PlantingWithDetails): ReactNode => {
     return planting.nurseries?.name ?? 'Nursery';
   }
   return (
-    <span>Bed #{planting.beds?.id} @ {planting.beds?.plots?.locations?.name ?? 'N/A'}</span>
+    <span>
+      Bed #{planting.beds?.id} @ {planting.beds?.plots?.locations?.name ?? 'N/A'}
+    </span>
   );
 };
 
@@ -79,11 +119,20 @@ const renderPlantingQuantity = (planting: PlantingWithDetails): ReactNode => {
 
 interface PlantingsMobileListProps {
   plantings: PlantingWithDetails[];
-  computeProjectedHarvestWindow: (p: PlantingWithDetails) => { start: string | null; end: string | null; awaitingTransplant: boolean };
+  computeProjectedHarvestWindow: (p: PlantingWithDetails) => {
+    start: string | null;
+    end: string | null;
+    awaitingTransplant: boolean;
+  };
   onOpenActionDialog: (
     dialog:
       | { type: 'transplant' | 'move' | 'remove' | 'history'; plantingId: number }
-      | { type: 'harvest'; plantingId: number; defaultQty?: number | null; defaultWeight?: number | null }
+      | {
+          type: 'harvest';
+          plantingId: number;
+          defaultQty?: number | null;
+          defaultWeight?: number | null;
+        }
   ) => void;
   onOpenDelete: (id: number) => void;
 }
@@ -93,12 +142,18 @@ interface PlantingActionsMenuProps {
   onOpenActionDialog: (
     dialog:
       | { type: 'transplant' | 'move' | 'remove' | 'history'; plantingId: number }
-      | { type: 'harvest'; plantingId: number; defaultQty?: number | null; defaultWeight?: number | null }
+      | {
+          type: 'harvest';
+          plantingId: number;
+          defaultQty?: number | null;
+          defaultWeight?: number | null;
+        }
   ) => void;
 }
 
 function PlantingActionsMenu({ planting, onOpenActionDialog }: PlantingActionsMenuProps) {
-  const canBeRemoved = (status: (typeof PLANTING_STATUS)[keyof typeof PLANTING_STATUS]) => status !== PLANTING_STATUS.removed;
+  const canBeRemoved = (status: (typeof PLANTING_STATUS)[keyof typeof PLANTING_STATUS]) =>
+    status !== PLANTING_STATUS.removed;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -109,7 +164,9 @@ function PlantingActionsMenu({ planting, onOpenActionDialog }: PlantingActionsMe
       <DropdownMenuContent align="end">
         {planting.status === PLANTING_STATUS.nursery && (
           <>
-            <DropdownMenuItem onClick={() => onOpenActionDialog({ type: 'transplant', plantingId: planting.id })}>
+            <DropdownMenuItem
+              onClick={() => onOpenActionDialog({ type: 'transplant', plantingId: planting.id })}
+            >
               <Sprout className="mr-2 h-4 w-4" />
               Transplant
             </DropdownMenuItem>
@@ -117,15 +174,20 @@ function PlantingActionsMenu({ planting, onOpenActionDialog }: PlantingActionsMe
           </>
         )}
 
-        {(planting.status === PLANTING_STATUS.planted || planting.status === PLANTING_STATUS.harvested) && (
+        {(planting.status === PLANTING_STATUS.planted ||
+          planting.status === PLANTING_STATUS.harvested) && (
           <>
             {!planting.nursery_started_date ? (
               <>
-                <DropdownMenuItem onClick={() => onOpenActionDialog({ type: 'harvest', plantingId: planting.id })}>
+                <DropdownMenuItem
+                  onClick={() => onOpenActionDialog({ type: 'harvest', plantingId: planting.id })}
+                >
                   <ShoppingBasket className="mr-2 h-4 w-4" />
                   Harvest
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onOpenActionDialog({ type: 'move', plantingId: planting.id })}>
+                <DropdownMenuItem
+                  onClick={() => onOpenActionDialog({ type: 'move', plantingId: planting.id })}
+                >
                   <Move className="mr-2 h-4 w-4" />
                   Move
                 </DropdownMenuItem>
@@ -133,12 +195,16 @@ function PlantingActionsMenu({ planting, onOpenActionDialog }: PlantingActionsMe
               </>
             ) : (
               <>
-                <DropdownMenuItem onClick={() => onOpenActionDialog({ type: 'move', plantingId: planting.id })}>
+                <DropdownMenuItem
+                  onClick={() => onOpenActionDialog({ type: 'move', plantingId: planting.id })}
+                >
                   <Move className="mr-2 h-4 w-4" />
                   Move
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onOpenActionDialog({ type: 'harvest', plantingId: planting.id })}>
+                <DropdownMenuItem
+                  onClick={() => onOpenActionDialog({ type: 'harvest', plantingId: planting.id })}
+                >
                   <ShoppingBasket className="mr-2 h-4 w-4" />
                   Harvest
                 </DropdownMenuItem>
@@ -147,18 +213,20 @@ function PlantingActionsMenu({ planting, onOpenActionDialog }: PlantingActionsMe
             )}
             {planting.status === PLANTING_STATUS.harvested && (
               <>
-                <DropdownMenuItem onClick={async () => {
-                  const fd = new FormData();
-                  fd.append('planting_id', String(planting.id));
-                  const result = await markPlantingAsPlanted(fd);
-                  if ('ok' in result && result.ok === true) {
-                    toast.success('Status changed to Planted');
-                  } else if ('error' in result) {
-                    toast.error(result.error);
-                  } else {
-                    toast.error('Unknown error updating status.');
-                  }
-                }}>
+                <DropdownMenuItem
+                  onClick={async () => {
+                    const fd = new FormData();
+                    fd.append('planting_id', String(planting.id));
+                    const result = await markPlantingAsPlanted(fd);
+                    if ('ok' in result && result.ok === true) {
+                      toast.success('Status changed to Planted');
+                    } else if ('error' in result) {
+                      toast.error(result.error);
+                    } else {
+                      toast.error('Unknown error updating status.');
+                    }
+                  }}
+                >
                   <Sprout className="mr-2 h-4 w-4" />
                   Mark as Planted
                 </DropdownMenuItem>
@@ -169,7 +237,9 @@ function PlantingActionsMenu({ planting, onOpenActionDialog }: PlantingActionsMe
         )}
 
         {canBeRemoved(planting.status) && (
-          <DropdownMenuItem onClick={() => onOpenActionDialog({ type: 'remove', plantingId: planting.id })}>
+          <DropdownMenuItem
+            onClick={() => onOpenActionDialog({ type: 'remove', plantingId: planting.id })}
+          >
             <Shovel className="mr-2 h-4 w-4" />
             Remove
           </DropdownMenuItem>
@@ -179,7 +249,12 @@ function PlantingActionsMenu({ planting, onOpenActionDialog }: PlantingActionsMe
   );
 }
 
-function PlantingsMobileList({ plantings, computeProjectedHarvestWindow, onOpenActionDialog, onOpenDelete }: PlantingsMobileListProps) {
+function PlantingsMobileList({
+  plantings,
+  computeProjectedHarvestWindow,
+  onOpenActionDialog,
+  onOpenDelete,
+}: PlantingsMobileListProps) {
   return (
     <div className="sm:hidden space-y-3">
       {plantings.map((p) => (
@@ -187,10 +262,16 @@ function PlantingsMobileList({ plantings, computeProjectedHarvestWindow, onOpenA
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-medium">{p.crop_varieties?.name ?? 'N/A'}</p>
-              <p className="text-sm text-muted-foreground">{p.crop_varieties?.crops?.name ?? 'N/A'}</p>
+              <p className="text-sm text-muted-foreground">
+                {p.crop_varieties?.crops?.name ?? 'N/A'}
+              </p>
             </div>
             <div>
-              {p.status ? <StatusBadge status={p.status} /> : <Badge variant="secondary">Unknown</Badge>}
+              {p.status ? (
+                <StatusBadge status={p.status} />
+              ) : (
+                <Badge variant="secondary">Unknown</Badge>
+              )}
             </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-3">
@@ -217,7 +298,10 @@ function PlantingsMobileList({ plantings, computeProjectedHarvestWindow, onOpenA
               return (
                 <p className="text-xs text-muted-foreground">
                   {proj.start && proj.end ? (
-                    <>Projected harvest: <span className="text-foreground font-medium">{`${formatDateLocal(proj.start)} – ${formatDateLocal(proj.end)}`}</span></>
+                    <>
+                      Projected harvest:{' '}
+                      <span className="text-foreground font-medium">{`${formatDateLocal(proj.start)} – ${formatDateLocal(proj.end)}`}</span>
+                    </>
                   ) : proj.awaitingTransplant ? (
                     'Projected harvest shown after transplant'
                   ) : (
@@ -230,11 +314,21 @@ function PlantingsMobileList({ plantings, computeProjectedHarvestWindow, onOpenA
           <div className="mt-3 flex items-center justify-end gap-2">
             <PlantingActionsMenu planting={p} onOpenActionDialog={onOpenActionDialog} />
 
-            <Button variant="ghost" size="icon" onClick={() => onOpenActionDialog({ type: 'history', plantingId: p.id })} className="mr-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onOpenActionDialog({ type: 'history', plantingId: p.id })}
+              className="mr-2"
+            >
               <History className="h-4 w-4" />
             </Button>
 
-            <Button variant="ghost" size="icon" onClick={() => onOpenDelete(p.id)} className="text-red-500 hover:text-red-700">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onOpenDelete(p.id)}
+              className="text-red-500 hover:text-red-700"
+            >
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
@@ -253,95 +347,139 @@ interface PlantingsPageContentProps {
   defaultCreateMode?: 'nursery' | 'direct' | null;
 }
 
-export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries: _nurseries, scheduleDate, defaultCreateMode = null }: PlantingsPageContentProps) {
+const isResultWithMessage = (value: unknown): value is { message: string } =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { message?: unknown }).message === 'string';
+
+const isResultWithError = (value: unknown): value is { error: string } =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { error?: unknown }).error === 'string';
+
+export function PlantingsPageContent({
+  plantings,
+  cropVarieties,
+  beds,
+  nurseries: _nurseries,
+  scheduleDate,
+  defaultCreateMode = null,
+}: PlantingsPageContentProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [createMode, setCreateMode] = useState<'nursery' | 'direct' | null>(defaultCreateMode);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'nursery' | 'planted' | 'harvested'>('active');
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | 'active' | 'nursery' | 'planted' | 'harvested'
+  >('active');
   const [actionDialog, setActionDialog] = useState<
     | { type: 'transplant' | 'move' | 'remove' | 'history'; plantingId: number }
-    | { type: 'harvest'; plantingId: number; defaultQty?: number | null; defaultWeight?: number | null }
+    | {
+        type: 'harvest';
+        plantingId: number;
+        defaultQty?: number | null;
+        defaultWeight?: number | null;
+      }
     | null
   >(null);
 
   // Optimistic projections immediately after transplant
-  const [optimisticHarvest, setOptimisticHarvest] = useState<Record<number, { start: string; end: string }>>({});
+  const [optimisticHarvest, setOptimisticHarvest] = useState<
+    Record<number, { start: string; end: string }>
+  >({});
 
-  const selectNormalizedRange = useCallback((
-    primaryMin?: number | null,
-    primaryMax?: number | null,
-    secondaryMin?: number | null,
-    secondaryMax?: number | null,
-  ): { min: number | null; max: number | null } => {
-    const pMin = positiveOrNull(primaryMin);
-    const pMax = positiveOrNull(primaryMax);
-    const sMin = positiveOrNull(secondaryMin);
-    const sMax = positiveOrNull(secondaryMax);
+  const selectNormalizedRange = useCallback(
+    (
+      primaryMin?: number | null,
+      primaryMax?: number | null,
+      secondaryMin?: number | null,
+      secondaryMax?: number | null
+    ): { min: number | null; max: number | null } => {
+      const pMin = positiveOrNull(primaryMin);
+      const pMax = positiveOrNull(primaryMax);
+      const sMin = positiveOrNull(secondaryMin);
+      const sMax = positiveOrNull(secondaryMax);
 
-    // Surface inconsistent data rather than silently correcting
-    if (process.env.NODE_ENV !== 'production') {
-      if (pMin != null && pMax != null && pMin > pMax) {
-        console.warn('[Plantings] Inconsistent primary DTM range: min > max', {
-          primaryMin: pMin,
-          primaryMax: pMax,
-          raw: { primaryMin, primaryMax },
-        });
-      }
-      if (sMin != null && sMax != null && sMin > sMax) {
-        console.warn('[Plantings] Inconsistent secondary DTM range: min > max', {
-          secondaryMin: sMin,
-          secondaryMax: sMax,
-          raw: { secondaryMin, secondaryMax },
-        });
-      }
-    }
-
-    // Only accept ranges where both min and max exist within the same category
-    const primaryHasPair = pMin != null && pMax != null;
-    const secondaryHasPair = sMin != null && sMax != null;
-
-    let minCandidate: number | null = null;
-    let maxCandidate: number | null = null;
-
-    if (primaryHasPair) {
-      minCandidate = pMin;
-      maxCandidate = pMax;
-    } else if (secondaryHasPair) {
-      minCandidate = sMin;
-      maxCandidate = sMax;
-    } else {
+      // Surface inconsistent data rather than silently correcting
       if (process.env.NODE_ENV !== 'production') {
-        console.warn('[Plantings] Incomplete DTM range; refusing mixed-category fallbacks', {
-          primary: { min: pMin, max: pMax },
-          secondary: { min: sMin, max: sMax },
-        });
+        if (pMin != null && pMax != null && pMin > pMax) {
+          console.warn('[Plantings] Inconsistent primary DTM range: min > max', {
+            primaryMin: pMin,
+            primaryMax: pMax,
+            raw: { primaryMin, primaryMax },
+          });
+        }
+        if (sMin != null && sMax != null && sMin > sMax) {
+          console.warn('[Plantings] Inconsistent secondary DTM range: min > max', {
+            secondaryMin: sMin,
+            secondaryMax: sMax,
+            raw: { secondaryMin, secondaryMax },
+          });
+        }
       }
-      return { min: null, max: null };
-    }
 
-    return { min: minCandidate, max: maxCandidate };
-  }, []);
+      // Only accept ranges where both min and max exist within the same category
+      const primaryHasPair = pMin != null && pMax != null;
+      const secondaryHasPair = sMin != null && sMax != null;
+
+      let minCandidate: number | null = null;
+      let maxCandidate: number | null = null;
+
+      if (primaryHasPair) {
+        minCandidate = pMin;
+        maxCandidate = pMax;
+      } else if (secondaryHasPair) {
+        minCandidate = sMin;
+        maxCandidate = sMax;
+      } else {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[Plantings] Incomplete DTM range; refusing mixed-category fallbacks', {
+            primary: { min: pMin, max: pMax },
+            secondary: { min: sMin, max: sMax },
+          });
+        }
+        return { min: null, max: null };
+      }
+
+      return { min: minCandidate, max: maxCandidate };
+    },
+    []
+  );
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      const ce = e as CustomEvent<{ plantingId: number; eventDate: string }>;
-      const detail = ce.detail;
-      if (!detail) return;
-      const planting = plantings.find((x) => x.id === detail.plantingId);
-      const cv = planting?.crop_varieties ?? cropVarieties.find((v) => v.id === planting?.crop_variety_id);
+    const isTransplantEvent = (
+      event: Event
+    ): event is CustomEvent<{ plantingId: number; eventDate: string }> => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!detail || typeof detail !== 'object') return false;
+      const d = detail as Record<string, unknown>;
+      return typeof d.plantingId === 'number' && typeof d.eventDate === 'string';
+    };
+
+    const handler = (event: Event) => {
+      if (!isTransplantEvent(event)) return;
+      const { plantingId, eventDate } = event.detail;
+      const planting = plantings.find((x) => x.id === plantingId);
+      const cv =
+        planting?.crop_varieties ?? cropVarieties.find((v) => v.id === planting?.crop_variety_id);
       if (!planting || !cv) return;
       const { min, max } = selectNormalizedRange(
         cv.dtm_transplant_min,
         cv.dtm_transplant_max,
         cv.dtm_direct_seed_min,
-        cv.dtm_direct_seed_max,
+        cv.dtm_direct_seed_max
       );
       if (min == null || max == null) return;
-      setOptimisticHarvest((prev) => ({ ...prev, [detail.plantingId]: { start: addDaysUtc(detail.eventDate, min), end: addDaysUtc(detail.eventDate, max) } }));
+      setOptimisticHarvest((prev) => ({
+        ...prev,
+        [plantingId]: {
+          start: addDaysUtc(eventDate, min),
+          end: addDaysUtc(eventDate, max),
+        },
+      }));
     };
-    window.addEventListener('planting:transplanted', handler as EventListener);
-    return () => window.removeEventListener('planting:transplanted', handler as EventListener);
+    window.addEventListener('planting:transplanted', handler);
+    return () => window.removeEventListener('planting:transplanted', handler);
   }, [plantings, cropVarieties, selectNormalizedRange]);
 
   // Cleanup optimistic harvest entries when they are no longer needed
@@ -352,17 +490,32 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
       for (const [idString, windowRange] of Object.entries(prev)) {
         const id = Number(idString);
         const planting = plantings.find((x) => x.id === id);
-        if (!planting) { changed = true; continue; }
-        if (planting.status === PLANTING_STATUS.removed) { changed = true; continue; }
-        if (planting.planted_date) { changed = true; continue; }
+        if (!planting) {
+          changed = true;
+          continue;
+        }
+        if (planting.status === PLANTING_STATUS.removed) {
+          changed = true;
+          continue;
+        }
+        if (planting.planted_date) {
+          changed = true;
+          continue;
+        }
         next[id] = windowRange;
       }
       return changed ? next : prev;
     });
   }, [plantings]);
 
-  const openNurserySow = () => { setCreateMode('nursery'); setIsDialogOpen(true); };
-  const openDirectSeed = () => { setCreateMode('direct'); setIsDialogOpen(true); };
+  const openNurserySow = () => {
+    setCreateMode('nursery');
+    setIsDialogOpen(true);
+  };
+  const openDirectSeed = () => {
+    setCreateMode('direct');
+    setIsDialogOpen(true);
+  };
   const closeDialog = () => {
     setIsDialogOpen(false);
     setCreateMode(null);
@@ -371,18 +524,25 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
 
   // removed: menu-level helper now handled in PlantingActionsMenu
 
-
   const openDelete = (id: number) => setDeleteId(id);
   const confirmDelete = async () => {
     if (deleteId == null) return;
     try {
       setDeleting(true);
-      const result = await deletePlanting(deleteId);
-      if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
-        toast.error(result.message);
-      } else {
-        toast.success(result.message);
+      const result: unknown = await deletePlanting(deleteId);
+      if (isResultWithMessage(result)) {
+        if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
+          toast.error(result.message);
+        } else {
+          toast.success(result.message);
+        }
+        return;
       }
+      if (isResultWithError(result)) {
+        toast.error(result.error);
+        return;
+      }
+      toast.error('Failed to delete planting.');
     } finally {
       setDeleting(false);
       setDeleteId(null);
@@ -393,67 +553,88 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
   const visiblePlantings = plantings.filter((p) => p.status !== PLANTING_STATUS.removed);
 
   const getStatusStats = () => {
-    const nurseryCount = visiblePlantings.filter(p => p.status === PLANTING_STATUS.nursery).length;
-    const plantedCount = visiblePlantings.filter(p => p.status === PLANTING_STATUS.planted).length;
-    const harvestedCount = visiblePlantings.filter(p => p.status === PLANTING_STATUS.harvested).length;
+    const nurseryCount = visiblePlantings.filter(
+      (p) => p.status === PLANTING_STATUS.nursery
+    ).length;
+    const plantedCount = visiblePlantings.filter(
+      (p) => p.status === PLANTING_STATUS.planted
+    ).length;
+    const harvestedCount = visiblePlantings.filter(
+      (p) => p.status === PLANTING_STATUS.harvested
+    ).length;
 
     return {
       total: visiblePlantings.length,
       nursery: nurseryCount,
       planted: plantedCount,
-      harvested: harvestedCount
+      harvested: harvestedCount,
     };
   };
 
   const stats = getStatusStats();
 
-  const computeProjectedHarvestWindow = useCallback((p: PlantingWithDetails): { start: string | null; end: string | null; awaitingTransplant: boolean } => {
-    // If we have an optimistic projection (immediately after transplant), use it first
-    const opt = optimisticHarvest[p.id];
-    if (opt) return { start: opt.start, end: opt.end, awaitingTransplant: false };
+  const computeProjectedHarvestWindow = useCallback(
+    (
+      p: PlantingWithDetails
+    ): { start: string | null; end: string | null; awaitingTransplant: boolean } => {
+      // If we have an optimistic projection (immediately after transplant), use it first
+      const opt = optimisticHarvest[p.id];
+      if (opt) return { start: opt.start, end: opt.end, awaitingTransplant: false };
 
-    // Prefer joined variety DTM; fallback to varieties list by crop_variety_id
-    const joined = p.crop_varieties;
-    const fallback = cropVarieties.find((v) => v.id === p.crop_variety_id);
+      // Prefer joined variety DTM; fallback to varieties list by crop_variety_id
+      const joined = p.crop_varieties;
+      const fallback = cropVarieties.find((v) => v.id === p.crop_variety_id);
 
-    const isTransplantPath = Boolean(p.nursery_started_date);
-    if (isTransplantPath) {
-      if (p.planted_date) {
-        const base = p.planted_date;
-        const { min, max } = selectNormalizedRange(
-          joined?.dtm_transplant_min ?? fallback?.dtm_transplant_min,
-          joined?.dtm_transplant_max ?? fallback?.dtm_transplant_max,
-          joined?.dtm_direct_seed_min ?? fallback?.dtm_direct_seed_min,
-          joined?.dtm_direct_seed_max ?? fallback?.dtm_direct_seed_max,
-        );
-        if (min != null && max != null) {
-          return { start: addDaysUtc(base, min), end: addDaysUtc(base, max), awaitingTransplant: false };
+      const isTransplantPath = Boolean(p.nursery_started_date);
+      if (isTransplantPath) {
+        if (p.planted_date) {
+          const base = p.planted_date;
+          const { min, max } = selectNormalizedRange(
+            joined?.dtm_transplant_min ?? fallback?.dtm_transplant_min,
+            joined?.dtm_transplant_max ?? fallback?.dtm_transplant_max,
+            joined?.dtm_direct_seed_min ?? fallback?.dtm_direct_seed_min,
+            joined?.dtm_direct_seed_max ?? fallback?.dtm_direct_seed_max
+          );
+          if (min != null && max != null) {
+            return {
+              start: addDaysUtc(base, min),
+              end: addDaysUtc(base, max),
+              awaitingTransplant: false,
+            };
+          }
+          return { start: null, end: null, awaitingTransplant: false };
         }
-        return { start: null, end: null, awaitingTransplant: false };
+        // Not yet transplanted → we cannot project exact dates without a target nursery duration
+        return { start: null, end: null, awaitingTransplant: true };
       }
-      // Not yet transplanted → we cannot project exact dates without a target nursery duration
-      return { start: null, end: null, awaitingTransplant: true };
-    }
-    // Direct seed path
-    const base = p.planted_date ?? null;
-    const { min, max } = selectNormalizedRange(
-      joined?.dtm_direct_seed_min ?? fallback?.dtm_direct_seed_min,
-      joined?.dtm_direct_seed_max ?? fallback?.dtm_direct_seed_max,
-      undefined,
-      undefined,
-    );
-    if (base && min != null && max != null) {
-      return { start: addDaysUtc(base, min), end: addDaysUtc(base, max), awaitingTransplant: false };
-    }
-    return { start: null, end: null, awaitingTransplant: false };
-  }, [optimisticHarvest, cropVarieties, selectNormalizedRange]);
+      // Direct seed path
+      const base = p.planted_date ?? null;
+      const { min, max } = selectNormalizedRange(
+        joined?.dtm_direct_seed_min ?? fallback?.dtm_direct_seed_min,
+        joined?.dtm_direct_seed_max ?? fallback?.dtm_direct_seed_max,
+        undefined,
+        undefined
+      );
+      if (base && min != null && max != null) {
+        return {
+          start: addDaysUtc(base, min),
+          end: addDaysUtc(base, max),
+          awaitingTransplant: false,
+        };
+      }
+      return { start: null, end: null, awaitingTransplant: false };
+    },
+    [optimisticHarvest, cropVarieties, selectNormalizedRange]
+  );
 
   const filteredPlantings = (() => {
     switch (statusFilter) {
       case 'all':
         return visiblePlantings;
       case 'active':
-        return visiblePlantings.filter((p) => p.status === PLANTING_STATUS.nursery || p.status === PLANTING_STATUS.planted);
+        return visiblePlantings.filter(
+          (p) => p.status === PLANTING_STATUS.nursery || p.status === PLANTING_STATUS.planted
+        );
       case 'nursery':
         return visiblePlantings.filter((p) => p.status === PLANTING_STATUS.nursery);
       case 'planted':
@@ -471,37 +652,62 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
     <div>
       <PageHeader
         title="Plantings"
-        action={hasPlantings ? (
-          <Button
-            size="sm"
-            className="w-full sm:w-auto"
-            onClick={() => { setCreateMode('nursery'); setIsDialogOpen(true); }}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Planting
-          </Button>
-        ) : undefined}
+        action={
+          hasPlantings ? (
+            <Button
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                setCreateMode('nursery');
+                setIsDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Planting
+            </Button>
+          ) : undefined
+        }
       />
 
       <FormDialog
         open={isDialogOpen}
-        onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setCreateMode(null) }}
+        onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) setCreateMode(null);
+        }}
         title={createMode === 'direct' ? 'Direct seed' : 'Nursery sow'}
         description={createMode === 'direct' ? 'Seed directly in field' : 'Start in nursery'}
-        submitLabel={createMode === 'direct' ? 'Create Direct Seed Planting' : 'Create Nursery Planting'}
+        submitLabel={
+          createMode === 'direct' ? 'Create Direct Seed Planting' : 'Create Nursery Planting'
+        }
         formId={createMode === 'direct' ? 'directSeedForm' : 'nurserySowForm'}
         className="sm:max-w-md"
       >
-        <Tabs value={createMode ?? 'nursery'} onValueChange={(v) => setCreateMode(v as 'nursery' | 'direct')}>
+        <Tabs
+          value={createMode ?? 'nursery'}
+          onValueChange={(v) => setCreateMode(v as 'nursery' | 'direct')}
+        >
           <TabsList>
             <TabsTrigger value="nursery">Nursery Sow</TabsTrigger>
             <TabsTrigger value="direct">Direct Seed</TabsTrigger>
           </TabsList>
           <TabsContent value="nursery">
-            <NurserySowForm cropVarieties={cropVarieties} nurseries={_nurseries} closeDialog={closeDialog} formId="nurserySowForm" defaultDate={scheduleDate} />
+            <NurserySowForm
+              cropVarieties={cropVarieties}
+              nurseries={_nurseries}
+              closeDialog={closeDialog}
+              formId="nurserySowForm"
+              defaultDate={scheduleDate}
+            />
           </TabsContent>
           <TabsContent value="direct">
-            <DirectSeedForm cropVarieties={cropVarieties} beds={beds} closeDialog={closeDialog} formId="directSeedForm" defaultDate={scheduleDate} />
+            <DirectSeedForm
+              cropVarieties={cropVarieties}
+              beds={beds}
+              closeDialog={closeDialog}
+              formId="directSeedForm"
+              defaultDate={scheduleDate}
+            />
           </TabsContent>
         </Tabs>
       </FormDialog>
@@ -509,63 +715,108 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
       {actionDialog && (
         <FormDialog
           open={actionDialog != null}
-          onOpenChange={(open) => { if (!open) closeActionDialog(); }}
+          onOpenChange={(open) => {
+            if (!open) closeActionDialog();
+          }}
           title={
-            actionDialog.type === 'transplant' ? 'Transplant' :
-            actionDialog.type === 'move' ? 'Move Planting' :
-            actionDialog.type === 'harvest' ? 'Harvest' :
-            actionDialog.type === 'history' ? 'Planting History' :
-            'Remove Planting'
+            actionDialog.type === 'transplant'
+              ? 'Transplant'
+              : actionDialog.type === 'move'
+                ? 'Move Planting'
+                : actionDialog.type === 'harvest'
+                  ? 'Harvest'
+                  : actionDialog.type === 'history'
+                    ? 'Planting History'
+                    : 'Remove Planting'
           }
           description={
-            actionDialog.type === 'transplant' ? 'Move from nursery to field bed' :
-            actionDialog.type === 'move' ? 'Move between beds' :
-            actionDialog.type === 'harvest' ? 'Enter final harvest metrics' :
-            actionDialog.type === 'history' ? 'Event timeline and table' :
-            'Remove this planting (no harvest)'
+            actionDialog.type === 'transplant'
+              ? 'Move from nursery to field bed'
+              : actionDialog.type === 'move'
+                ? 'Move between beds'
+                : actionDialog.type === 'harvest'
+                  ? 'Enter final harvest metrics'
+                  : actionDialog.type === 'history'
+                    ? 'Event timeline and table'
+                    : 'Remove this planting (no harvest)'
           }
           submitLabel={
-            actionDialog.type === 'transplant' ? 'Transplant' :
-            actionDialog.type === 'move' ? 'Move' :
-            actionDialog.type === 'harvest' ? 'Harvest' :
-            actionDialog.type === 'history' ? undefined :
-            'Remove Planting'
+            actionDialog.type === 'transplant'
+              ? 'Transplant'
+              : actionDialog.type === 'move'
+                ? 'Move'
+                : actionDialog.type === 'harvest'
+                  ? 'Harvest'
+                  : actionDialog.type === 'history'
+                    ? undefined
+                    : 'Remove Planting'
           }
           formId={
-            actionDialog.type === 'transplant' ? 'transplantForm' :
-            actionDialog.type === 'move' ? 'moveForm' :
-            actionDialog.type === 'harvest' ? 'harvestForm' :
-            actionDialog.type === 'history' ? undefined :
-            'removeForm'
+            actionDialog.type === 'transplant'
+              ? 'transplantForm'
+              : actionDialog.type === 'move'
+                ? 'moveForm'
+                : actionDialog.type === 'harvest'
+                  ? 'harvestForm'
+                  : actionDialog.type === 'history'
+                    ? undefined
+                    : 'removeForm'
           }
           className={actionDialog.type === 'history' ? 'sm:max-w-2xl' : 'sm:max-w-md'}
         >
           {actionDialog.type === 'transplant' && (
-            <TransplantForm plantingId={actionDialog.plantingId} beds={beds} closeDialog={closeActionDialog} formId="transplantForm" />
+            <TransplantForm
+              plantingId={actionDialog.plantingId}
+              beds={beds}
+              closeDialog={closeActionDialog}
+              formId="transplantForm"
+            />
           )}
           {actionDialog.type === 'move' && (
-            <MoveForm plantingId={actionDialog.plantingId} beds={beds} closeDialog={closeActionDialog} formId="moveForm" />
+            <MoveForm
+              plantingId={actionDialog.plantingId}
+              beds={beds}
+              closeDialog={closeActionDialog}
+              formId="moveForm"
+            />
           )}
           {actionDialog && actionDialog.type === 'harvest' && (
-            <HarvestForm plantingId={actionDialog.plantingId} closeDialog={closeActionDialog} formId="harvestForm" defaultQty={actionDialog.defaultQty ?? undefined} defaultWeight={actionDialog.defaultWeight ?? undefined} />
+            <HarvestForm
+              plantingId={actionDialog.plantingId}
+              closeDialog={closeActionDialog}
+              formId="harvestForm"
+              defaultQty={actionDialog.defaultQty ?? undefined}
+              defaultWeight={actionDialog.defaultWeight ?? undefined}
+            />
           )}
           {actionDialog.type === 'history' && (
             <PlantingHistoryDialog
               plantingId={actionDialog.plantingId}
-              varietyName={plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.name}
-              cropName={plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.crops?.name ?? null}
+              varietyName={
+                plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.name
+              }
+              cropName={
+                plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.crops
+                  ?.name ?? null
+              }
               status={plantings.find((x) => x.id === actionDialog.plantingId)?.status ?? null}
             />
           )}
           {actionDialog.type === 'remove' && (
-            <RemovePlantingForm plantingId={actionDialog.plantingId} closeDialog={closeActionDialog} formId="removeForm" />
+            <RemovePlantingForm
+              plantingId={actionDialog.plantingId}
+              closeDialog={closeActionDialog}
+              formId="removeForm"
+            />
           )}
         </FormDialog>
       )}
 
       <ConfirmDialog
         open={deleteId != null}
-        onOpenChange={(open) => { if (!open) setDeleteId(null); }}
+        onOpenChange={(open) => {
+          if (!open) setDeleteId(null);
+        }}
         title="Delete planting?"
         description="This action cannot be undone."
         confirmText="Delete"
@@ -582,9 +833,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 <Sprout className="size-10" />
               </EmptyMedia>
               <EmptyTitle>No plantings yet</EmptyTitle>
-              <EmptyDescription>
-                Add your first planting to get started.
-              </EmptyDescription>
+              <EmptyDescription>Add your first planting to get started.</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <DropdownMenu>
@@ -623,8 +872,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 tabIndex={0}
                 onClick={() => setStatusFilter('nursery')}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ')
-                  {
+                  if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     setStatusFilter('nursery');
                   }
@@ -647,8 +895,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 tabIndex={0}
                 onClick={() => setStatusFilter('planted')}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ')
-                  {
+                  if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     setStatusFilter('planted');
                   }
@@ -671,8 +918,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 tabIndex={0}
                 onClick={() => setStatusFilter('harvested')}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ')
-                  {
+                  if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     setStatusFilter('harvested');
                   }
@@ -695,8 +941,7 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                 tabIndex={0}
                 onClick={() => setStatusFilter('all')}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ')
-                  {
+                  if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     setStatusFilter('all');
                   }
@@ -736,13 +981,15 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                     <TableHead>Planted</TableHead>
                     <TableHead>Harvest Window</TableHead>
                     <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredPlantings.map((p) => (
                     <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.crop_varieties?.name ?? 'N/A'}</TableCell>
+                      <TableCell className="font-medium">
+                        {p.crop_varieties?.name ?? 'N/A'}
+                      </TableCell>
                       <TableCell>{p.crop_varieties?.crops?.name ?? 'N/A'}</TableCell>
                       <TableCell>{renderPlantingLocation(p)}</TableCell>
                       <TableCell>{p.nursery_started_date ? 'Transplant' : 'Direct Seed'}</TableCell>
@@ -755,22 +1002,38 @@ export function PlantingsPageContent({ plantings, cropVarieties, beds, nurseries
                             <span className="whitespace-nowrap">
                               {proj.start && proj.end
                                 ? `${formatDateLocal(proj.start)} – ${formatDateLocal(proj.end)}`
-                                : (proj.awaitingTransplant ? 'Shown after transplant' : 'Projected harvest unavailable')}
+                                : proj.awaitingTransplant
+                                  ? 'Shown after transplant'
+                                  : 'Projected harvest unavailable'}
                             </span>
                           );
                         })()}
                       </TableCell>
                       <TableCell>
-                        {p.status ? <StatusBadge status={p.status} /> : <Badge variant="secondary">Unknown</Badge>}
+                        {p.status ? (
+                          <StatusBadge status={p.status} />
+                        ) : (
+                          <Badge variant="secondary">Unknown</Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <PlantingActionsMenu planting={p} onOpenActionDialog={setActionDialog} />
 
-                        <Button variant="ghost" size="icon" onClick={() => setActionDialog({ type: 'history', plantingId: p.id })} className="mr-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setActionDialog({ type: 'history', plantingId: p.id })}
+                          className="mr-2"
+                        >
                           <History className="h-4 w-4" />
                         </Button>
 
-                        <Button variant="ghost" size="icon" onClick={() => openDelete(p.id)} className="text-red-500 hover:text-red-700">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openDelete(p.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </TableCell>

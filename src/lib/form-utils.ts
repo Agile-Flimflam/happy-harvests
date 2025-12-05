@@ -36,9 +36,9 @@ let globalFormControlListenerSetup = false;
 export function setupFormControlProperty(formElement: HTMLFormElement | null): void {
   if (!formElement) return;
 
-  // Check if 'control' property already exists and is properly set up
+  // Check if 'control' property already exists and has both getter and setter configured
   const descriptor = Object.getOwnPropertyDescriptor(formElement, 'control');
-  if (descriptor && (descriptor.get || descriptor.set)) {
+  if (descriptor && descriptor.get && descriptor.set) {
     // Property already exists with getter/setter - likely already set up correctly
     return;
   }
@@ -126,7 +126,7 @@ export function setupFormControlPropertyFromInput(inputElement: HTMLInputElement
  * Should be called once during app initialization.
  */
 export function setupGlobalFormControlListener(): void {
-  if (globalThis.window === undefined) return;
+  if (typeof window === 'undefined') return;
   if (globalFormControlListenerSetup) return;
 
   // Set up form control property for all existing forms immediately
@@ -136,28 +136,25 @@ export function setupGlobalFormControlListener(): void {
     setupFormControlProperty(form);
   });
 
-  // Helper function to handle form setup for added DOM nodes
-  const handleAddedNode = (node: Node): void => {
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const element = node as HTMLElement;
-      // Check if the added node is a form
-      if (element.tagName === 'FORM') {
-        setupFormControlProperty(element as HTMLFormElement);
-      }
-      // Check if the added node contains any forms
-      const forms = element.querySelectorAll?.('form');
-      if (forms) {
-        forms.forEach((form) => {
-          setupFormControlProperty(form);
-        });
-      }
-    }
-  };
-
   // Also watch for new forms being added to the DOM
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
-      mutation.addedNodes.forEach(handleAddedNode);
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const element = node as HTMLElement;
+          // Check if the added node is a form
+          if (element.tagName === 'FORM') {
+            setupFormControlProperty(element as HTMLFormElement);
+          }
+          // Check if the added node contains any forms
+          const forms = element.querySelectorAll?.('form');
+          if (forms) {
+            forms.forEach((form) => {
+              setupFormControlProperty(form);
+            });
+          }
+        }
+      });
     });
   });
 
@@ -167,25 +164,29 @@ export function setupGlobalFormControlListener(): void {
     subtree: true,
   });
 
-  // Helper function to set up form control property for a given target element
-  const setupFormControlForTarget = (target: EventTarget | null): void => {
+  const handleFocusIn = (e: FocusEvent) => {
+    const target = e.target as HTMLElement | null;
     if (!target) return;
 
-    const element = target as HTMLElement;
-    const form = element.closest('form');
+    // Find the form containing the focused element
+    const form = target.closest('form');
     if (form) {
       // Set up form control property synchronously before extension checks it
       setupFormControlProperty(form);
     }
   };
 
-  const handleFocusIn = (e: FocusEvent) => {
-    setupFormControlForTarget(e.target);
-  };
-
   const handleInput = (e: Event) => {
-    // Extensions often check form.control during input events
-    setupFormControlForTarget(e.target);
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+
+    // Find the form containing the input element
+    const form = target.closest('form');
+    if (form) {
+      // Set up form control property synchronously before extension checks it
+      // Extensions often check form.control during input events
+      setupFormControlProperty(form);
+    }
   };
 
   // Use capture phase (true) to run before extension handlers

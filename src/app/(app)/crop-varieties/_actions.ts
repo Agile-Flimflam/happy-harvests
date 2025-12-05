@@ -1,6 +1,6 @@
 'use server';
 
-import { createSupabaseServerClient, type Database, type Enums } from '@/lib/supabase-server';
+import { createSupabaseServerClient, type Database } from '@/lib/supabase-server';
 // Refactored to new schema: remove DaysToMaturity JSON
 import { revalidatePath } from 'next/cache';
 import { CropVarietySchema, SimpleCropSchema } from '@/lib/validation/crop-varieties';
@@ -10,19 +10,27 @@ import { CropVarietySchema, SimpleCropSchema } from '@/lib/validation/crop-varie
 type CropVariety = Database['public']['Tables']['crop_varieties']['Row'];
 type CropVarietyInsert = Database['public']['Tables']['crop_varieties']['Insert'];
 type CropVarietyUpdate = Database['public']['Tables']['crop_varieties']['Update'];
+type CropVarietyWithImageUrl = CropVariety & { image_url: string | null };
 
 export type CropVarietyFormState = {
   message: string;
   errors?: Record<string, string[] | undefined>;
-  cropVariety?: CropVariety | null;
-}
+  cropVariety?: CropVarietyWithImageUrl | null;
+};
 
 // No JSON helper needed in new schema
 
 const STORAGE_BUCKET = 'crop_variety_images';
+function getPublicImageUrl(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  path: string | null
+): string | null {
+  if (!path) return null;
+  return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data?.publicUrl ?? null;
+}
 
 function getFileExtension(file: File): string {
-  const name = (file as unknown as { name?: string }).name || '';
+  const name = file.name || '';
   const dotIdx = name.lastIndexOf('.');
   if (dotIdx !== -1) return name.slice(dotIdx + 1).toLowerCase();
   const mime = file.type || '';
@@ -46,10 +54,7 @@ function isSupportedImageType(file: File): boolean {
 }
 
 function isFileLike(value: unknown): value is File {
-  return (
-    (typeof File !== 'undefined' && value instanceof File) ||
-    (typeof value === 'object' && value !== null && 'size' in (value as Record<string, unknown>) && 'type' in (value as Record<string, unknown>))
-  );
+  return typeof File !== 'undefined' && value instanceof File;
 }
 
 export async function createCropVariety(
@@ -98,7 +103,7 @@ export async function createCropVariety(
     // Insert first to get the new ID
     const { data: inserted, error: insertError } = await supabase
       .from('crop_varieties')
-      .insert(cropVarietyData as Database['public']['Tables']['crop_varieties']['Insert'])
+      .insert(cropVarietyData)
       .select()
       .single();
     if (insertError || !inserted) {
@@ -106,6 +111,7 @@ export async function createCropVariety(
       return { message: `Database Error: ${insertError?.message || 'Insert failed'}` };
     }
 
+    let imagePath: string | null = inserted.image_path ?? null;
     // Handle optional image upload
     const fileEntry = formData.get('image');
     const file = isFileLike(fileEntry) ? fileEntry : null;
@@ -113,7 +119,9 @@ export async function createCropVariety(
       if (!isSupportedImageType(file)) {
         // Rollback row if image invalid
         await supabase.from('crop_varieties').delete().eq('id', inserted.id);
-        return { message: 'Validation failed. Unsupported image type. Allowed: JPEG, PNG, WEBP, AVIF.' };
+        return {
+          message: 'Validation failed. Unsupported image type. Allowed: JPEG, PNG, WEBP, AVIF.',
+        };
       }
       if (file.size > 5 * 1024 * 1024) {
         await supabase.from('crop_varieties').delete().eq('id', inserted.id);
@@ -137,9 +145,10 @@ export async function createCropVariety(
         return { message: `Image upload failed: ${uploadError.message}` };
       }
 
+      imagePath = path;
       const { error: updateError } = await supabase
         .from('crop_varieties')
-        .update({ image_path: path } as CropVarietyUpdate)
+        .update({ image_path: path })
         .eq('id', inserted.id);
       if (updateError) {
         console.error('Supabase Error (update image_path):', updateError);
@@ -148,7 +157,12 @@ export async function createCropVariety(
     }
 
     revalidatePath('/crop-varieties');
-    return { message: 'Crop variety created successfully.', cropVariety: null, errors: {} };
+    const imageUrl = getPublicImageUrl(supabase, imagePath);
+    return {
+      message: 'Crop variety created successfully.',
+      cropVariety: { ...inserted, image_path: imagePath, image_url: imageUrl },
+      errors: {},
+    };
   } catch (e) {
     console.error('Unexpected Error:', e);
     return { message: 'An unexpected error occurred.' };
@@ -160,8 +174,12 @@ export async function updateCropVariety(
   formData: FormData
 ): Promise<CropVarietyFormState> {
   const supabase = await createSupabaseServerClient();
-  const idRaw = formData.get('id') as string;
-  const id = idRaw ? parseInt(idRaw, 10) : NaN;
+  const idEntry = formData.get('id');
+  if (typeof idEntry !== 'string') {
+    return { message: 'Error: Missing Crop Variety ID for update.' };
+  }
+
+  const id = Number.parseInt(idEntry, 10);
   if (!id || Number.isNaN(id)) {
     return { message: 'Error: Missing Crop Variety ID for update.' };
   }
@@ -173,7 +191,10 @@ export async function updateCropVariety(
     .single();
   if (fetchError || !existing) {
     console.error('Supabase Error (fetch existing):', fetchError);
-    return { message: `Database Error: ${fetchError?.message || 'Not found'}`, cropVariety: prevState.cropVariety };
+    return {
+      message: `Database Error: ${fetchError?.message || 'Not found'}`,
+      cropVariety: prevState.cropVariety,
+    };
   }
   const validatedFields = CropVarietySchema.safeParse({
     id,
@@ -199,7 +220,7 @@ export async function updateCropVariety(
       cropVariety: prevState.cropVariety,
     };
   }
-  const v = validatedFields.data as unknown as CropVarietyUpdate & { id: number };
+  const v = validatedFields.data;
   const cropVarietyDataToUpdate: CropVarietyUpdate = {
     crop_id: v.crop_id,
     name: v.name,
@@ -221,22 +242,21 @@ export async function updateCropVariety(
     const fileEntry = formData.get('image');
     const file = isFileLike(fileEntry) ? fileEntry : null;
 
-    if (removeImage && existing.image_path) {
-      await supabase.storage.from(STORAGE_BUCKET).remove([existing.image_path]);
-      cropVarietyDataToUpdate.image_path = null;
-    }
+    const existingImagePath: string | null = existing.image_path ?? null;
+    let imagePath: string | null = existingImagePath;
 
     if (file && file.size > 0) {
       if (!isSupportedImageType(file)) {
-        return { message: 'Validation failed. Unsupported image type. Allowed: JPEG, PNG, WEBP, AVIF.', cropVariety: prevState.cropVariety };
+        return {
+          message: 'Validation failed. Unsupported image type. Allowed: JPEG, PNG, WEBP, AVIF.',
+          cropVariety: prevState.cropVariety,
+        };
       }
       if (file.size > 5 * 1024 * 1024) {
-        return { message: 'Validation failed. Image size exceeds 5MB.', cropVariety: prevState.cropVariety };
-      }
-
-      // Delete old image if exists (best-effort)
-      if (existing.image_path) {
-        await supabase.storage.from(STORAGE_BUCKET).remove([existing.image_path]);
+        return {
+          message: 'Validation failed. Image size exceeds 5MB.',
+          cropVariety: prevState.cropVariety,
+        };
       }
 
       const ext = getFileExtension(file);
@@ -251,51 +271,95 @@ export async function updateCropVariety(
         });
       if (uploadError) {
         console.error('Storage upload error:', uploadError);
-        return { message: `Image upload failed: ${uploadError.message}`, cropVariety: prevState.cropVariety };
+        return {
+          message: `Image upload failed: ${uploadError.message}`,
+          cropVariety: prevState.cropVariety,
+        };
       }
       cropVarietyDataToUpdate.image_path = path;
+      imagePath = path;
+    } else if (removeImage) {
+      // Only mark for removal; delete after successful DB update to avoid inconsistency.
+      cropVarietyDataToUpdate.image_path = null;
+      imagePath = null;
     }
 
     const { error } = await supabase
       .from('crop_varieties')
-      .update(cropVarietyDataToUpdate as Database['public']['Tables']['crop_varieties']['Update'])
+      .update(cropVarietyDataToUpdate)
       .eq('id', id);
     if (error) {
       console.error('Supabase Error:', error);
       return { message: `Database Error: ${error.message}`, cropVariety: prevState.cropVariety };
     }
+    const { data: updatedRow, error: fetchUpdatedError } = await supabase
+      .from('crop_varieties')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (fetchUpdatedError || !updatedRow) {
+      console.error('Supabase Error (fetch updated):', fetchUpdatedError);
+      return {
+        message: `Database Error: ${fetchUpdatedError?.message || 'Not found'}`,
+        cropVariety: prevState.cropVariety,
+      };
+    }
+    // Best-effort cleanup after successful update.
+    if (existingImagePath && (removeImage || (imagePath && imagePath !== existingImagePath))) {
+      try {
+        await supabase.storage.from(STORAGE_BUCKET).remove([existingImagePath]);
+      } catch (cleanupError) {
+        console.error('Storage cleanup error:', cleanupError);
+      }
+    }
+    const imageUrl = getPublicImageUrl(supabase, imagePath ?? updatedRow.image_path ?? null);
     revalidatePath('/crop-varieties');
-    return { message: 'Crop variety updated successfully.', cropVariety: null, errors: {} };
+    return {
+      message: 'Crop variety updated successfully.',
+      cropVariety: { ...updatedRow, image_url: imageUrl },
+      errors: {},
+    };
   } catch (e) {
     console.error('Unexpected Error:', e);
     return { message: 'An unexpected error occurred.', cropVariety: prevState.cropVariety };
   }
 }
 
-export async function deleteCropVariety(id: string | number): Promise<{ message: string }> {
+export type DeleteCropVarietyResult = {
+  message: string;
+};
+
+export async function deleteCropVariety(id: string | number): Promise<DeleteCropVarietyResult> {
   const supabase = await createSupabaseServerClient();
   const numericId = typeof id === 'number' ? id : parseInt(id, 10);
   if (!numericId || Number.isNaN(numericId)) {
     return { message: 'Error: Missing Crop Variety ID for delete.' };
   }
   try {
-    // Clean up image if present
+    // Fetch image path first; defer deletion until after DB delete succeeds
     const { data: existing, error: fetchError } = await supabase
       .from('crop_varieties')
       .select('image_path')
       .eq('id', numericId)
       .single();
-    if (!fetchError && existing?.image_path) {
-      await supabase.storage.from(STORAGE_BUCKET).remove([existing.image_path]);
-    }
-
+    const imagePath = !fetchError ? (existing?.image_path ?? null) : null;
     const { error } = await supabase.from('crop_varieties').delete().eq('id', numericId);
     if (error) {
       console.error('Supabase Error:', error);
       if (error.code === '23503') {
-        return { message: 'Database Error: Cannot delete crop variety because it is currently associated with one or more crops.' };
+        return {
+          message:
+            'Database Error: Cannot delete crop variety because it is currently associated with one or more crops.',
+        };
       }
       return { message: `Database Error: ${error.message}` };
+    }
+    if (imagePath) {
+      try {
+        await supabase.storage.from(STORAGE_BUCKET).remove([imagePath]);
+      } catch (cleanupError) {
+        console.error('Storage cleanup error on delete:', cleanupError);
+      }
     }
     revalidatePath('/crop-varieties');
     return { message: 'Crop variety deleted successfully.' };
@@ -306,9 +370,12 @@ export async function deleteCropVariety(id: string | number): Promise<{ message:
 }
 
 // Inline Crop creation for the Crop Varieties page
-type Crop = Database['public']['Tables']['crops']['Row'];
+export type Crop = Database['public']['Tables']['crops']['Row'];
 type CropInsert = Database['public']['Tables']['crops']['Insert'];
-type CropType = Enums<'crop_type'>;
+type CropVarietyWithCropName = CropVariety & {
+  crops: { name: string } | null;
+  image_url: string | null;
+};
 
 // Schema now centralized in src/lib/validation/crop-varieties
 
@@ -316,7 +383,7 @@ export type SimpleCropFormState = {
   message: string;
   errors?: Record<string, string[] | undefined>;
   crop?: Crop | null;
-}
+};
 
 export async function createCropSimple(
   prevState: SimpleCropFormState,
@@ -328,22 +395,29 @@ export async function createCropSimple(
     crop_type: formData.get('crop_type'),
   });
   if (!validated.success) {
-    return { message: 'Validation failed. Could not create crop.', errors: validated.error.flatten().fieldErrors };
+    return {
+      message: 'Validation failed. Could not create crop.',
+      errors: validated.error.flatten().fieldErrors,
+    };
   }
   const insertData: CropInsert = {
     name: validated.data.name,
-    crop_type: validated.data.crop_type as CropType,
+    crop_type: validated.data.crop_type,
   };
   const { data, error } = await supabase.from('crops').insert(insertData).select('*').single();
   if (error) {
     console.error('Supabase Error (createCropSimple):', error);
     return { message: `Database Error: ${error.message}` };
   }
-  // No revalidate here; caller updates local state
-  return { message: 'Crop created successfully.', crop: data as Crop, errors: {} };
+  // Invalidate cached crop lists so dropdowns render the new crop without a manual refresh.
+  revalidatePath('/crop-varieties');
+  return { message: 'Crop created successfully.', crop: data, errors: {} };
 }
 
-export async function getCropVarieties(): Promise<{ cropVarieties?: (CropVariety & { crops: { name: string } | null } & { image_url?: string | null })[]; error?: string }> {
+export async function getCropVarieties(): Promise<{
+  cropVarieties: CropVarietyWithCropName[];
+  error?: string;
+}> {
   const supabase = await createSupabaseServerClient();
   try {
     const { data, error } = await supabase
@@ -352,14 +426,13 @@ export async function getCropVarieties(): Promise<{ cropVarieties?: (CropVariety
       .order('name', { ascending: true });
     if (error) {
       console.error('Supabase Error fetching crop varieties:', error);
-      return { error: `Database Error: ${error.message}` };
+      return { cropVarieties: [], error: `Database Error: ${error.message}` };
     }
-    const withUrls = (data || []).map((row) => {
-      if (row.image_path) {
-        const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(row.image_path);
-        return { ...row, image_url: pub?.publicUrl || null } as CropVariety & { crops: { name: string } | null } & { image_url?: string | null };
-      }
-      return { ...row, image_url: null } as CropVariety & { crops: { name: string } | null } & { image_url?: string | null };
+    const withUrls: CropVarietyWithCropName[] = (data || []).map((row) => {
+      const imageUrl = row.image_path
+        ? supabase.storage.from(STORAGE_BUCKET).getPublicUrl(row.image_path).data?.publicUrl || null
+        : null;
+      return { ...row, image_url: imageUrl };
     });
     withUrls.sort((a, b) => {
       const cropA = (a.crops?.name || '').toString();
@@ -371,8 +444,9 @@ export async function getCropVarieties(): Promise<{ cropVarieties?: (CropVariety
     return { cropVarieties: withUrls };
   } catch (e) {
     console.error('Unexpected Error fetching crop varieties:', e);
-    return { error: 'An unexpected error occurred while fetching crop varieties.' };
+    return {
+      cropVarieties: [],
+      error: 'An unexpected error occurred while fetching crop varieties.',
+    };
   }
 }
-
-

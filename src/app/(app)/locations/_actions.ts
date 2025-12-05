@@ -3,7 +3,7 @@
 import { createSupabaseServerClient, type Database, type Tables } from '@/lib/supabase-server';
 import { revalidatePath } from 'next/cache';
 import { fetchWeatherByCoords } from '@/lib/openweather';
-import { LocationSchema } from '@/lib/validation/locations';
+import { LocationSchema, type LocationFormValues } from '@/lib/validation/locations';
 
 // Schema now centralized in src/lib/validation/locations
 
@@ -13,7 +13,7 @@ type LocationUpdate = Database['public']['Tables']['locations']['Update'];
 
 export type LocationFormState = {
   message: string;
-  errors?: Record<string, string[] | undefined>;
+  errors?: Partial<Record<keyof LocationFormValues, string | string[]>>;
   location?: Location | null;
 };
 
@@ -30,6 +30,9 @@ function numberOrNull(v: FormDataEntryValue | null): number | null {
   const n = Number(s);
   return Number.isFinite(n) ? n : (null as number | null);
 }
+
+const UUID_REGEX: RegExp =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
 
 export async function createLocation(
   prevState: LocationFormState,
@@ -64,12 +67,13 @@ export async function createLocation(
     notes: validated.data.notes ?? null,
   };
   // Populate timezone if coordinates are provided
-  if (
-    typeof validated.data.latitude === 'number' &&
-    typeof validated.data.longitude === 'number'
-  ) {
+  if (typeof validated.data.latitude === 'number' && typeof validated.data.longitude === 'number') {
     try {
-      const weather = await fetchWeatherByCoords(validated.data.latitude, validated.data.longitude, { units: 'imperial' });
+      const weather = await fetchWeatherByCoords(
+        validated.data.latitude,
+        validated.data.longitude,
+        { units: 'imperial' }
+      );
       payload.timezone = weather.timezone ?? null;
     } catch (e) {
       console.error('OpenWeather timezone fetch failed on create:', e);
@@ -88,12 +92,15 @@ export async function updateLocation(
   formData: FormData
 ): Promise<LocationFormState> {
   const supabase = await createSupabaseServerClient();
-  const id = String(formData.get('id') || '');
+  const idValue = formData.get('id');
+  const id = typeof idValue === 'string' ? idValue.trim() : '';
   if (!id) {
     return { message: 'Error: Missing Location ID for update.' };
   }
+  if (!UUID_REGEX.test(id)) {
+    return { message: 'Error: Invalid Location ID format.' };
+  }
   const validated = LocationSchema.safeParse({
-    id,
     name: formData.get('name'),
     street: valueOrNull(formData.get('street')),
     city: valueOrNull(formData.get('city')),
@@ -118,33 +125,24 @@ export async function updateLocation(
     zip: validated.data.zip ?? null,
     latitude: validated.data.latitude ?? null,
     longitude: validated.data.longitude ?? null,
+    timezone: null,
     notes: validated.data.notes ?? null,
   };
   // Populate or clear timezone depending on coordinates
-  if (
-    typeof validated.data.latitude === 'number' &&
-    typeof validated.data.longitude === 'number'
-  ) {
+  if (typeof validated.data.latitude === 'number' && typeof validated.data.longitude === 'number') {
     try {
-      const weather = await fetchWeatherByCoords(validated.data.latitude, validated.data.longitude, { units: 'imperial' });
+      const weather = await fetchWeatherByCoords(
+        validated.data.latitude,
+        validated.data.longitude,
+        { units: 'imperial' }
+      );
       updateData.timezone = weather.timezone ?? null;
     } catch (e) {
       console.error('OpenWeather timezone fetch failed on update:', e);
-      // Keep timezone as null if fetch fails
+      updateData.timezone = null; // Explicitly clear timezone on failure to avoid stale data
     }
-  } else if (
-    validated.data.latitude == null &&
-    validated.data.longitude == null
-  ) {
-    // If coords cleared, also clear timezone
-    updateData.timezone = null;
-  } else {
-    // If only one coordinate is provided, avoid changing timezone by not setting it
   }
-  const { error } = await supabase
-    .from('locations')
-    .update(updateData)
-    .eq('id', id);
+  const { error } = await supabase.from('locations').update(updateData).eq('id', id);
   if (error) {
     return { message: `Database Error: ${error.message}`, location: prevState.location };
   }
@@ -152,25 +150,36 @@ export async function updateLocation(
   return { message: 'Location updated successfully.', location: null, errors: {} };
 }
 
-export async function deleteLocation(id: string): Promise<{ message: string }> {
+export type DeleteLocationResult = { message: string };
+
+export async function deleteLocation(id: string): Promise<DeleteLocationResult> {
   const supabase = await createSupabaseServerClient();
   if (!id) return { message: 'Error: Missing Location ID for delete.' };
+  const trimmedId = id.trim();
+  if (!UUID_REGEX.test(trimmedId)) {
+    return { message: 'Error: Invalid Location ID format.' };
+  }
   // Optional pre-check: if plots exist, warn earlier
   const { count, error: countError } = await supabase
     .from('plots')
     .select('plot_id', { count: 'exact', head: true })
-    .eq('location_id', id);
+    .eq('location_id', trimmedId);
   if (countError) {
     // Proceed anyway; the delete will fail if FK violation
     console.error('Count error on plots:', countError.message);
   }
   if ((count ?? 0) > 0) {
-    return { message: 'Error: Cannot delete location while plots are associated. Reassign or delete plots first.' };
+    return {
+      message:
+        'Error: Cannot delete location while plots are associated. Reassign or delete plots first.',
+    };
   }
-  const { error } = await supabase.from('locations').delete().eq('id', id);
+  const { error } = await supabase.from('locations').delete().eq('id', trimmedId);
   if (error) {
     if (error.code === '23503') {
-      return { message: 'Database Error: Cannot delete location due to existing associated plots.' };
+      return {
+        message: 'Database Error: Cannot delete location due to existing associated plots.',
+      };
     }
     return { message: `Database Error: ${error.message}` };
   }
@@ -188,10 +197,12 @@ export async function getLocations(): Promise<{ locations?: Location[]; error?: 
     .select('*')
     .order('name', { ascending: true });
   if (error) return { error: `Database Error: ${error.message}` };
-  return { locations: (data as Location[]) || [] };
+  return { locations: data ?? [] };
 }
 
-export async function getLocationWithPlots(id: string): Promise<{ location?: LocationWithPlots; error?: string }> {
+export async function getLocationWithPlots(
+  id: string
+): Promise<{ location?: LocationWithPlots; error?: string }> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('locations')
@@ -199,8 +210,7 @@ export async function getLocationWithPlots(id: string): Promise<{ location?: Loc
     .eq('id', id)
     .single();
   if (error) return { error: `Database Error: ${error.message}` };
+  if (!data) return { error: 'Location not found.' };
   const loc = data as LocationWithMaybePlots;
   return { location: { ...loc, plots: loc.plots || [] } };
 }
-
-

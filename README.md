@@ -8,6 +8,7 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
 - **Database & Auth:** [Supabase](https://supabase.com/)
 - **UI:** [shadcn/ui](https://ui.shadcn.com/) + [Tailwind CSS](https://tailwindcss.com/)
 - **Styling:** Tailwind CSS
+- **Maps & Geocoding:** [Mapbox](https://www.mapbox.com/) (address autocomplete and interactive maps)
 - **Notifications:** [Sonner](https://sonner.emilkowal.ski/)
 - **Forms:** React Hook Form (via shadcn/ui), Zod (for validation)
 - **Linting/Formatting:** ESLint, Prettier
@@ -51,7 +52,29 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
         - Authorized redirect URIs: `https://<YOUR_PROJECT_REF>.supabase.co/auth/v1/callback` (replace with your Supabase project ref). Add one per environment if using separate Supabase projects.
       - In this app, OAuth sign-in will redirect to: `${NEXT_PUBLIC_SITE_URL}/auth/callback?next=/` which then exchanges the code and returns you to the app.
 
-4.  **Set up Supabase CLI and link project:**
+4.  **Set up Mapbox:**
+    - Create a free account at [Mapbox](https://www.mapbox.com/) or sign in to your existing account.
+    - Navigate to your [Account page](https://account.mapbox.com/) and copy your **Default public token** (or create a new access token if needed).
+    - Add the Mapbox access token to your `.env.local` file:
+
+      ```
+      # Required: Public token for client-side map display and address autocomplete
+      NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN="YOUR_MAPBOX_PUBLIC_TOKEN"
+
+      # Optional: Server-only token for reverse geocoding (more secure)
+      # If not provided, the API route will fall back to NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+      MAPBOX_ACCESS_TOKEN="YOUR_MAPBOX_SERVER_TOKEN"
+      ```
+
+    - **⚠️ Security Warning:** The `NEXT_PUBLIC_` prefix makes this variable available to client-side code, which is required for Mapbox to work in the browser. **This means your Mapbox access token will be visible in the browser's source code and network requests.**
+      - Use a **public token** (typically starts with `pk.`), NOT a secret token (starts with `sk.`)
+      - Configure **URL restrictions** in your Mapbox account to limit token usage to your domain(s)
+      - Set **minimal scopes** (only styles:read, fonts:read, sprites:read for maps; geocoding for autocomplete)
+      - Set up **rate limiting** and **usage quotas** in Mapbox to prevent abuse
+      - Monitor your Mapbox usage regularly for unexpected activity
+      - See the [Security Best Practices](#security-best-practices) section below for more information
+
+5.  **Set up Supabase CLI and link project:**
     - Install the Supabase CLI: Follow instructions at [docs.supabase.com/guides/cli](https://supabase.com/docs/guides/cli)
     - Log in to the CLI:
       ```bash
@@ -63,13 +86,13 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       ```
       (Enter your database password when prompted - you can find/reset this in Project Settings > Database)
 
-5.  **Apply Database Migrations:**
+6.  **Apply Database Migrations:**
     - The initial schema is in `supabase/migrations`. Apply it to your Supabase database:
       ```bash
       supabase db push
       ```
 
-6.  **Generate TypeScript Types from Schema:**
+7.  **Generate TypeScript Types from Schema:**
     - This step generates accurate TypeScript types based on your database schema, which are used in the Supabase client helper (`lib/supabase.ts`) and server actions.
       ```bash
       supabase gen types typescript --linked > lib/database.types.ts
@@ -86,7 +109,7 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       // ... rest of the file
       ```
 
-7.  **Seed the database (Optional but Recommended):**
+8.  **Seed the database (Optional but Recommended):**
     - The `supabase/seed.sql` script contains demo data.
       ```bash
       supabase db reset
@@ -94,7 +117,7 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       _(This command first drops the existing local database (if any), applies migrations, and then runs the seed script. Use with caution if you have important local data.)_
       *Alternatively, to run *only* the seed script on an existing database:* `psql -h localhost -p 54322 -U postgres -f supabase/seed.sql` _(Adjust port if necessary, password is `postgres` by default for local Supabase dev)_
 
-8.  **Initialize shadcn/ui & Add Components:**
+9.  **Initialize shadcn/ui & Add Components:**
     - Run the `shadcn` init command (accept defaults or configure as needed):
       ```bash
       pnpm dlx shadcn@latest init
@@ -120,7 +143,7 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       pnpm add zod
       ```
 
-9.  **Add Toaster Component:**
+10. **Add Toaster Component:**
     - The `sonner` library requires its `<Toaster />` component to be present in your layout to render toasts.
     - Open `app/layout.tsx` (or your root layout file) and add the import and component:
 
@@ -140,13 +163,13 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
       }
       ```
 
-10. **Run the development server:**
+11. **Run the development server:**
 
     ```bash
     pnpm dev
     ```
 
-11. **Open the app:**
+12. **Open the app:**
     Navigate to [http://localhost:4000](http://localhost:4000) in your browser. You should be redirected to `/login`. Use the email link login to access the dashboard.
 
 ## Gemini-based Code Review & Test Scaffolding
@@ -172,6 +195,91 @@ If either variable is missing or empty, the Gemini scripts will fail with a clea
 - You **must** enable RLS for each table in the Supabase dashboard (**Table Editor > Select Table > Table Settings > Enable Row Level Security (RLS)**) or via SQL (`alter table <table_name> enable row level security;`).
 - Apply the example policies provided in the migration file using the Supabase SQL editor or by adding them to a new migration file (`supabase migration new add_rls_policies`) and running `supabase db push`.
 - The example policies allow any authenticated user full CRUD access. You should refine these based on your specific authorization needs (e.g., only owners can modify certain records).
+
+## Security Best Practices
+
+### Environment Variables
+
+- **Client-Side Exposure:** Any environment variable prefixed with `NEXT_PUBLIC_` will be bundled into your client-side JavaScript and is visible to anyone who views your website's source code or network requests. Never use `NEXT_PUBLIC_` for sensitive credentials like API secrets, database passwords, or private keys.
+- **Server-Side Only:** Use environment variables without the `NEXT_PUBLIC_` prefix for sensitive values that should only be accessible on the server (e.g., Supabase service role key, OAuth client secrets).
+
+### Mapbox Access Tokens
+
+**Important Security Note:** The `mapbox-gl` and `@mapbox/search-js-react` libraries require the access token to be passed as a prop, which means it will be embedded in the client-side JavaScript bundle. This is a limitation of these libraries.
+
+**Security Measures Implemented:**
+
+- ✅ Reverse geocoding requests are proxied through `/api/mapbox/reverse-geocode` to keep the token server-side
+- ✅ Token validation warns in development if a secret token (sk.\*) is detected (though the code will still run - you must use a public token)
+- ✅ Token is never logged or exposed in error messages
+- ✅ Token is only used for read-only operations (map display via `mapbox-gl` and address autocomplete via `@mapbox/search-js-react`)
+
+**Required Security Practices:**
+
+1. **Use Public Tokens Only:**
+   - Always use Mapbox **public tokens** (typically start with `pk.`) for client-side applications
+   - **NEVER** use secret tokens (start with `sk.`) in client-side code
+   - Public tokens are designed to be exposed in the browser, but must still be properly secured
+
+2. **Configure URL Restrictions:**
+   - In your [Mapbox account settings](https://account.mapbox.com/), restrict your public token to specific domains to prevent unauthorized usage.
+
+   **Option A: Single Token with Multiple Domains (Recommended for simplicity)**
+
+   Add all domains where your app will run:
+   - Production domain: `https://app.happyharvests.com`
+   - Staging domain (if applicable): `https://staging.happyharvests.com`
+   - Preview deployments: Use wildcard patterns where supported (e.g., `*.vercel.app` for Vercel preview deployments)
+   - Local development: `http://localhost:*` (if Mapbox supports port wildcards) or add specific ports like `http://localhost:4000`
+
+   **Option B: Separate Tokens per Environment (Recommended for security)**
+
+   Create different tokens for different environments:
+   - **Production token:** Restricted to production domain only
+   - **Staging token:** Restricted to staging domain only
+   - **Development token:** Restricted to `http://localhost:*` or specific local ports
+   - **Preview token:** Restricted to preview deployment patterns (e.g., `*.vercel.app`)
+
+   Use environment-specific tokens in your deployment configuration (e.g., Vercel environment variables).
+
+   **Important Notes:**
+   - Mapbox URL restrictions support wildcard patterns for subdomains (e.g., `*.vercel.app`)
+   - Port wildcards may not be supported - you may need to add specific ports or use `localhost` without port restrictions for development
+   - Preview deployments (e.g., Vercel preview URLs) change with each PR, so wildcard patterns are essential
+   - If you have multiple developers, consider using a shared development token with localhost restrictions or individual tokens per developer
+
+3. **Set Minimal Token Scopes:**
+   - For map display: Only enable `styles:read`, `fonts:read`, `sprites:read`
+   - For address autocomplete: Only enable geocoding API access
+   - **DO NOT** enable uploads, datasets, or any write permissions
+
+4. **Set Usage Limits:**
+   - Configure rate limits and usage quotas in Mapbox to prevent abuse and unexpected charges:
+     - Set daily/monthly request limits
+     - Enable usage alerts
+     - Monitor usage regularly in the Mapbox dashboard
+
+5. **Rotate Tokens:**
+   - If you suspect a token has been compromised, immediately revoke it in Mapbox and generate a new one
+   - Rotate tokens periodically as a security best practice
+
+6. **Server-Side Token (Optional but Recommended):**
+   - For reverse geocoding, you can optionally use `MAPBOX_ACCESS_TOKEN` (without `NEXT_PUBLIC_` prefix) in your `.env.local`
+   - The API route will prefer the server-only token over the public token
+   - This provides an additional layer of security for server-only operations
+
+### Supabase Keys
+
+- **Anon Key:** The `NEXT_PUBLIC_SUPABASE_ANON_KEY` is safe to expose client-side as it's designed for public use. However, RLS policies must be properly configured to secure your data.
+- **Service Role Key:** Never expose the Supabase service role key. It should only be used in server-side code and must never have the `NEXT_PUBLIC_` prefix.
+
+### General Security Recommendations
+
+- Regularly review and update your dependencies for security vulnerabilities
+- Keep your Supabase RLS policies up to date and follow the principle of least privilege
+- Use HTTPS in production to encrypt data in transit
+- Never commit `.env.local` or `.env` files to version control (they should be in `.gitignore`)
+- Use different credentials for development, staging, and production environments
 
 ## E2E Testing with Playwright
 
