@@ -71,8 +71,7 @@ function resolveGitExecutable(): string {
   return 'git';
 }
 
-// Constants used to construct markdown code fences inside prompt templates without
-// having to embed raw triple-backtick sequences directly in template literals.
+// Constants for standard markdown code fences (plain ASCII, no zero-width chars).
 const CODE_FENCE: string = '```';
 const CODE_FENCE_TS: string = '```typescript';
 
@@ -362,11 +361,15 @@ Generate the complete, runnable TypeScript test file code. You may respond eithe
     // Clean up the response - remove a single outer markdown code fence if present, while leaving
     // any inner fenced code blocks inside the generated test code intact.
     let testCode = text.trim();
-    if (testCode.startsWith('```')) {
-      testCode = testCode
-        .replace(/^```(?:typescript|ts|tsx)?\s*/, '')
-        .replace(/\n```$/, '')
-        .trim();
+    // Strip a single outer markdown fence (standard triple backticks with optional language).
+    const openingFenceMatch = testCode.match(/^```[a-zA-Z0-9+-]*\s*\n/);
+    if (openingFenceMatch) {
+      const openingFenceEnd: number = openingFenceMatch[0].length;
+      const closingFenceStart: number = testCode.lastIndexOf('```');
+
+      if (closingFenceStart > openingFenceEnd) {
+        testCode = testCode.slice(openingFenceEnd, closingFenceStart).trim();
+      }
     }
 
     return testCode;

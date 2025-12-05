@@ -44,6 +44,17 @@ interface LocationFormProps {
 
 const usStates = new UsaStates();
 const states = usStates.states;
+const VALID_LOCATION_FIELDS: Array<keyof LocationFormValues> = [
+  'id',
+  'name',
+  'street',
+  'city',
+  'state',
+  'zip',
+  'latitude',
+  'longitude',
+  'notes',
+];
 
 // Timeout delays (in milliseconds) for setting up the form control property.
 // These values are tuned to mirror how browser extensions attempt to read form.control:
@@ -150,8 +161,14 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
       if (state.errors && Object.keys(state.errors).length > 0) {
         // Map server-side errors to RHF fields
         Object.entries(state.errors).forEach(([field, errors]) => {
+          const fieldKey = VALID_LOCATION_FIELDS.find((validKey) => validKey === field);
+          if (!fieldKey) {
+            // Unexpected field from server; surface via toast but avoid mis-mapping
+            toast.error(`Server returned error for unknown field: ${field}`);
+            return;
+          }
           const message = Array.isArray(errors) ? errors[0] : errors || 'Invalid value';
-          form.setError(field as keyof LocationFormValues, { message });
+          form.setError(fieldKey, { message });
         });
         toast.error(state.message);
       } else {

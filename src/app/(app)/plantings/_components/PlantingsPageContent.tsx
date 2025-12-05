@@ -347,6 +347,16 @@ interface PlantingsPageContentProps {
   defaultCreateMode?: 'nursery' | 'direct' | null;
 }
 
+const isResultWithMessage = (value: unknown): value is { message: string } =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { message?: unknown }).message === 'string';
+
+const isResultWithError = (value: unknown): value is { error: string } =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { error?: unknown }).error === 'string';
+
 export function PlantingsPageContent({
   plantings,
   cropVarieties,
@@ -519,12 +529,20 @@ export function PlantingsPageContent({
     if (deleteId == null) return;
     try {
       setDeleting(true);
-      const result = await deletePlanting(deleteId);
-      if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
-        toast.error(result.message);
-      } else {
-        toast.success(result.message);
+      const result: unknown = await deletePlanting(deleteId);
+      if (isResultWithMessage(result)) {
+        if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
+          toast.error(result.message);
+        } else {
+          toast.success(result.message);
+        }
+        return;
       }
+      if (isResultWithError(result)) {
+        toast.error(result.error);
+        return;
+      }
+      toast.error('Failed to delete planting.');
     } finally {
       setDeleting(false);
       setDeleteId(null);

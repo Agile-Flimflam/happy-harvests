@@ -19,6 +19,7 @@ function LoginFormContent() {
   const [error, setError] = useState('');
   const searchParams = useSearchParams();
   const authError = searchParams.get('error');
+  const authErrorSafe = authError ? authError.replace(/[<>{}]/g, '').slice(0, 200) : '';
   const nextParam = searchParams.get('next') || '/';
   const supabase = createClient();
 
@@ -158,8 +159,8 @@ function LoginFormContent() {
         </Button>
         {message && <p className="text-sm text-center text-green-600">{message}</p>}
         {error && <p className="text-sm text-center text-red-600">{error}</p>}
-        {authError && !error && (
-          <p className="text-sm text-center text-red-600">Error: {authError}</p>
+        {authErrorSafe && !error && (
+          <p className="text-sm text-center text-red-600">Error: {authErrorSafe}</p>
         )}
       </form>
       <p className="text-xs text-center text-muted-foreground">

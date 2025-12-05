@@ -119,6 +119,7 @@ export async function updateLocation(
     zip: validated.data.zip ?? null,
     latitude: validated.data.latitude ?? null,
     longitude: validated.data.longitude ?? null,
+    timezone: null,
     notes: validated.data.notes ?? null,
   };
   // Populate or clear timezone depending on coordinates
@@ -132,13 +133,8 @@ export async function updateLocation(
       updateData.timezone = weather.timezone ?? null;
     } catch (e) {
       console.error('OpenWeather timezone fetch failed on update:', e);
-      // Keep timezone as null if fetch fails
+      updateData.timezone = null; // Explicitly clear timezone on failure to avoid stale data
     }
-  } else if (validated.data.latitude == null && validated.data.longitude == null) {
-    // If coords cleared, also clear timezone
-    updateData.timezone = null;
-  } else {
-    // If only one coordinate is provided, avoid changing timezone by not setting it
   }
   const { error } = await supabase.from('locations').update(updateData).eq('id', id);
   if (error) {

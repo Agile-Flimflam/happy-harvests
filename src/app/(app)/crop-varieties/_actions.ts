@@ -180,8 +180,12 @@ export async function updateCropVariety(
   formData: FormData
 ): Promise<CropVarietyFormState> {
   const supabase = await createSupabaseServerClient();
-  const idRaw = formData.get('id') as string;
-  const id = idRaw ? parseInt(idRaw, 10) : NaN;
+  const idEntry = formData.get('id');
+  if (typeof idEntry !== 'string') {
+    return { message: 'Error: Missing Crop Variety ID for update.' };
+  }
+
+  const id = Number.parseInt(idEntry, 10);
   if (!id || Number.isNaN(id)) {
     return { message: 'Error: Missing Crop Variety ID for update.' };
   }
