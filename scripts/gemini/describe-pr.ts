@@ -21,6 +21,7 @@ const CODE_FENCE: string = '`' + '`' + '`';
 const PROMPT_SECTION_BOUNDARY_PREFIX: string = '[[BEGIN_';
 const PROMPT_SECTION_BOUNDARY_SUFFIX: string = ']]';
 const PROMPT_SECTION_BOUNDARY_END_PREFIX: string = '[[END_';
+const SECTION_BOUNDARY_REGEX: RegExp = /\[\[(BEGIN_|END_)[A-Z0-9_-]+\]\]/g;
 
 function stripOuterCodeFence(markup: string): string {
   const trimmed: string = markup.trim();
@@ -48,8 +49,9 @@ function stripOuterCodeFence(markup: string): string {
   return innerContent.trim();
 }
 
-function escapePromptSectionToken(value: string, token: string): string {
-  return value.replaceAll(token, `${token}_`);
+function escapeAllPromptSectionTokens(value: string): string {
+  // If user-controlled content embeds any section boundary (BEGIN_/END_), neutralize it.
+  return value.replace(SECTION_BOUNDARY_REGEX, (match) => `${match}_`);
 }
 
 function wrapPromptSection(label: string, rawValue: string): string {
@@ -57,10 +59,7 @@ function wrapPromptSection(label: string, rawValue: string): string {
   const startToken: string = `${PROMPT_SECTION_BOUNDARY_PREFIX}${safeLabel}${PROMPT_SECTION_BOUNDARY_SUFFIX}`;
   const endToken: string = `${PROMPT_SECTION_BOUNDARY_END_PREFIX}${safeLabel}${PROMPT_SECTION_BOUNDARY_SUFFIX}`;
   const preparedValue: string = prepareForPrompt(rawValue);
-  const sanitizedValue: string = escapePromptSectionToken(
-    escapePromptSectionToken(preparedValue, startToken),
-    endToken
-  );
+  const sanitizedValue: string = escapeAllPromptSectionTokens(preparedValue);
 
   return `${startToken}\n${sanitizedValue}\n${endToken}`;
 }

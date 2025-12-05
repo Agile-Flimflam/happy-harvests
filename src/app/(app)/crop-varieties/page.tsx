@@ -14,7 +14,9 @@ export default async function PlantsPage() {
     return <div className="text-red-500">Error loading crop varieties: {error}</div>;
   }
 
-  const typedCrops: Tables<'crops'>[] = (crops as Tables<'crops'>[] | null) ?? [];
+  const typedCrops: Array<Pick<Tables<'crops'>, 'id' | 'name' | 'crop_type' | 'created_at'>> =
+    (crops as Array<Pick<Tables<'crops'>, 'id' | 'name' | 'crop_type' | 'created_at'>> | null) ??
+    [];
 
   return <CropVarietiesPageContent cropVarieties={cropVarieties} crops={typedCrops} />;
 }

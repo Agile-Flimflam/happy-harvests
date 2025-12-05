@@ -22,7 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { CropVarietyForm } from '../_components/CropVarietyForm';
-import { deleteCropVariety, type DeleteCropVarietyResult, type Crop } from '../_actions';
+import { deleteCropVariety, type DeleteCropVarietyResult } from '../_actions';
 import { Pencil, Trash2, Plus, Leaf } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -34,9 +34,11 @@ type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null 
   image_url: string | null;
 };
 
+type CropLite = Pick<Tables<'crops'>, 'id' | 'name' | 'crop_type' | 'created_at'>;
+
 interface CropVarietiesPageContentProps {
   cropVarieties: CropVariety[];
-  crops?: Crop[];
+  crops?: CropLite[];
 }
 
 export function CropVarietiesPageContent({

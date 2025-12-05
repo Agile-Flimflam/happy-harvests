@@ -242,12 +242,8 @@ export async function updateCropVariety(
     const fileEntry = formData.get('image');
     const file = isFileLike(fileEntry) ? fileEntry : null;
 
-    let imagePath: string | null = existing.image_path ?? null;
-    if (removeImage && existing.image_path) {
-      await supabase.storage.from(STORAGE_BUCKET).remove([existing.image_path]);
-      cropVarietyDataToUpdate.image_path = null;
-      imagePath = null;
-    }
+    const existingImagePath: string | null = existing.image_path ?? null;
+    let imagePath: string | null = existingImagePath;
 
     if (file && file.size > 0) {
       if (!isSupportedImageType(file)) {
@@ -261,11 +257,6 @@ export async function updateCropVariety(
           message: 'Validation failed. Image size exceeds 5MB.',
           cropVariety: prevState.cropVariety,
         };
-      }
-
-      // Delete old image if exists (best-effort)
-      if (existing.image_path) {
-        await supabase.storage.from(STORAGE_BUCKET).remove([existing.image_path]);
       }
 
       const ext = getFileExtension(file);
@@ -287,6 +278,10 @@ export async function updateCropVariety(
       }
       cropVarietyDataToUpdate.image_path = path;
       imagePath = path;
+    } else if (removeImage) {
+      // Only mark for removal; delete after successful DB update to avoid inconsistency.
+      cropVarietyDataToUpdate.image_path = null;
+      imagePath = null;
     }
 
     const { error } = await supabase
@@ -308,6 +303,14 @@ export async function updateCropVariety(
         message: `Database Error: ${fetchUpdatedError?.message || 'Not found'}`,
         cropVariety: prevState.cropVariety,
       };
+    }
+    // Best-effort cleanup after successful update.
+    if (existingImagePath && (removeImage || (imagePath && imagePath !== existingImagePath))) {
+      try {
+        await supabase.storage.from(STORAGE_BUCKET).remove([existingImagePath]);
+      } catch (cleanupError) {
+        console.error('Storage cleanup error:', cleanupError);
+      }
     }
     const imageUrl = getPublicImageUrl(supabase, imagePath ?? updatedRow.image_path ?? null);
     revalidatePath('/crop-varieties');
@@ -333,16 +336,13 @@ export async function deleteCropVariety(id: string | number): Promise<DeleteCrop
     return { message: 'Error: Missing Crop Variety ID for delete.' };
   }
   try {
-    // Clean up image if present
+    // Fetch image path first; defer deletion until after DB delete succeeds
     const { data: existing, error: fetchError } = await supabase
       .from('crop_varieties')
       .select('image_path')
       .eq('id', numericId)
       .single();
-    if (!fetchError && existing?.image_path) {
-      await supabase.storage.from(STORAGE_BUCKET).remove([existing.image_path]);
-    }
-
+    const imagePath = !fetchError ? (existing?.image_path ?? null) : null;
     const { error } = await supabase.from('crop_varieties').delete().eq('id', numericId);
     if (error) {
       console.error('Supabase Error:', error);
@@ -353,6 +353,13 @@ export async function deleteCropVariety(id: string | number): Promise<DeleteCrop
         };
       }
       return { message: `Database Error: ${error.message}` };
+    }
+    if (imagePath) {
+      try {
+        await supabase.storage.from(STORAGE_BUCKET).remove([imagePath]);
+      } catch (cleanupError) {
+        console.error('Storage cleanup error on delete:', cleanupError);
+      }
     }
     revalidatePath('/crop-varieties');
     return { message: 'Crop variety deleted successfully.' };
