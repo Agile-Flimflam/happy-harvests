@@ -14,18 +14,28 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ inputs.pnpm-version }}
+        run_install: false
+
+    - name: Ensure pnpm available (corepack fallback)
+      shell: bash
+      run: |
+        set -euo pipefail
+        if ! command -v pnpm >/dev/null 2>&1; then
+          echo "pnpm not found in PATH; enabling via corepack..."
+          corepack enable
+          corepack prepare "pnpm@${{ inputs.pnpm-version }}" --activate
+        fi
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
         cache: pnpm
         cache-dependency-path: pnpm-lock.yaml
-
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: ${{ inputs.pnpm-version }}
-        run_install: false
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
