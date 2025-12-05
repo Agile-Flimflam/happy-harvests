@@ -14,23 +14,18 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Download pnpm (static)
-      shell: bash
-      run: |
-        set -euo pipefail
-        PNPM_VERSION="${{ inputs.pnpm-version }}"
-        BIN_DIR="$HOME/.local/bin"
-        mkdir -p "$BIN_DIR"
-        curl -fsSL "https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/pnpm-linuxstatic-x64" -o "$BIN_DIR/pnpm"
-        chmod +x "$BIN_DIR/pnpm"
-        echo "$BIN_DIR" >> "$GITHUB_PATH"
-
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
         cache: pnpm
         cache-dependency-path: pnpm-lock.yaml
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ inputs.pnpm-version }}
+        run_install: false
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile

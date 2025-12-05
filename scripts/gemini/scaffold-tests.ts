@@ -839,6 +839,8 @@ async function postScaffoldsComment(
   prContext: { owner: string; repo: string; prNumber: number },
   scaffolds: TestScaffold[]
 ) {
+  const escapeForFence = (code: string): string => code.replace(/```/g, '``\u200b`');
+
   const commentBody = `## 🧪 Test Scaffolding Generated
 
 I've generated test boilerplate for ${scaffolds.length} new file(s) that don't have corresponding test files:
@@ -849,7 +851,7 @@ ${scaffolds
 ### \`${scaffold.filePath}\`
 
 \`\`\`typescript
-${scaffold.testCode}
+${escapeForFence(scaffold.testCode)}
 \`\`\`
 `
   )
@@ -898,9 +900,15 @@ async function run() {
         core.info(`Processed test scaffolds for ${scaffolds.length} files`);
 
         const shouldCommit = process.env.COMMIT_CHANGES === 'true';
+        const allowAiCommit = process.env.ALLOW_AI_COMMIT === 'true';
 
-        if (shouldCommit) {
+        if (shouldCommit && allowAiCommit) {
           await commitScaffolds(octokit, prContext, scaffolds);
+        } else if (shouldCommit && !allowAiCommit) {
+          core.warning(
+            'COMMIT_CHANGES was requested, but ALLOW_AI_COMMIT is not true. Skipping auto-commit and posting scaffolds for human review.'
+          );
+          await postScaffoldsComment(octokit, prContext, scaffolds);
         } else {
           await postScaffoldsComment(octokit, prContext, scaffolds);
         }

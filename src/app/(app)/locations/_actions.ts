@@ -101,7 +101,6 @@ export async function updateLocation(
     return { message: 'Error: Invalid Location ID format.' };
   }
   const validated = LocationSchema.safeParse({
-    id,
     name: formData.get('name'),
     street: valueOrNull(formData.get('street')),
     city: valueOrNull(formData.get('city')),
@@ -198,7 +197,7 @@ export async function getLocations(): Promise<{ locations?: Location[]; error?: 
     .select('*')
     .order('name', { ascending: true });
   if (error) return { error: `Database Error: ${error.message}` };
-  return { locations: (data as Location[]) || [] };
+  return { locations: data ?? [] };
 }
 
 export async function getLocationWithPlots(
