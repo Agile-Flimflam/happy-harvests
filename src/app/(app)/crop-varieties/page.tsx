@@ -8,15 +8,15 @@ export default async function PlantsPage() {
   const { data: crops } = await supabase
     .from('crops')
     .select('id, name, crop_type, created_at')
+    .returns<Array<Pick<Tables<'crops'>, 'id' | 'name' | 'crop_type' | 'created_at'>>>()
     .order('name', { ascending: true });
 
   if (error) {
     return <div className="text-red-500">Error loading crop varieties: {error}</div>;
   }
 
-  const typedCrops: Array<Pick<Tables<'crops'>, 'id' | 'name' | 'crop_type' | 'created_at'>> =
-    (crops as Array<Pick<Tables<'crops'>, 'id' | 'name' | 'crop_type' | 'created_at'>> | null) ??
-    [];
+  const typedCrops =
+    crops ?? ([] as Array<Pick<Tables<'crops'>, 'id' | 'name' | 'crop_type' | 'created_at'>>);
 
   return <CropVarietiesPageContent cropVarieties={cropVarieties} crops={typedCrops} />;
 }

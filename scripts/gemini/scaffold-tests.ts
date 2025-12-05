@@ -403,17 +403,24 @@ async function resolvePRContext(octokit: ReturnType<typeof initGitHubClient>) {
     const prNumberFromEnv = process.env.PR_NUMBER;
     if (!prNumberFromEnv) throw error;
 
+    const parsedPrNumber: number = Number.parseInt(prNumberFromEnv, 10);
+    if (!Number.isFinite(parsedPrNumber) || Number.isNaN(parsedPrNumber) || parsedPrNumber <= 0) {
+      throw new Error(
+        `Invalid PR_NUMBER="${prNumberFromEnv}" provided; expected a positive integer pull request number.`
+      );
+    }
+
     const context = github.context;
     const { data: pr } = await octokit.rest.pulls.get({
       owner: context.repo.owner,
       repo: context.repo.repo,
-      pull_number: Number.parseInt(prNumberFromEnv, 10),
+      pull_number: parsedPrNumber,
     });
 
     return {
       owner: context.repo.owner,
       repo: context.repo.repo,
-      prNumber: Number.parseInt(prNumberFromEnv, 10),
+      prNumber: parsedPrNumber,
       baseSha: pr.base.sha,
       headSha: pr.head.sha,
     };

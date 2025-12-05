@@ -66,8 +66,10 @@ export default function ResetPasswordPage() {
         <Button type="submit" disabled={isSubmitting} className="w-full">
           {isSubmitting ? 'Sending…' : 'Send reset email'}
         </Button>
-        {message && <p className="text-sm text-center text-green-600">{message}</p>}
-        {error && <p className="text-sm text-center text-red-600">{error}</p>}
+        <div aria-live="polite" className="min-h-[1.5rem]">
+          {message && <p className="text-sm text-center text-green-600">{message}</p>}
+          {error && <p className="text-sm text-center text-red-600">{error}</p>}
+        </div>
       </form>
       <div className="text-center text-sm">
         <Link href="/login" className="text-primary underline-offset-4 hover:underline">

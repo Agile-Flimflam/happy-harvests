@@ -40,8 +40,17 @@ const reviewIssueArraySchema = z.array(
   })
 );
 
-const reviewFocus: string = process.env.GEMINI_REVIEW_FOCUS?.trim() || 'critical-only';
-const commentMode: string = process.env.GEMINI_COMMENT_MODE?.trim() || 'summary';
+function sanitizeEnvPromptValue(envValue: string | undefined, fallback: string): string {
+  const trimmed = envValue?.trim();
+  if (!trimmed) return fallback;
+  return prepareForPrompt(trimmed);
+}
+
+const reviewFocus: string = sanitizeEnvPromptValue(
+  process.env.GEMINI_REVIEW_FOCUS,
+  'critical-only'
+);
+const commentMode: string = sanitizeEnvPromptValue(process.env.GEMINI_COMMENT_MODE, 'summary');
 
 const FILE_CONTENT_BOUNDARY = '===FILE-CONTENT-BOUNDARY===';
 
