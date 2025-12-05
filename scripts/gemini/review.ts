@@ -86,16 +86,17 @@ Respond with valid JSON only (optionally wrapped in a \`\`\`json\`\`\` fence), w
     const response = result.response;
     const text = response.text();
 
-    // Clean up the response - remove a single outer markdown code block wrapper if present
+    // Clean up the response - remove a single outer markdown code block wrapper if present.
+    // Uses exact backticks (no zero-width characters) and guards against mismatched fences.
     let jsonText = text.trim();
-    if (jsonText.startsWith('```')) {
-      // Support optional language tag, e.g. ```json
+    const fence: string = '```';
+    if (jsonText.startsWith(fence)) {
       const firstNewlineIndex: number = jsonText.indexOf('\n');
       const openingFenceEnd: number =
         firstNewlineIndex === -1 ? jsonText.length : firstNewlineIndex + 1;
 
       // Look for the last closing fence; this ensures we only strip a single outer wrapper
-      const closingFenceStart: number = jsonText.lastIndexOf('```');
+      const closingFenceStart: number = jsonText.lastIndexOf(fence);
 
       if (closingFenceStart > openingFenceEnd) {
         jsonText = jsonText.slice(openingFenceEnd, closingFenceStart).trim();

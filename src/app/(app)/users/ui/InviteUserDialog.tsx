@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { useForm, type SubmitHandler, type Resolver } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus } from 'lucide-react';
 import {
@@ -51,7 +51,7 @@ export default function InviteUserDialog({ onInvite }: Props) {
   type InviteUserValues = z.infer<typeof InviteUserSchema>;
 
   const form = useForm<InviteUserValues>({
-    resolver: zodResolver(InviteUserSchema) as unknown as Resolver<InviteUserValues>,
+    resolver: zodResolver(InviteUserSchema),
     mode: 'onSubmit',
     defaultValues: { email: '', role: 'member' },
   });

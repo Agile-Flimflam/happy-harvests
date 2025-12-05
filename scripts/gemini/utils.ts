@@ -215,14 +215,13 @@ export async function getFileContents(
     });
 
     if ('content' in data && 'encoding' in data) {
-      const allowedEncodings: ReadonlyArray<BufferEncoding> = ['base64', 'utf-8'];
-      const encoding: string = typeof data.encoding === 'string' ? data.encoding : '';
-
-      if (!allowedEncodings.includes(encoding as BufferEncoding)) {
-        throw new Error(`Unsupported encoding "${String(data.encoding)}" for file ${path}`);
+      // GitHub API guarantees `encoding` is "base64" for file contents.
+      // Always decode from base64 and then return utf-8 text.
+      if (data.encoding !== 'base64') {
+        throw new Error(`Unexpected encoding "${String(data.encoding)}" for file ${path}`);
       }
 
-      const buffer: Buffer = Buffer.from(data.content, encoding as BufferEncoding);
+      const buffer: Buffer = Buffer.from(data.content, 'base64');
       const content: string = buffer.toString('utf-8');
       return content;
     }

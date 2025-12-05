@@ -33,8 +33,13 @@ jobs:
       pull-requests: write
       issues: write
     # Run only for PRs from this repository (not forks) to avoid executing untrusted code with secrets.
+    # Only run for PR open/reopen/new commits. Skip label events to avoid
+    # duplicate/irrelevant analysis when labels (e.g., generate-tests) change.
     if: >
       github.event_name == 'pull_request' &&
+      (github.event.action == 'opened' ||
+       github.event.action == 'reopened' ||
+       github.event.action == 'synchronize') &&
       github.event.pull_request.head.repo != null &&
       github.event.pull_request.head.repo.fork != true
     steps:

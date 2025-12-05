@@ -102,19 +102,15 @@ export default function FormDialog({
   );
 
   // Allow interactions with Mapbox dropdown elements and form inputs
-  const handleInteractOutside = (event: Event) => {
+  const preventOutsideInteraction = (event: Event) => {
     if (shouldPreventInteraction(event, dialogContentRef)) {
       event.preventDefault();
       event.stopPropagation();
     }
   };
 
-  const handlePointerDownOutside = (event: Event) => {
-    if (shouldPreventInteraction(event, dialogContentRef)) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  };
+  const handleInteractOutside = preventOutsideInteraction;
+  const handlePointerDownOutside = preventOutsideInteraction;
 
   const handleFocusOutside = (event: Event) => {
     const focusEvent = event as FocusEvent;

@@ -247,6 +247,56 @@ type WeatherStateData = {
   moonPhaseLabel?: string;
 };
 
+function parseWeatherData(value: unknown): WeatherStateData | null {
+  if (!value || typeof value !== 'object') return null;
+  const data = value as Record<string, unknown>;
+  if (typeof data.timezone !== 'string') return null;
+  const current = data.current;
+  if (!current || typeof current !== 'object') return null;
+  const curr = current as Record<string, unknown>;
+  if (
+    typeof curr.dt !== 'number' ||
+    typeof curr.temp !== 'number' ||
+    typeof curr.humidity !== 'number'
+  ) {
+    return null;
+  }
+  const weather = curr.weather;
+  if (weather != null) {
+    if (typeof weather !== 'object') return null;
+    const w = weather as Record<string, unknown>;
+    if (
+      typeof w.id !== 'number' ||
+      typeof w.main !== 'string' ||
+      typeof w.description !== 'string' ||
+      typeof w.icon !== 'string'
+    ) {
+      return null;
+    }
+  }
+  return {
+    timezone: data.timezone,
+    current: {
+      dt: curr.dt,
+      sunrise: typeof curr.sunrise === 'number' ? curr.sunrise : undefined,
+      sunset: typeof curr.sunset === 'number' ? curr.sunset : undefined,
+      temp: curr.temp,
+      humidity: curr.humidity,
+      weather:
+        weather != null
+          ? {
+              id: (weather as Record<string, unknown>).id as number,
+              main: (weather as Record<string, unknown>).main as string,
+              description: (weather as Record<string, unknown>).description as string,
+              icon: (weather as Record<string, unknown>).icon as string,
+            }
+          : null,
+    },
+    moonPhase: typeof data.moonPhase === 'number' ? data.moonPhase : undefined,
+    moonPhaseLabel: typeof data.moonPhaseLabel === 'string' ? data.moonPhaseLabel : undefined,
+  };
+}
+
 function WeatherCell({
   id,
   locationName,
@@ -291,8 +341,12 @@ function WeatherCell({
           const err = await res.json();
           throw new Error(err?.error || res.statusText);
         }
-        const data: WeatherStateData = await res.json();
-        return data;
+        const raw = await res.json();
+        const parsed = parseWeatherData(raw);
+        if (!parsed) {
+          throw new Error('Invalid weather response shape');
+        }
+        return parsed;
       })
       .then((data) => {
         if (cancelled) return;

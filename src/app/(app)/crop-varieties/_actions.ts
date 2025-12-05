@@ -1,6 +1,6 @@
 'use server';
 
-import { createSupabaseServerClient, type Database, type Enums } from '@/lib/supabase-server';
+import { createSupabaseServerClient, type Database } from '@/lib/supabase-server';
 // Refactored to new schema: remove DaysToMaturity JSON
 import { revalidatePath } from 'next/cache';
 import { CropVarietySchema, SimpleCropSchema } from '@/lib/validation/crop-varieties';
@@ -22,7 +22,7 @@ export type CropVarietyFormState = {
 const STORAGE_BUCKET = 'crop_variety_images';
 
 function getFileExtension(file: File): string {
-  const name = (file as unknown as { name?: string }).name || '';
+  const name = file.name || '';
   const dotIdx = name.lastIndexOf('.');
   if (dotIdx !== -1) return name.slice(dotIdx + 1).toLowerCase();
   const mime = file.type || '';
@@ -101,7 +101,7 @@ export async function createCropVariety(
     // Insert first to get the new ID
     const { data: inserted, error: insertError } = await supabase
       .from('crop_varieties')
-      .insert(cropVarietyData as Database['public']['Tables']['crop_varieties']['Insert'])
+      .insert(cropVarietyData)
       .select()
       .single();
     if (insertError || !inserted) {
@@ -144,7 +144,7 @@ export async function createCropVariety(
 
       const { error: updateError } = await supabase
         .from('crop_varieties')
-        .update({ image_path: path } as CropVarietyUpdate)
+        .update({ image_path: path })
         .eq('id', inserted.id);
       if (updateError) {
         console.error('Supabase Error (update image_path):', updateError);
@@ -207,7 +207,7 @@ export async function updateCropVariety(
       cropVariety: prevState.cropVariety,
     };
   }
-  const v = validatedFields.data as unknown as CropVarietyUpdate & { id: number };
+  const v = validatedFields.data;
   const cropVarietyDataToUpdate: CropVarietyUpdate = {
     crop_id: v.crop_id,
     name: v.name,
@@ -275,7 +275,7 @@ export async function updateCropVariety(
 
     const { error } = await supabase
       .from('crop_varieties')
-      .update(cropVarietyDataToUpdate as Database['public']['Tables']['crop_varieties']['Update'])
+      .update(cropVarietyDataToUpdate)
       .eq('id', id);
     if (error) {
       console.error('Supabase Error:', error);
@@ -332,7 +332,10 @@ export async function deleteCropVariety(id: string | number): Promise<DeleteCrop
 // Inline Crop creation for the Crop Varieties page
 export type Crop = Database['public']['Tables']['crops']['Row'];
 type CropInsert = Database['public']['Tables']['crops']['Insert'];
-type CropType = Enums<'crop_type'>;
+type CropVarietyWithCropName = CropVariety & {
+  crops: { name: string } | null;
+  image_url: string | null;
+};
 
 // Schema now centralized in src/lib/validation/crop-varieties
 
@@ -359,7 +362,7 @@ export async function createCropSimple(
   }
   const insertData: CropInsert = {
     name: validated.data.name,
-    crop_type: validated.data.crop_type as CropType,
+    crop_type: validated.data.crop_type,
   };
   const { data, error } = await supabase.from('crops').insert(insertData).select('*').single();
   if (error) {
@@ -367,13 +370,11 @@ export async function createCropSimple(
     return { message: `Database Error: ${error.message}` };
   }
   // No revalidate here; caller updates local state
-  return { message: 'Crop created successfully.', crop: data as Crop, errors: {} };
+  return { message: 'Crop created successfully.', crop: data, errors: {} };
 }
 
 export async function getCropVarieties(): Promise<{
-  cropVarieties?: (CropVariety & { crops: { name: string } | null } & {
-    image_url?: string | null;
-  })[];
+  cropVarieties?: CropVarietyWithCropName[];
   error?: string;
 }> {
   const supabase = await createSupabaseServerClient();
@@ -386,16 +387,11 @@ export async function getCropVarieties(): Promise<{
       console.error('Supabase Error fetching crop varieties:', error);
       return { error: `Database Error: ${error.message}` };
     }
-    const withUrls = (data || []).map((row) => {
-      if (row.image_path) {
-        const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(row.image_path);
-        return { ...row, image_url: pub?.publicUrl || null } as CropVariety & {
-          crops: { name: string } | null;
-        } & { image_url?: string | null };
-      }
-      return { ...row, image_url: null } as CropVariety & { crops: { name: string } | null } & {
-        image_url?: string | null;
-      };
+    const withUrls: CropVarietyWithCropName[] = (data || []).map((row) => {
+      const imageUrl = row.image_path
+        ? supabase.storage.from(STORAGE_BUCKET).getPublicUrl(row.image_path).data?.publicUrl || null
+        : null;
+      return { ...row, image_url: imageUrl };
     });
     withUrls.sort((a, b) => {
       const cropA = (a.crops?.name || '').toString();

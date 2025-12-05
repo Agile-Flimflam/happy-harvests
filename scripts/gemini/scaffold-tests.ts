@@ -240,7 +240,8 @@ async function generateTestScaffold(
 ): Promise<string> {
   const model = gemini.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-  const safeSourceFilePath: string = prepareForPrompt(sourceFilePath);
+  // Ensure the path cannot break prompt structure by stripping newlines after prepareForPrompt.
+  const safeSourceFilePath: string = prepareForPrompt(sourceFilePath).replace(/\r?\n/g, ' ');
   const safeSourceCode: string = prepareForPrompt(sourceCode);
 
   ensureCombinedPromptLength([safeSourceFilePath, safeSourceCode]);

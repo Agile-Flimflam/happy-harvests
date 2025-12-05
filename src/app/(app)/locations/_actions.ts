@@ -204,6 +204,7 @@ export async function getLocationWithPlots(
     .eq('id', id)
     .single();
   if (error) return { error: `Database Error: ${error.message}` };
+  if (!data) return { error: 'Location not found.' };
   const loc = data as LocationWithMaybePlots;
   return { location: { ...loc, plots: loc.plots || [] } };
 }

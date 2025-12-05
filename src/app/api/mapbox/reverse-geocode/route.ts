@@ -50,6 +50,9 @@ export async function GET(req: NextRequest) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     const status = error instanceof MapboxReverseGeocodeError ? error.statusCode : 500;
 
+    if (status === 500) {
+      return NextResponse.json({ error: 'Internal Server Error' }, { status });
+    }
     return NextResponse.json({ error: message }, { status });
   }
 }

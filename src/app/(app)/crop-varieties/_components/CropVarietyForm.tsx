@@ -37,7 +37,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from '@hookform/resolvers/zod/dist/zod';
 import { CropVarietySchema, type CropVarietyFormValues } from '@/lib/validation/crop-varieties';
 import { Plus, X } from 'lucide-react';
 import {
@@ -77,11 +77,14 @@ function isValidBlobUrl(url: string): boolean {
     if (parsedUrl.protocol !== 'blob:' || !parsedUrl.pathname || parsedUrl.pathname.length === 0) {
       return false;
     }
-    // Validate the origin - reject dangerous protocols
-    const origin = parsedUrl.origin;
-    // Allowlist origin protocols to avoid javascript/data/vbscript execution vectors.
-    const originProtocol = origin === 'null' ? 'null' : new URL(origin).protocol.toLowerCase();
-    const allowedOriginProtocols = new Set<string>(['null', 'http:', 'https:']);
+    // Validate the origin (part after `blob:`) - reject dangerous protocols
+    const withoutScheme = url.slice('blob:'.length);
+    const slashIndex = withoutScheme.indexOf('/');
+    const originPart = slashIndex === -1 ? withoutScheme : withoutScheme.slice(0, slashIndex);
+    if (!originPart) return false;
+    if (originPart === 'null') return true;
+    const originProtocol = new URL(originPart).protocol.toLowerCase();
+    const allowedOriginProtocols = new Set<string>(['http:', 'https:']);
     return allowedOriginProtocols.has(originProtocol);
   } catch {
     // Invalid URL format - reject (this catches blob:javascript:alert(1) type attacks)
@@ -176,25 +179,29 @@ export function CropVarietyForm({
     });
   };
 
-  const form = useForm({
-    resolver: zodResolver(CropVarietySchema),
+  const defaultValues: Partial<CropVarietyFormValues> = {
+    id: cropVariety?.id,
+    crop_id: cropVariety?.crop_id ?? undefined,
+    name: cropVariety?.name ?? '',
+    latin_name: cropVariety?.latin_name ?? '',
+    is_organic: cropVariety?.is_organic ?? false,
+    notes: cropVariety?.notes ?? '',
+    dtm_direct_seed_min: cropVariety?.dtm_direct_seed_min ?? undefined,
+    dtm_direct_seed_max: cropVariety?.dtm_direct_seed_max ?? undefined,
+    dtm_transplant_min: cropVariety?.dtm_transplant_min ?? undefined,
+    dtm_transplant_max: cropVariety?.dtm_transplant_max ?? undefined,
+    plant_spacing_min: cropVariety?.plant_spacing_min ?? null,
+    plant_spacing_max: cropVariety?.plant_spacing_max ?? null,
+    row_spacing_min: cropVariety?.row_spacing_min ?? null,
+    row_spacing_max: cropVariety?.row_spacing_max ?? null,
+  };
+
+  const formResolver = zodResolver<CropVarietyFormValues>(CropVarietySchema);
+
+  const form = useForm<CropVarietyFormValues>({
+    resolver: formResolver,
     mode: 'onSubmit',
-    defaultValues: {
-      id: cropVariety?.id,
-      crop_id: cropVariety?.crop_id ?? undefined,
-      name: cropVariety?.name ?? '',
-      latin_name: cropVariety?.latin_name ?? '',
-      is_organic: cropVariety?.is_organic ?? false,
-      notes: cropVariety?.notes ?? '',
-      dtm_direct_seed_min: cropVariety?.dtm_direct_seed_min ?? undefined,
-      dtm_direct_seed_max: cropVariety?.dtm_direct_seed_max ?? undefined,
-      dtm_transplant_min: cropVariety?.dtm_transplant_min ?? undefined,
-      dtm_transplant_max: cropVariety?.dtm_transplant_max ?? undefined,
-      plant_spacing_min: cropVariety?.plant_spacing_min ?? null,
-      plant_spacing_max: cropVariety?.plant_spacing_max ?? null,
-      row_spacing_min: cropVariety?.row_spacing_min ?? null,
-      row_spacing_max: cropVariety?.row_spacing_max ?? null,
-    },
+    defaultValues,
   });
 
   // Inline crop create action
@@ -205,9 +212,28 @@ export function CropVarietyForm({
     if (state.message) {
       if (state.errors && Object.keys(state.errors).length > 0) {
         // Set server errors on form fields
+        const formFields = [
+          'id',
+          'crop_id',
+          'name',
+          'latin_name',
+          'is_organic',
+          'notes',
+          'dtm_direct_seed_min',
+          'dtm_direct_seed_max',
+          'dtm_transplant_min',
+          'dtm_transplant_max',
+          'plant_spacing_min',
+          'plant_spacing_max',
+          'row_spacing_min',
+          'row_spacing_max',
+        ] as const;
+        const isFormFieldKey = (key: string): key is (typeof formFields)[number] =>
+          formFields.includes(key as (typeof formFields)[number]);
         Object.entries(state.errors).forEach(([field, errors]) => {
+          if (!isFormFieldKey(field)) return;
           const errorArray = Array.isArray(errors) ? errors : [errors];
-          form.setError(field as keyof CropVarietyFormValues, {
+          form.setError(field, {
             message: errorArray[0],
           });
         });
@@ -254,10 +280,30 @@ export function CropVarietyForm({
     fd.append('latin_name', sanitizedLatinName);
     fd.append('is_organic', values.is_organic ? 'on' : 'off');
     fd.append('notes', sanitizedNotes);
-    fd.append('dtm_direct_seed_min', String(values.dtm_direct_seed_min));
-    fd.append('dtm_direct_seed_max', String(values.dtm_direct_seed_max));
-    fd.append('dtm_transplant_min', String(values.dtm_transplant_min));
-    fd.append('dtm_transplant_max', String(values.dtm_transplant_max));
+    fd.append(
+      'dtm_direct_seed_min',
+      values.dtm_direct_seed_min !== undefined && values.dtm_direct_seed_min !== null
+        ? String(values.dtm_direct_seed_min)
+        : ''
+    );
+    fd.append(
+      'dtm_direct_seed_max',
+      values.dtm_direct_seed_max !== undefined && values.dtm_direct_seed_max !== null
+        ? String(values.dtm_direct_seed_max)
+        : ''
+    );
+    fd.append(
+      'dtm_transplant_min',
+      values.dtm_transplant_min !== undefined && values.dtm_transplant_min !== null
+        ? String(values.dtm_transplant_min)
+        : ''
+    );
+    fd.append(
+      'dtm_transplant_max',
+      values.dtm_transplant_max !== undefined && values.dtm_transplant_max !== null
+        ? String(values.dtm_transplant_max)
+        : ''
+    );
     fd.append(
       'plant_spacing_min',
       values.plant_spacing_min != null ? String(values.plant_spacing_min) : ''
@@ -287,7 +333,9 @@ export function CropVarietyForm({
 
   // Compute existing image URL safely
   // image_url is a computed property added by getCropVarieties, not in the base database type
-  const stateCropVariety = state.cropVariety as CropVariety | null;
+  const stateCropVariety: CropVariety | null = state.cropVariety
+    ? { ...state.cropVariety, image_url: cropVariety?.image_url ?? null }
+    : (cropVariety ?? null);
   const existingImageUrl =
     !imagePreviewUrl && !removeExistingImage && stateCropVariety
       ? stateCropVariety.image_url
@@ -496,7 +544,7 @@ export function CropVarietyForm({
                         {...field}
                         value={field.value?.toString() ?? ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : null)
+                          field.onChange(e.target.value ? Number(e.target.value) : '')
                         }
                       />
                     </FormControl>
@@ -517,7 +565,7 @@ export function CropVarietyForm({
                         {...field}
                         value={field.value?.toString() ?? ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : null)
+                          field.onChange(e.target.value ? Number(e.target.value) : '')
                         }
                       />
                     </FormControl>
@@ -538,7 +586,7 @@ export function CropVarietyForm({
                         {...field}
                         value={field.value?.toString() ?? ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : null)
+                          field.onChange(e.target.value ? Number(e.target.value) : '')
                         }
                       />
                     </FormControl>
@@ -559,7 +607,7 @@ export function CropVarietyForm({
                         {...field}
                         value={field.value?.toString() ?? ''}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : null)
+                          field.onChange(e.target.value ? Number(e.target.value) : '')
                         }
                       />
                     </FormControl>

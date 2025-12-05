@@ -45,7 +45,7 @@ export function CropVarietiesPageContent({
 }: CropVarietiesPageContentProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCropVariety, setEditingCropVariety] = useState<CropVariety | null>(null);
-  const [deleteId, setDeleteId] = useState<number | string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const hasVarieties = cropVarieties.length > 0;
 
@@ -59,7 +59,7 @@ export function CropVarietiesPageContent({
     setIsDialogOpen(true);
   };
 
-  const openDelete = (id: number | string) => setDeleteId(id);
+  const openDelete = (id: number) => setDeleteId(id);
   const confirmDelete = async () => {
     if (deleteId == null) return;
     try {

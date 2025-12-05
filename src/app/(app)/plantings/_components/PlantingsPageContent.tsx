@@ -437,11 +437,19 @@ export function PlantingsPageContent({
   );
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      const ce = e as CustomEvent<{ plantingId: number; eventDate: string }>;
-      const detail = ce.detail;
-      if (!detail) return;
-      const planting = plantings.find((x) => x.id === detail.plantingId);
+    const isTransplantEvent = (
+      event: Event
+    ): event is CustomEvent<{ plantingId: number; eventDate: string }> => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!detail || typeof detail !== 'object') return false;
+      const d = detail as Record<string, unknown>;
+      return typeof d.plantingId === 'number' && typeof d.eventDate === 'string';
+    };
+
+    const handler = (event: Event) => {
+      if (!isTransplantEvent(event)) return;
+      const { plantingId, eventDate } = event.detail;
+      const planting = plantings.find((x) => x.id === plantingId);
       const cv =
         planting?.crop_varieties ?? cropVarieties.find((v) => v.id === planting?.crop_variety_id);
       if (!planting || !cv) return;
@@ -454,14 +462,14 @@ export function PlantingsPageContent({
       if (min == null || max == null) return;
       setOptimisticHarvest((prev) => ({
         ...prev,
-        [detail.plantingId]: {
-          start: addDaysUtc(detail.eventDate, min),
-          end: addDaysUtc(detail.eventDate, max),
+        [plantingId]: {
+          start: addDaysUtc(eventDate, min),
+          end: addDaysUtc(eventDate, max),
         },
       }));
     };
-    window.addEventListener('planting:transplanted', handler as EventListener);
-    return () => window.removeEventListener('planting:transplanted', handler as EventListener);
+    window.addEventListener('planting:transplanted', handler);
+    return () => window.removeEventListener('planting:transplanted', handler);
   }, [plantings, cropVarieties, selectNormalizedRange]);
 
   // Cleanup optimistic harvest entries when they are no longer needed

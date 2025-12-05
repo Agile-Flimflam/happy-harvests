@@ -1,5 +1,5 @@
 import { CropVarietiesPageContent } from './_components/CropVarietiesPageContent';
-import { getCropVarieties, type Crop } from './_actions';
+import { getCropVarieties } from './_actions';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 export default async function PlantsPage() {
@@ -7,7 +7,7 @@ export default async function PlantsPage() {
   const supabase = await createSupabaseServerClient();
   const { data: crops } = await supabase
     .from('crops')
-    .select('id, name, created_at, crop_type')
+    .select('*')
     .order('name', { ascending: true });
 
   if (error) {
@@ -18,5 +18,5 @@ export default async function PlantsPage() {
     return <div>Loading crop varieties...</div>;
   }
 
-  return <CropVarietiesPageContent cropVarieties={cropVarieties} crops={(crops ?? []) as Crop[]} />;
+  return <CropVarietiesPageContent cropVarieties={cropVarieties} crops={crops ?? []} />;
 }
