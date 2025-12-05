@@ -63,12 +63,13 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@b60b5899c73b63a2d2d651b1e90db8d4c9392f51 # v1.6.0
         with:
-          # Use the latest stable Supabase CLI. If you need fully reproducible builds,
-          # intentionally pin this to a specific, existing CLI version.
+          # Uses a specific version of the Supabase CLI to ensure reproducibility
           version: 2.62.5
 
       - name: Start Supabase
-        run: supabase start
+        run: |
+          # Exclude inbucket to avoid port 54324 conflicts on GitHub runners
+          supabase start -x inbucket
 
       - name: Validate migrations
         run: supabase db reset --yes
@@ -157,7 +158,8 @@ jobs:
 
       - name: Start Supabase
         run: |
-          supabase start
+          # Exclude inbucket to avoid port 54324 conflicts on GitHub runners
+          supabase start -x inbucket
           # Export keys to GITHUB_ENV
           STATUS=$(supabase status -o json)
           echo "Supabase Status Output: $STATUS"
@@ -282,8 +284,32 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, build, e2e-tests]
     if: github.ref == 'refs/heads/main' && success()
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_ID }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate Supabase secrets
+        run: |
+          has_missing_secrets=0
+          for var in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF; do
+            if [ -z "${!var}" ]; then
+              echo "$var is required"
+              has_missing_secrets=1
+            fi
+          done
+
+          if [ -z "$SUPABASE_DB_PASSWORD" ] && [ -z "$SUPABASE_DB_URL" ]; then
+            echo "Error: Either SUPABASE_DB_PASSWORD or SUPABASE_DB_URL must be set as a GitHub secret"
+            has_missing_secrets=1
+          fi
+
+          if [ "$has_missing_secrets" -ne 0 ]; then
+            exit 1
+          fi
 
       - uses: supabase/setup-cli@b60b5899c73b63a2d2d651b1e90db8d4c9392f51 # v1.6.0
         with:
@@ -291,11 +317,26 @@ jobs:
           # intentionally pin this to a specific, existing CLI version.
           version: 2.62.5
 
+      - name: Show Supabase CLI version
+        run: supabase --version
+
+      - name: Link Supabase project
+        run: |
+          if [ -n "$SUPABASE_DB_PASSWORD" ]; then
+            supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          else
+            supabase link --project-ref "$SUPABASE_PROJECT_REF" --db-url "$SUPABASE_DB_URL"
+          fi
+
+      - name: Dry run migrations push
+        run: |
+          # Fail fast if the dry run surfaces issues so the push step is skipped.
+          set -euo pipefail
+          supabase db push --linked --dry-run
+          echo "Dry run succeeded; proceeding to push migrations."
+
       - name: Push migrations to production
-        run: supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: supabase db push --linked
 
   sonarcloud:
     name: SonarCloud Analysis
