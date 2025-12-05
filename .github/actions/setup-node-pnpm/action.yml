@@ -18,6 +18,8 @@ runs:
       uses: pnpm/action-setup@v4
       with:
         version: ${{ inputs.pnpm-version }}
+        # Use standalone to avoid registry fetch flakiness during install
+        standalone: true
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
