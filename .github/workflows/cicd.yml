@@ -282,8 +282,32 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, build, e2e-tests]
     if: github.ref == 'refs/heads/main' && success()
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_ID }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate Supabase secrets
+        run: |
+          missing=0
+          for var in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF; do
+            if [ -z "${!var}" ]; then
+              echo "$var is required"
+              missing=1
+            fi
+          done
+
+          if [ -z "$SUPABASE_DB_PASSWORD" ] && [ -z "$SUPABASE_DB_URL" ]; then
+            echo "Either SUPABASE_DB_PASSWORD or SUPABASE_DB_URL is required"
+            missing=1
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
 
       - uses: supabase/setup-cli@b60b5899c73b63a2d2d651b1e90db8d4c9392f51 # v1.6.0
         with:
@@ -291,11 +315,25 @@ jobs:
           # intentionally pin this to a specific, existing CLI version.
           version: 2.62.5
 
+      - name: Show Supabase CLI version
+        run: supabase --version
+
+      - name: Link Supabase project
+        run: |
+          if [ -n "$SUPABASE_DB_PASSWORD" ]; then
+            supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          elif [ -n "$SUPABASE_DB_URL" ]; then
+            supabase link --project-ref "$SUPABASE_PROJECT_REF" --db-url "$SUPABASE_DB_URL"
+          else
+            echo "Missing SUPABASE_DB_PASSWORD or SUPABASE_DB_URL" >&2
+            exit 1
+          fi
+
+      - name: Dry run migrations push
+        run: supabase db push --linked --dry-run
+
       - name: Push migrations to production
-        run: supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: supabase db push --linked
 
   sonarcloud:
     name: SonarCloud Analysis
