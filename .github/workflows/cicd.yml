@@ -292,20 +292,20 @@ jobs:
 
       - name: Validate Supabase secrets
         run: |
-          missing=0
+          has_missing_secrets=0
           for var in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF; do
             if [ -z "${!var}" ]; then
               echo "$var is required"
-              missing=1
+              has_missing_secrets=1
             fi
           done
 
           if [ -z "$SUPABASE_DB_PASSWORD" ] && [ -z "$SUPABASE_DB_URL" ]; then
-            echo "Either SUPABASE_DB_PASSWORD or SUPABASE_DB_URL is required"
-            missing=1
+            echo "Error: Either SUPABASE_DB_PASSWORD or SUPABASE_DB_URL must be set as a GitHub secret"
+            has_missing_secrets=1
           fi
 
-          if [ "$missing" -ne 0 ]; then
+          if [ "$has_missing_secrets" -ne 0 ]; then
             exit 1
           fi
 
@@ -322,11 +322,8 @@ jobs:
         run: |
           if [ -n "$SUPABASE_DB_PASSWORD" ]; then
             supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
-          elif [ -n "$SUPABASE_DB_URL" ]; then
-            supabase link --project-ref "$SUPABASE_PROJECT_REF" --db-url "$SUPABASE_DB_URL"
           else
-            echo "Missing SUPABASE_DB_PASSWORD or SUPABASE_DB_URL" >&2
-            exit 1
+            supabase link --project-ref "$SUPABASE_PROJECT_REF" --db-url "$SUPABASE_DB_URL"
           fi
 
       - name: Dry run migrations push
