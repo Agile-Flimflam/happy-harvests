@@ -67,7 +67,9 @@ jobs:
           version: 2.62.5
 
       - name: Start Supabase
-        run: supabase start
+        run: |
+          # Exclude inbucket to avoid port 54324 conflicts on GitHub runners
+          supabase start -x inbucket
 
       - name: Validate migrations
         run: supabase db reset --yes
@@ -156,7 +158,8 @@ jobs:
 
       - name: Start Supabase
         run: |
-          supabase start
+          # Exclude inbucket to avoid port 54324 conflicts on GitHub runners
+          supabase start -x inbucket
           # Export keys to GITHUB_ENV
           STATUS=$(supabase status -o json)
           echo "Supabase Status Output: $STATUS"
