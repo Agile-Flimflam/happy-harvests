@@ -1,0 +1,2 @@
+-- Placeholder to align local migrations with remote baseline version 0000.
+-- No schema changes are applied in this file.
