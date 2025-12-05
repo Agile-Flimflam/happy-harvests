@@ -293,7 +293,18 @@ export function getTestFilePath(sourcePath: string): { testPath: string; specPat
  */
 export function filterCodeFiles(files: ReadonlyArray<ChangedFileSummary>): ChangedFileSummary[] {
   return files.filter((file) => {
-    const ext: string = path.extname(file.filename);
+    const normalizedPath: string = file.filename.replace(/\\/g, '/');
+    const lowerPath: string = normalizedPath.toLowerCase();
+    const ext: string = path.extname(lowerPath);
+
+    // Explicitly exclude non-code/doc files and UI component shared library
+    if (ext === '.json' || ext === '.md') {
+      return false;
+    }
+
+    if (lowerPath.includes('components/ui/')) {
+      return false;
+    }
 
     // Only consider .ts/.tsx files
     if (ext !== '.ts' && ext !== '.tsx') {

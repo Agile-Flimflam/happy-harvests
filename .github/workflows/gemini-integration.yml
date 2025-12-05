@@ -53,6 +53,8 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_REVIEW_FOCUS: critical-only
+          GEMINI_COMMENT_MODE: summary
 
       - name: Generate PR description
         if: github.event.action == 'opened'

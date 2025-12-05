@@ -40,6 +40,9 @@ const reviewIssueArraySchema = z.array(
   })
 );
 
+const reviewFocus: string = process.env.GEMINI_REVIEW_FOCUS?.trim() || 'critical-only';
+const commentMode: string = process.env.GEMINI_COMMENT_MODE?.trim() || 'summary';
+
 async function reviewCodeWithGemini(
   gemini: GoogleGenerativeAI,
   filePath: string,
@@ -50,36 +53,25 @@ async function reviewCodeWithGemini(
   const safeFilePath: string = prepareForPrompt(filePath);
   const safeFileContent: string = prepareForPrompt(fileContent);
 
-  const prompt = `You are a senior code reviewer for a TypeScript/React/Next.js project using Tailwind CSS and shadcn/ui components.
+  const prompt = `You are a senior TypeScript tech lead. Review the code below only for critical issues that must block a merge (${reviewFocus}). Ignore style, formatting, naming nits, Tailwind class ordering, and do not include praise. Comment mode is "${commentMode}" (Summary/glob) — identify only issues that merit a single summary comment (no inline/nit output).
 
-Review the following code file for these specific issues:
+Focus areas (critical/high-impact only):
+- Type safety mistakes that can break runtime behavior (unsafe casts, missing essential annotations, use of "any")
+- Security/privacy or injection risks
+- Accessibility blockers in JSX/React
+- Misuse of shadcn/ui that breaks behavior or accessibility
 
-1. **Type Safety**: 
-   - Any usage of \`any\` type (should be explicit types)
-   - Unsafe type casting (e.g., \`as unknown\`, \`as any\`)
-   - Missing type annotations where they should be explicit
-
-2. **Tailwind/Shadcn Patterns**:
-   - Conflicting utility classes (e.g., \`p-4 p-8\` - both padding classes)
-   - Accessibility violations in JSX (missing aria labels, improper semantic HTML)
-   - Incorrect shadcn component usage patterns
-
-3. **Security**:
-   - Potential injection points in API routes or server-side code
-   - Unsafe string concatenation in SQL-like contexts
-   - Missing input validation
-
-For each issue found, provide a JSON array with this exact structure:
+For each critical issue, return a JSON array using exactly:
 [
   {
     "line": <line_number>,
-    "severity": "error" | "warning" | "info",
-    "message": "<clear description>",
+    "severity": "error",
+    "message": "<actionable description>",
     "category": "type-safety" | "tailwind" | "security" | "other"
   }
 ]
 
-If no issues are found, return an empty array: []
+If no critical issues exist, return an empty array [].
 
 File path: ${safeFilePath}
 File content:
@@ -87,7 +79,7 @@ File content:
 ${safeFileContent}
 \`\`\`
 
-Respond with valid JSON as the only content. You may optionally wrap it in a \`\`\`json\`\`\` code block, but do not include any additional commentary or text.`;
+Respond with valid JSON only (optionally wrapped in a \`\`\`json\`\`\` fence), with no extra commentary.`;
 
   try {
     const result = await model.generateContent(prompt);
@@ -141,25 +133,26 @@ Respond with valid JSON as the only content. You may optionally wrap it in a \`\
   }
 }
 
-async function postReviewComments(
+async function postReviewSummary(
   octokit: ReturnType<typeof initGitHubClient>,
   owner: string,
   repo: string,
   prNumber: number,
   issues: ReviewIssue[]
 ): Promise<void> {
+  const header = `Gemini code review (senior TS tech lead — ${reviewFocus}; ${commentMode} mode; style/praise suppressed)`;
+
   if (issues.length === 0) {
-    core.info('No issues found. Creating a success comment.');
+    core.info('No critical issues found. Posting summary comment.');
     await octokit.rest.issues.createComment({
       owner,
       repo,
       issue_number: prNumber,
-      body: '✅ **Gemini Code Review**: No issues detected in this PR.',
+      body: `${header}\n\n- No critical issues detected.\n- Inline/nit comments suppressed by configuration.`,
     });
     return;
   }
 
-  // Group issues by file
   const issuesByFile = new Map<string, ReviewIssue[]>();
   for (const issue of issues) {
     if (!issuesByFile.has(issue.file)) {
@@ -168,27 +161,29 @@ async function postReviewComments(
     issuesByFile.get(issue.file)!.push(issue);
   }
 
-  // Post inline comments for each file
-  for (const [file, fileIssues] of Array.from(issuesByFile.entries())) {
-    const body = `## 🔍 Code Review Issues in \`${file}\`
+  const formatted = Array.from(issuesByFile.entries())
+    .map(([file, fileIssues]) => {
+      const details = fileIssues
+        .map(
+          (issue) => `  - L${issue.line} [${issue.category}]: ${issue.message} (${issue.severity})`
+        )
+        .join('\n');
+      return `- ${file}\n${details}`;
+    })
+    .join('\n');
 
-${fileIssues
-  .map(
-    (issue) => `- **Line ${issue.line}** (${issue.severity}): ${issue.message} [${issue.category}]`
-  )
-  .join('\n')}`;
+  const body = `${header}\n\n${formatted}\n\n- Inline comments suppressed; address the above before merge.`;
 
-    try {
-      await octokit.rest.issues.createComment({
-        owner,
-        repo,
-        issue_number: prNumber,
-        body,
-      });
-    } catch (error: unknown) {
-      const message: string = error instanceof Error ? error.message : String(error);
-      core.warning(`Failed to post comment for ${file}: ${message}`);
-    }
+  try {
+    await octokit.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: prNumber,
+      body,
+    });
+  } catch (error: unknown) {
+    const message: string = error instanceof Error ? error.message : String(error);
+    core.warning(`Failed to post summary comment: ${message}`);
   }
 }
 
@@ -248,16 +243,17 @@ async function run(): Promise<void> {
       allIssues.push(...reviewResult.issues);
     }
 
-    // Post review comments
-    await postReviewComments(
+    const criticalIssues: ReviewIssue[] = allIssues.filter((issue) => issue.severity === 'error');
+
+    await postReviewSummary(
       octokit,
       prContext.owner,
       prContext.repo,
       prContext.prNumber,
-      allIssues
+      criticalIssues
     );
 
-    core.info(`Review complete. Found ${allIssues.length} issues.`);
+    core.info(`Review complete. Found ${criticalIssues.length} critical issues.`);
   } catch (error: unknown) {
     const message: string = error instanceof Error ? error.message : String(error);
     core.setFailed(`Code review failed: ${message}`);
