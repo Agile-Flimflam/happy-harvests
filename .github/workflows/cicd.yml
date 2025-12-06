@@ -135,7 +135,7 @@ jobs:
 
       - name: Next.js cache summary
         run: |
-          echo "next cache hit: ${{ steps.next-cache.outputs.cache-hit }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Next.js cache hit: ${{ steps.next-cache.outputs.cache-hit }}" >> "$GITHUB_STEP_SUMMARY"
         shell: bash
 
       - name: Build application
