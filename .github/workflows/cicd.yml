@@ -129,7 +129,7 @@ jobs:
           path: |
             .next/cache
             .turbo
-          key: next-cache-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles('**/pnpm-lock.yaml', '**/next.config.*', '**/tsconfig.json') }}
+          key: next-cache-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml', 'next.config.js', 'next.config.mjs', 'tsconfig.json') }}
           restore-keys: |
             next-cache-${{ runner.os }}-${{ env.NODE_VERSION }}-
 
@@ -147,13 +147,13 @@ jobs:
           ANALYZE: ${{ github.ref == 'refs/heads/main' && 'true' || 'false' }}
 
       - name: Save Next.js cache
-        if: success() && github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
+        if: success() && github.actor != 'dependabot[bot]' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork)
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             .next/cache
             .turbo
-          key: next-cache-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles('**/pnpm-lock.yaml', '**/next.config.*', '**/tsconfig.json') }}
+          key: next-cache-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml', 'next.config.js', 'next.config.mjs', 'tsconfig.json') }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
