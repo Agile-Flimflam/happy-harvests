@@ -312,14 +312,20 @@ jobs:
       - name: Determine Playwright version
         id: playwright-version
         run: |
-          version=$(node -e "const pkg=require('./package.json'); const v=(pkg.devDependencies && pkg.devDependencies['@playwright/test'])||(pkg.dependencies && pkg.dependencies['@playwright/test']); if(!v) { throw new Error('No @playwright/test version found'); } console.log(v.replace(/^[^0-9]*/, ''));")
+          version=$(node -p "
+            const pkg = require('./package.json');
+            const v = (pkg.devDependencies && pkg.devDependencies['@playwright/test']) ||
+                      (pkg.dependencies && pkg.dependencies['@playwright/test']);
+            if (!v) throw new Error('No @playwright/test version found');
+            v.replace(/^[^0-9]*/, '');
+          ")
           echo "PLAYWRIGHT_VERSION=$version" >> "$GITHUB_ENV"
           echo "Playwright version: $version" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Restore Playwright browser cache
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: $HOME/.cache/ms-playwright
+          path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
           restore-keys: |
             playwright-${{ runner.os }}-
@@ -330,8 +336,6 @@ jobs:
           # Cap to avoid over-scheduling on shared runners
           if [ "$cpu_count" -gt 6 ]; then
             workers=6
-          elif [ "$cpu_count" -lt 1 ]; then
-            workers=1
           else
             workers=$cpu_count
           fi
@@ -339,15 +343,13 @@ jobs:
           echo "Using $workers Playwright workers (detected $cpu_count CPUs)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install Playwright browsers
-        env:
-          PLAYWRIGHT_WORKERS: ${{ env.PLAYWRIGHT_WORKERS }}
         run: pnpm exec playwright install --with-deps
 
       - name: Save Playwright browser cache
-        if: success() && github.actor != 'dependabot[bot]' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork)
+        if: success() && github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && steps.e2e-next-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: $HOME/.cache/ms-playwright
+          path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
 
       - name: Install Supabase CLI
@@ -422,8 +424,7 @@ jobs:
           CI: true
           PLAYWRIGHT_BASE_URL: http://localhost:4000
           PLAYWRIGHT_WORKERS: ${{ env.PLAYWRIGHT_WORKERS }}
-          NEXT_CACHE_DIR: .next/cache
-        run: pnpm test:e2e -- --workers "${PLAYWRIGHT_WORKERS:-2}" --trace retain-on-failure
+        run: pnpm test:e2e -- --workers ${PLAYWRIGHT_WORKERS:-2} --trace retain-on-failure
 
       - name: Upload Playwright traces
         if: failure()
