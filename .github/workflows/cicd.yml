@@ -44,6 +44,14 @@ jobs:
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard_index: 1
+            shard_total: 2
+          - shard_index: 2
+            shard_total: 2
     permissions:
       contents: read
       actions: write
@@ -58,13 +66,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           pnpm-version: ${{ env.PNPM_VERSION }}
 
-      - name: Run tests
-        run: pnpm test
+      - name: Run tests (shard ${{ matrix.shard_index }}/${{ matrix.shard_total }})
+        env:
+          SHARD_INDEX: ${{ matrix.shard_index }}
+          SHARD_TOTAL: ${{ matrix.shard_total }}
+        run: pnpm test -- --shard ${{ matrix.shard_index }}/${{ matrix.shard_total }}
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: coverage
+          name: coverage-shard-${{ matrix.shard_index }}
           path: coverage/
           retention-days: 1
           if-no-files-found: warn
@@ -249,8 +260,57 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           pnpm-version: ${{ env.PNPM_VERSION }}
 
+      - name: Restore Next.js cache for E2E
+        id: e2e-next-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            .next/cache
+            .turbo
+          key: next-cache-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml', 'next.config.js', 'next.config.mjs', 'tsconfig.json') }}
+          restore-keys: |
+            next-cache-${{ runner.os }}-${{ env.NODE_VERSION }}-
+
+      - name: Determine Playwright version
+        id: playwright-version
+        run: |
+          version=$(node -e "const pkg=require('./package.json'); const v=(pkg.devDependencies && pkg.devDependencies['@playwright/test'])||(pkg.dependencies && pkg.dependencies['@playwright/test']); if(!v) { throw new Error('No @playwright/test version found'); } console.log(v.replace(/^[^0-9]*/, ''));")
+          echo "PLAYWRIGHT_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Playwright version: $version" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore Playwright browser cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: $HOME/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Detect Playwright workers from CPU count
+        run: |
+          cpu_count=$(nproc --all 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
+          # Cap to avoid over-scheduling on shared runners
+          if [ "$cpu_count" -gt 6 ]; then
+            workers=6
+          elif [ "$cpu_count" -lt 1 ]; then
+            workers=1
+          else
+            workers=$cpu_count
+          fi
+          echo "PLAYWRIGHT_WORKERS=$workers" >> "$GITHUB_ENV"
+          echo "Using $workers Playwright workers (detected $cpu_count CPUs)" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Install Playwright browsers
+        env:
+          PLAYWRIGHT_WORKERS: ${{ env.PLAYWRIGHT_WORKERS }}
         run: pnpm exec playwright install --with-deps
+
+      - name: Save Playwright browser cache
+        if: success() && github.actor != 'dependabot[bot]' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork)
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: $HOME/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
 
       - name: Install Supabase CLI
         uses: supabase/setup-cli@b60b5899c73b63a2d2d651b1e90db8d4c9392f51 # v1.6.0
@@ -298,6 +358,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
           NEXT_PUBLIC_SITE_URL: ${{ env.NEXT_PUBLIC_SITE_URL }}
+          NEXT_CACHE_DIR: .next/cache
 
       - name: Wait for server to be ready
         run: |
@@ -319,10 +380,30 @@ jobs:
           exit 1
 
       - name: Run E2E tests
-        run: pnpm test:e2e
         env:
           CI: true
           PLAYWRIGHT_BASE_URL: http://localhost:4000
+          PLAYWRIGHT_WORKERS: ${{ env.PLAYWRIGHT_WORKERS }}
+          NEXT_CACHE_DIR: .next/cache
+        run: pnpm test:e2e -- --workers "${PLAYWRIGHT_WORKERS:-2}" --trace retain-on-failure
+
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: playwright-traces
+          path: test-results/**/trace.zip
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Save Next.js cache after E2E
+        if: success() && github.actor != 'dependabot[bot]' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork)
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            .next/cache
+            .turbo
+          key: next-cache-${{ runner.os }}-${{ env.NODE_VERSION }}-${{ hashFiles('pnpm-lock.yaml', 'next.config.js', 'next.config.mjs', 'tsconfig.json') }}
 
       - name: Stop Next.js server
         if: always()
