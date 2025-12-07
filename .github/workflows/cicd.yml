@@ -72,7 +72,7 @@ jobs:
   validate-migrations:
     name: Validate Migrations
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [build]
     # Skip for draft PRs and Dependabot to avoid heavy Supabase spin-up
     if: github.event_name == 'pull_request' && !github.event.pull_request.draft && github.actor != 'dependabot[bot]'
     permissions:
