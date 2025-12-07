@@ -72,8 +72,9 @@ jobs:
   validate-migrations:
     name: Validate Migrations
     runs-on: ubuntu-latest
-    needs: [lint, test]
-    if: github.event_name == 'pull_request'
+    needs: [build]
+    # Skip for draft PRs and Dependabot to avoid heavy Supabase spin-up
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft && github.actor != 'dependabot[bot]'
     permissions:
       contents: read
     timeout-minutes: 25
@@ -108,6 +109,8 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: [lint, test]
+    # Heavy build skips draft PRs and Dependabot but runs on pushes
+    if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && github.actor != 'dependabot[bot]')
     permissions:
       contents: read
       actions: write
@@ -192,6 +195,8 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: build
+    # Only run for non-draft PRs/non-Dependabot or push events
+    if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && github.actor != 'dependabot[bot]')
     permissions:
       contents: read
       actions: write
@@ -199,6 +204,29 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Detect app-impacting changes
+        id: app-changes
+        uses: dorny/paths-filter@v3
+        # Gate E2E to app-related paths and critical configs/lockfiles
+        with:
+          filters: |
+            app:
+              - 'app/**'
+              - 'src/**'
+              - 'components/**'
+              - 'config/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'next.config.*'
+
+      - name: Skip E2E when no app changes
+        if: steps.app-changes.outputs.app != 'true'
+        run: |
+          echo "Skipping E2E: no app-impacting changes detected."
+          exit 0
 
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
@@ -343,7 +371,8 @@ jobs:
     name: Deploy Database Migrations
     runs-on: ubuntu-latest
     needs: [test, build, e2e-tests]
-    if: github.ref == 'refs/heads/main' && success()
+    # Protect production migrations to main branch and skip Dependabot
+    if: github.ref == 'refs/heads/main' && success() && github.actor != 'dependabot[bot]'
     permissions:
       contents: read
     timeout-minutes: 30
@@ -404,9 +433,10 @@ jobs:
   sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
-    needs: [build, e2e-tests, test]
+    needs: [test]
     continue-on-error: true
-    if: ${{ github.actor != 'dependabot[bot]' && success() }}
+    # Run static analysis after coverage; skip draft PRs and Dependabot
+    if: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.draft) && github.actor != 'dependabot[bot]' && success() }}
     permissions:
       contents: read
       pull-requests: read
@@ -462,7 +492,7 @@ jobs:
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [build]
     permissions:
       contents: read
       actions: write
