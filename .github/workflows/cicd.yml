@@ -72,8 +72,9 @@ jobs:
   validate-migrations:
     name: Validate Migrations
     runs-on: ubuntu-latest
-    needs: [lint, test]
-    if: github.event_name == 'pull_request'
+    needs: [build]
+    # Skip for draft PRs and Dependabot to avoid heavy Supabase spin-up
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft && github.actor != 'dependabot[bot]'
     permissions:
       contents: read
     timeout-minutes: 25
@@ -108,6 +109,8 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: [lint, test]
+    # Heavy build skips draft PRs and Dependabot but runs on pushes
+    if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && github.actor != 'dependabot[bot]')
     permissions:
       contents: read
       actions: write
@@ -188,10 +191,50 @@ jobs:
             echo "⚠️ Bundle analysis directory not found" >> $GITHUB_STEP_SUMMARY
           fi
 
+  detect-app-changes:
+    name: Detect App Changes
+    runs-on: ubuntu-latest
+    # Skip for draft PRs and Dependabot; still run on pushes
+    if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && github.actor != 'dependabot[bot]')
+    permissions:
+      contents: read
+    outputs:
+      app: ${{ steps.app-changes.outputs.app }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Detect app-impacting changes
+        id: app-changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        # Gate E2E to app-related paths and critical configs/lockfiles
+        with:
+          filters: |
+            app:
+              - 'app/**'
+              - 'src/**'
+              - 'components/**'
+              - 'config/**'
+              - 'public/**'
+              - 'styles/**'
+              - 'lib/**'
+              - 'utils/**'
+              - 'supabase/migrations/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'next.config.*'
+              - 'tsconfig.json'
+              - '.env.example'
+              - 'playwright.config.*'
+
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, detect-app-changes]
+    # Only run for non-draft PRs/non-Dependabot or push events
+    if: (github.event_name != 'pull_request' || (!github.event.pull_request.draft && github.actor != 'dependabot[bot]')) && needs.detect-app-changes.result == 'success' && needs.detect-app-changes.outputs.app == 'true'
     permissions:
       contents: read
       actions: write
@@ -342,8 +385,10 @@ jobs:
   deploy-db:
     name: Deploy Database Migrations
     runs-on: ubuntu-latest
-    needs: [test, build, e2e-tests]
-    if: github.ref == 'refs/heads/main' && success()
+    needs: [test, build, detect-app-changes, e2e-tests]
+    # Protect production migrations to main branch and skip Dependabot
+    # Require a successful detect-app-changes run; if app changes are detected, require E2E success, otherwise allow skipped E2E
+    if: github.ref == 'refs/heads/main' && needs.detect-app-changes.result == 'success' && (needs.detect-app-changes.outputs.app != 'true' || needs.e2e-tests.result == 'success') && success() && github.actor != 'dependabot[bot]'
     permissions:
       contents: read
     timeout-minutes: 30
@@ -404,9 +449,10 @@ jobs:
   sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
-    needs: [build, e2e-tests, test]
+    needs: [test]
     continue-on-error: true
-    if: ${{ github.actor != 'dependabot[bot]' && success() }}
+    # Run static analysis after coverage; skip draft PRs and Dependabot
+    if: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.draft) && github.actor != 'dependabot[bot]' && success() }}
     permissions:
       contents: read
       pull-requests: read
@@ -431,14 +477,19 @@ jobs:
           path: coverage/
 
       - name: Run SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 #SonarCloud v6 SHA Hash
+        uses: SonarSource/sonarcloud-github-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_HOST_URL: https://sonarcloud.io
         with:
+          projectBaseDir: .
           args: >
             -Dsonar.verbose=true
+            -Dsonar.projectKey=Agile-Flimflam_happy-harvests
+            -Dsonar.organization=agile-flimflam
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.sources=src
 
   secret-scanning:
     name: Secret Scanning
