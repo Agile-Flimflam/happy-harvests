@@ -217,17 +217,24 @@ jobs:
               - 'src/**'
               - 'components/**'
               - 'config/**'
+              - 'public/**'
+              - 'styles/**'
+              - 'lib/**'
+              - 'utils/**'
               - 'supabase/migrations/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'next.config.*'
+              - 'tsconfig.json'
+              - '.env.example'
+              - 'playwright.config.*'
 
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: [build, detect-app-changes]
     # Only run for non-draft PRs/non-Dependabot or push events
-    if: (github.event_name != 'pull_request' || (!github.event.pull_request.draft && github.actor != 'dependabot[bot]')) && needs.detect-app-changes.outputs.app == 'true'
+    if: (github.event_name != 'pull_request' || (!github.event.pull_request.draft && github.actor != 'dependabot[bot]')) && needs.detect-app-changes.result == 'success' && needs.detect-app-changes.outputs.app == 'true'
     permissions:
       contents: read
       actions: write
@@ -380,8 +387,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, build, detect-app-changes, e2e-tests]
     # Protect production migrations to main branch and skip Dependabot
-    # If app changes are detected, require E2E to have succeeded; otherwise allow skipped E2E
-    if: github.ref == 'refs/heads/main' && (needs.detect-app-changes.outputs.app != 'true' || needs.e2e-tests.result == 'success') && success() && github.actor != 'dependabot[bot]'
+    # Require a successful detect-app-changes run; if app changes are detected, require E2E success, otherwise allow skipped E2E
+    if: github.ref == 'refs/heads/main' && needs.detect-app-changes.result == 'success' && (needs.detect-app-changes.outputs.app != 'true' || needs.e2e-tests.result == 'success') && success() && github.actor != 'dependabot[bot]'
     permissions:
       contents: read
     timeout-minutes: 30
@@ -470,14 +477,19 @@ jobs:
           path: coverage/
 
       - name: Run SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 #SonarCloud v6 SHA Hash
+        uses: SonarSource/sonarcloud-github-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_HOST_URL: https://sonarcloud.io
         with:
+          projectBaseDir: .
           args: >
             -Dsonar.verbose=true
+            -Dsonar.projectKey=Agile-Flimflam_happy-harvests
+            -Dsonar.organization=agile-flimflam
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.sources=src
 
   secret-scanning:
     name: Secret Scanning
