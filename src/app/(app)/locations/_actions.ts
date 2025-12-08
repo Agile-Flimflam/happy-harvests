@@ -190,13 +190,13 @@ export async function deleteLocation(id: string): Promise<DeleteLocationResult> 
 type LocationWithMaybePlots = Location & { plots: Tables<'plots'>[] | null };
 type LocationWithPlots = Location & { plots: Tables<'plots'>[] };
 
-export async function getLocations(): Promise<{ locations?: Location[]; error?: string }> {
+export async function getLocations(): Promise<{ locations: Location[]; error?: string }> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('locations')
     .select('*')
     .order('name', { ascending: true });
-  if (error) return { error: `Database Error: ${error.message}` };
+  if (error) return { locations: [], error: `Database Error: ${error.message}` };
   return { locations: data ?? [] };
 }
 

@@ -50,7 +50,7 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
     resolver: zodResolver(PlotSchema) as Resolver<PlotFormValues>,
     mode: 'onSubmit',
     defaultValues: {
-      plot_id: plot?.plot_id,
+      plot_id: plot?.plot_id ?? undefined,
       name: plot?.name ?? '',
       location_id: plot?.location_id ?? '',
     },
@@ -58,8 +58,8 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
 
   useEffect(() => {
     if (state.message) {
-      if (state.errors && Object.keys(state.errors).length > 0) {
-        Object.entries(state.errors).forEach(([field, errors]) => {
+      if (state.errors && Object.keys(state.errors || {}).length > 0) {
+        Object.entries(state.errors || {}).forEach(([field, errors]) => {
           const message = Array.isArray(errors)
             ? errors[0]
             : (errors as unknown as string) || 'Invalid value';
@@ -127,7 +127,7 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
                   </SelectTrigger>
                   <SelectContent>
                     {locations.map((loc) => (
-                      <SelectItem key={loc.id} value={loc.id}>
+                      <SelectItem key={loc.id} value={String(loc.id)}>
                         {loc.name}
                       </SelectItem>
                     ))}

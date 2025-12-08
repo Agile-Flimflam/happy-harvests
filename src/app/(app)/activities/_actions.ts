@@ -363,7 +363,7 @@ async function insertSoilAmendments(
 export async function updateActivity(formData: FormData): Promise<void> {
   const supabase = await createSupabaseServerClient();
   const id = Number(formData.get('id'));
-  if (!Number.isFinite(id)) return;
+  if (!Number.isInteger(id) || id <= 0) return;
 
   const validated = ActivitySchema.safeParse(extractActivityFormData(formData));
   if (!validated.success) return;
@@ -404,7 +404,7 @@ export async function updateActivity(formData: FormData): Promise<void> {
 export async function deleteActivity(formData: FormData): Promise<void> {
   const supabase = await createSupabaseServerClient();
   const id = Number(formData.get('id'));
-  if (!Number.isFinite(id)) return;
+  if (!Number.isInteger(id) || id <= 0) return;
   await supabase.from('activities').delete().eq('id', id);
   revalidatePath('/activities');
 }
@@ -465,7 +465,7 @@ export async function renameBed(formData: FormData): Promise<{ message: string }
   const supabase = await createSupabaseServerClient();
   const id = Number(formData.get('bed_id'));
   const name = getString(formData.get('name')).trim();
-  if (!Number.isFinite(id) || !name) return { message: 'Missing bed id or name' };
+  if (!Number.isInteger(id) || id <= 0 || !name) return { message: 'Missing bed id or name' };
   const { error } = await supabase.from('beds').update({ name }).eq('id', id);
   if (error) return { message: `Database Error: ${errorToMessage(error)}` };
   return { message: 'Bed renamed' };

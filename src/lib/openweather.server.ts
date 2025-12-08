@@ -177,10 +177,7 @@ export async function fetchForecastForDateByCoords(
     timezone: json.timezone,
     forecast: {
       dt: best.dt,
-      temp:
-        (best.temp && best.temp.day) != null
-          ? (best.temp!.day as number)
-          : (json.current?.temp ?? 0),
+      temp: best.temp?.day != null ? best.temp.day : (json.current?.temp ?? 0),
       humidity: best.humidity,
       weather,
       moonPhase,

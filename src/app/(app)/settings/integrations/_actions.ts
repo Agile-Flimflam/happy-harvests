@@ -108,7 +108,7 @@ async function getFormDataText(
   key: string,
   options?: { allowFile?: boolean; fieldLabel?: string }
 ): Promise<string> {
-  const { allowFile = true, fieldLabel } = options ?? {};
+  const { allowFile = false, fieldLabel } = options ?? {};
   const value = formData.get(key);
   if (typeof value === 'string') return value;
   if (value instanceof File) {
@@ -303,8 +303,7 @@ export async function createTestEventAction(
   const startTime = (await getFormDataText(formData, 'startTime')).trim();
   const endDate = (await getFormDataText(formData, 'endDate')).trim() || date;
   const endTime = (await getFormDataText(formData, 'endTime')).trim();
-  const timezone = (await getFormDataText(formData, 'timezone')).trim();
-  if (!timezone) return { ok: false, message: 'Timezone is required' };
+  const timezone = (await getFormDataText(formData, 'timezone')).trim() || 'America/Los_Angeles';
   const colorId = (await getFormDataText(formData, 'colorId')).trim();
 
   if (!date) return { ok: false, message: 'Date is required' };

@@ -6,5 +6,5 @@ export default async function LocationsPage() {
   if (error) {
     return <div className="text-red-500">Error loading locations: {error}</div>;
   }
-  return <LocationsPageContent locations={locations || []} />;
+  return <LocationsPageContent locations={locations} />;
 }

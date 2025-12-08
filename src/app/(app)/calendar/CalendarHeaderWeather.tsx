@@ -24,10 +24,12 @@ type WeatherResponse = {
   moonPhaseLabel?: string;
 };
 
+const SAFE_LOCATION_ID_REGEX = /^[A-Za-z0-9_-]{1,64}$/;
+
 function sanitizeLocationId(value: string | null): string | null {
   if (!value) return null;
   const trimmed = value.trim();
-  return /^[A-Za-z0-9_-]+$/.test(trimmed) ? trimmed : null;
+  return SAFE_LOCATION_ID_REGEX.test(trimmed) ? trimmed : null;
 }
 
 export default function CalendarHeaderWeather({ id, latitude, longitude }: Props) {
@@ -44,9 +46,10 @@ export default function CalendarHeaderWeather({ id, latitude, longitude }: Props
       typeof longitude === 'number' &&
       Number.isFinite(latitude) &&
       Number.isFinite(longitude);
+    if (!hasValidCoords) return;
+
     const safeId = sanitizeLocationId(id);
-    if (!safeId || !hasValidCoords) {
-      if (!hasValidCoords) return;
+    if (!safeId) {
       setState({ status: 'error', message: 'Invalid location id' });
       return;
     }
@@ -94,11 +97,12 @@ export default function CalendarHeaderWeather({ id, latitude, longitude }: Props
   }
 
   const { current, moonPhaseLabel } = state.data;
+  const safeMoonPhaseLabel = moonPhaseLabel ?? '';
   const tempF = current.temp;
   const icon = current.weather?.icon || null;
   const description = current.weather?.description || null;
   // Compute the same emoji used in calendar days for consistency
-  const moonEmoji = moonEmojiFromLabel(moonPhaseLabel);
+  const moonEmoji = moonEmojiFromLabel(safeMoonPhaseLabel);
 
   return (
     <div className="flex items-center gap-4 text-sm rounded-md bg-muted/40 px-3 py-2">
@@ -107,7 +111,7 @@ export default function CalendarHeaderWeather({ id, latitude, longitude }: Props
         tempF={tempF}
         description={description}
         inlineDescription
-        hawaiianMoon={moonPhaseLabel}
+        hawaiianMoon={safeMoonPhaseLabel}
         moonEmoji={moonEmoji}
         size="sm"
       />

@@ -78,7 +78,11 @@ export type ListedUser = {
   avatarUrl: string | null;
 };
 
-export async function listUsersWithRolesAction(): Promise<{ users: ListedUser[]; error?: string }> {
+export async function listUsersWithRolesAction(): Promise<{
+  users: ListedUser[];
+  error?: string;
+  warning?: string;
+}> {
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) return { users: [], error: 'Unauthorized' };
 
@@ -125,15 +129,17 @@ export async function listUsersWithRolesAction(): Promise<{ users: ListedUser[];
       const fallback = (u.email || '').split('@')[0] || '';
       return p?.display_name || p?.full_name || fallback;
     })(),
-    createdAt: typeof u.created_at === 'string' ? u.created_at : '',
+    createdAt: typeof u.created_at === 'string' ? u.created_at : 'Unknown',
     role: idToProfile.get(u.id)?.role || 'member',
     avatarUrl: idToProfile.get(u.id)?.avatar_url ?? null,
   }));
-  const invalidRoleError =
+  const invalidRoleWarning =
     invalidRoleIds.length > 0
-      ? `Invalid role values found for profile ids: ${invalidRoleIds.join(', ')} (defaulted to member)`
+      ? `Invalid role values found for profile ids: ${invalidRoleIds.join(
+          ', '
+        )} (defaulted to member)`
       : undefined;
-  return { users, error: invalidRoleError };
+  return { users, warning: invalidRoleWarning };
 }
 
 export async function updateUserRoleAction(input: {
@@ -171,7 +177,11 @@ export async function updateUserProfileAction(formData: FormData): Promise<{
   }
   const role: 'admin' | 'member' = roleInput;
   const displayName = String(formData.get('displayName') || '');
-  const file = formData.get('avatar') as File | null;
+  const avatarEntry = formData.get('avatar');
+  if (typeof avatarEntry === 'string') {
+    return { ok: false, error: 'Avatar must be an uploaded image file' };
+  }
+  const file = (avatarEntry instanceof File ? avatarEntry : null) as File | null;
   if (!userId) return { ok: false, error: 'Missing userId' };
 
   let avatarUrl: string | null = null;
@@ -180,9 +190,9 @@ export async function updateUserProfileAction(formData: FormData): Promise<{
       if (file.size > MAX_AVATAR_BYTES) {
         return { ok: false, error: 'Avatar must be 5MB or smaller' };
       }
-      const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'] as const;
+      const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
       const ext = (file.name.split('.').pop() || '').toLowerCase();
-      const isAllowedExt = allowedExtensions.includes(ext as (typeof allowedExtensions)[number]);
+      const isAllowedExt = allowedExtensions.includes(ext);
       const isImageType = typeof file.type === 'string' && file.type.startsWith('image/');
       if (!isAllowedExt || !isImageType) {
         return {

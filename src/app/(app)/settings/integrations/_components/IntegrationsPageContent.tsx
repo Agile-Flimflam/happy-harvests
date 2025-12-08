@@ -12,14 +12,15 @@ export async function IntegrationsPageContent() {
     calendarId: null,
     hasServiceAccount: false,
   };
+  const safeError = typeof error === 'string' ? error : error ? String(error) : undefined;
   return (
     <div className="space-y-6">
       <PageHeader title="Integrations" />
       <PageContent>
         <div className="grid gap-6 grid-cols-1">
-          {error ? (
+          {safeError ? (
             <div className="rounded-md border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-              {error}
+              {safeError}
             </div>
           ) : null}
           <OpenWeatherCardClient
