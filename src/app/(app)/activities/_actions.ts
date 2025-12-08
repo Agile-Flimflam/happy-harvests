@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import type { ActivityType } from '@/lib/activities/types';
 import { fetchWeatherByCoords } from '@/lib/openweather.server';
-import type { Json, Tables, Database } from '@/lib/database.types';
+import type { Tables, Database } from '@/lib/database.types';
 import { ActivitySchema, type ActivityFormValues } from '@/lib/validation/activities';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -376,7 +376,7 @@ export async function updateActivity(formData: FormData): Promise<ActivityFormSt
   const supabase = await createSupabaseServerClient();
 
   // Weather recompute if location changed
-  let weather: Json | null = null;
+  let weather: WeatherJson | null = null;
   const locId = validated.data.location_id;
   if (locId) {
     weather = await fetchActivityWeather(supabase, locId);
@@ -423,7 +423,6 @@ export async function deleteActivity(formData: FormData): Promise<ActivityFormSt
   if (error) {
     console.error('Activities delete error:', error);
     const message = `Database Error: ${errorToMessage(error)}`;
-    revalidatePath('/activities');
     return { message, errors: { id: [message] } };
   }
   revalidatePath('/activities');
@@ -489,7 +488,6 @@ export async function deleteActivitiesBulk(formData: FormData): Promise<Activity
   if (error) {
     console.error('Activities bulk delete error:', error);
     const message = `Database Error: ${errorToMessage(error)}`;
-    revalidatePath('/activities');
     return { message, errors: { ids: [message] } };
   }
   revalidatePath('/activities');

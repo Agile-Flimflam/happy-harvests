@@ -14,9 +14,9 @@ type PlotUpdate = Database['public']['Tables']['plots']['Update'];
 
 export type PlotFormState = {
   message: string;
-  errors?: Record<string, string[] | undefined>;
+  errors?: Record<string, string | string[] | undefined>;
   plot?: Plot | null;
-}
+};
 
 export async function createPlot(
   prevState: PlotFormState,
@@ -84,10 +84,7 @@ export async function updatePlot(
     location_id: validatedFields.data.location_id,
   };
   try {
-    const { error } = await supabase
-      .from('plots')
-      .update(plotDataToUpdate)
-      .eq('plot_id', id);
+    const { error } = await supabase.from('plots').update(plotDataToUpdate).eq('plot_id', id);
     if (error) {
       console.error('Supabase Error:', error);
       return { message: `Database Error: ${error.message}`, plot: prevState.plot };
@@ -166,12 +163,13 @@ export async function getPlotsWithBeds(): Promise<{ plots?: PlotWithBeds[]; erro
       return { error: `Database Error: ${error.message}` };
     }
     const plotsData = data as PlotDataWithMaybeBeds[] | null;
-    const plotsWithEnsuredBeds: PlotWithBeds[] = plotsData?.map((plot: PlotDataWithMaybeBeds) => ({
-      ...plot,
-      beds: plot.beds || [],
-      locations: plot.locations || null,
-      totalAcreage: calculatePlotAcreage(plot.beds || []),
-    })) || [];
+    const plotsWithEnsuredBeds: PlotWithBeds[] =
+      plotsData?.map((plot: PlotDataWithMaybeBeds) => ({
+        ...plot,
+        beds: plot.beds || [],
+        locations: plot.locations || null,
+        totalAcreage: calculatePlotAcreage(plot.beds || []),
+      })) || [];
     return { plots: plotsWithEnsuredBeds };
   } catch (e) {
     console.error('Unexpected Error fetching plots/beds:', e);
@@ -188,7 +186,7 @@ export type BedFormState = {
   message: string;
   errors?: Record<string, string[] | undefined>;
   bed?: Bed | null;
-}
+};
 
 export async function createBed(
   prevState: BedFormState,
@@ -261,10 +259,7 @@ export async function updateBed(
     name: (formData.get('name') as string | null) ?? undefined,
   };
   try {
-    const { error } = await supabase
-      .from('beds')
-      .update(bedDataToUpdate)
-      .eq('id', id);
+    const { error } = await supabase.from('beds').update(bedDataToUpdate).eq('id', id);
     if (error) {
       console.error('Supabase Error:', error);
       if (error.code === '23503') {
@@ -291,7 +286,10 @@ export async function deleteBed(id: string | number): Promise<{ message: string 
     if (error) {
       console.error('Supabase Error:', error);
       if (error.code === '23503') {
-        return { message: 'Database Error: Cannot delete bed because it is currently associated with one or more crops.' };
+        return {
+          message:
+            'Database Error: Cannot delete bed because it is currently associated with one or more crops.',
+        };
       }
       return { message: `Database Error: ${error.message}` };
     }

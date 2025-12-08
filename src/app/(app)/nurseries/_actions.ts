@@ -75,7 +75,8 @@ export async function actionCreateNursery(
   const supabase = await createSupabaseServerClient();
   const name = String(formData.get('name') || '');
   const location_id = String(formData.get('location_id') || '');
-  const notes = (formData.get('notes') as string) || undefined;
+  const notesValue = formData.get('notes');
+  const notes = typeof notesValue === 'string' ? notesValue : undefined;
   if (!name.trim())
     return {
       message: 'Please fix the highlighted fields.',
@@ -106,7 +107,8 @@ export async function actionUpdateNursery(
   const id = String(formData.get('id') || '');
   const name = String(formData.get('name') || '');
   const location_id = String(formData.get('location_id') || '');
-  const notes = (formData.get('notes') as string) || undefined;
+  const notesValue = formData.get('notes');
+  const notes = typeof notesValue === 'string' ? notesValue : undefined;
   if (!id) return { message: 'Something went wrong. Please close and try again.' };
   if (!name.trim())
     return {
@@ -127,14 +129,16 @@ export async function actionUpdateNursery(
   return { message: 'Nursery updated.' };
 }
 
-export async function actionDeleteNursery(id: string) {
+export async function actionDeleteNursery(id: string): Promise<NurseryFormState> {
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) {
-    return { error: 'Unauthorized' };
+    return { message: 'Unauthorized' };
   }
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from('nurseries').delete().eq('id', id);
-  if (error) return { error: 'Failed to delete nursery.' };
+  if (error) {
+    return { message: 'Failed to delete nursery. Please try again.' };
+  }
   revalidatePath('/nurseries');
-  return { ok: true } as const;
+  return { message: 'Nursery deleted.', errors: {} };
 }

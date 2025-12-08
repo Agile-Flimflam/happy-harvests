@@ -132,10 +132,11 @@ export default function NurseriesPageContent({
     try {
       setDeleting(true);
       const result = await actionDeleteNursery(deleteTarget.id);
-      if ('error' in result && result.error) {
-        toast.error(result.error);
+      const success = result.message === 'Nursery deleted.';
+      if (!success) {
+        toast.error(result.message || 'Failed to delete nursery.');
       } else {
-        toast.success('Nursery deleted.');
+        toast.success(result.message);
       }
     } finally {
       setDeleting(false);

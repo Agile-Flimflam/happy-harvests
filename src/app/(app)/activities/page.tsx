@@ -44,6 +44,10 @@ function normalizeActivityRows(
       return { ...row, locations: { name } };
     }
     // Fallback: coerce invalid shapes to null-safe structure
+    console.warn('[ActivitiesPage] Unexpected locations shape received from DB', {
+      locationsType: typeof loc,
+      rowId: row?.id,
+    });
     return { ...row, locations: null };
   });
 }

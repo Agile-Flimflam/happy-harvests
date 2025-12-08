@@ -44,11 +44,11 @@ const OpenWeatherOneCallSchema = z.object({
   daily: z
     .array(
       z.object({
-        dt: z.number().optional(),
-        temp: z.object({ day: z.number().optional() }).optional(),
+        dt: z.number(), // required per One Call 3.0
+        temp: z.object({ day: z.number() }), // required daytime temp
         moon_phase: z.number().optional(),
-        humidity: z.number().optional(),
-        weather: z.array(WeatherEntrySchema).optional(),
+        humidity: z.number(), // required humidity
+        weather: z.array(WeatherEntrySchema), // required weather array
       })
     )
     .optional(),

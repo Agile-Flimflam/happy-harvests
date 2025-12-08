@@ -86,13 +86,12 @@ function isValidBlobUrl(url: string): boolean {
     // blob:null/<uuid> is valid for opaque origins; do not attempt to parse "null" as a URL
     if (originPart.toLowerCase() === 'null') return true;
 
-    // Require an explicit protocol before parsing to URL to avoid throwing on ambiguous origins
-    const hasProtocolPrefix = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(originPart);
-    if (!hasProtocolPrefix) return false;
+    // Require an explicit allowed protocol (http/https) before parsing to URL
+    const hasAllowedProtocolPrefix = /^https?:/i.test(originPart);
+    if (!hasAllowedProtocolPrefix) return false;
 
     const originUrl = new URL(originPart);
-    const allowedOriginProtocols = new Set<string>(['http:', 'https:']);
-    return allowedOriginProtocols.has(originUrl.protocol);
+    return originUrl.protocol === 'http:' || originUrl.protocol === 'https:';
   } catch {
     // Invalid URL format - reject (this catches blob:javascript:alert(1) type attacks)
     return false;

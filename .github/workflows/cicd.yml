@@ -424,7 +424,7 @@ jobs:
           CI: true
           PLAYWRIGHT_BASE_URL: http://localhost:4000
           PLAYWRIGHT_WORKERS: ${{ env.PLAYWRIGHT_WORKERS }}
-        run: pnpm test:e2e -- --workers ${PLAYWRIGHT_WORKERS:-2} --trace retain-on-failure
+        run: pnpm exec playwright test --workers ${PLAYWRIGHT_WORKERS:-2} --trace retain-on-failure
 
       - name: Upload Playwright traces
         if: failure()

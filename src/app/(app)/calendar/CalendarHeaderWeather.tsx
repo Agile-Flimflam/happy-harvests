@@ -36,7 +36,11 @@ function sanitizeLocationId(value: string | null): string | null {
   if (!value) return null;
   const trimmed = value.trim();
   if (UUID_REGEX.test(trimmed)) return trimmed;
-  return SAFE_LOCATION_ID_REGEX.test(trimmed) ? trimmed : null;
+  if (SAFE_LOCATION_ID_REGEX.test(trimmed)) {
+    console.warn('[CalendarHeaderWeather] Non-UUID location id encountered:', trimmed);
+    return trimmed;
+  }
+  return null;
 }
 
 export default function CalendarHeaderWeather({ id, latitude, longitude }: Props) {

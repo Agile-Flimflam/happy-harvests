@@ -6,6 +6,13 @@ import { isAdmin } from '@/lib/authz';
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5MB
 
+const VALID_ROLES = ['admin', 'member'] as const;
+type UserRole = (typeof VALID_ROLES)[number];
+
+function isUserRole(value: string): value is UserRole {
+  return (VALID_ROLES as readonly string[]).includes(value);
+}
+
 type DetectedImage =
   | { ext: 'png' | 'jpg' | 'jpeg' | 'gif' | 'webp'; mime: string }
   | { error: string };
@@ -13,6 +20,17 @@ type DetectedImage =
 async function detectImageType(file: File): Promise<DetectedImage> {
   const declaredType = typeof file.type === 'string' ? file.type.trim().toLowerCase() : '';
   const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+
+  // Explicitly disallow SVG to avoid embedded script/XSS vectors in avatars
+  const isLikelySvg = (() => {
+    const text = String.fromCharCode(...head)
+      .trimStart()
+      .toLowerCase();
+    return text.startsWith('<svg') || text.startsWith('<?xml');
+  })();
+  if (declaredType === 'image/svg+xml' || isLikelySvg) {
+    return { error: 'SVG avatars are not allowed due to XSS risk' };
+  }
 
   const isPng =
     head.length >= 8 &&
@@ -255,10 +273,10 @@ export async function updateUserProfileAction(formData: FormData): Promise<{
   const userId = String(formData.get('userId') || '');
   const roleRaw = formData.get('role');
   const roleInput = typeof roleRaw === 'string' ? roleRaw.toLowerCase() : '';
-  if (roleInput !== 'admin' && roleInput !== 'member') {
+  if (!isUserRole(roleInput)) {
     return { ok: false, error: 'Invalid role. Must be either "admin" or "member".' };
   }
-  const role: 'admin' | 'member' = roleInput;
+  const role = roleInput as UserRole;
   const displayName = String(formData.get('displayName') || '');
   const avatarEntry = formData.get('avatar');
   if (typeof avatarEntry === 'string') {

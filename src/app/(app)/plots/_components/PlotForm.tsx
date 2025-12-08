@@ -70,7 +70,9 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
         Object.entries(fieldErrors).forEach(([field, errors]) => {
           const message = Array.isArray(errors)
             ? errors[0]
-            : (errors as unknown as string) || 'Invalid value';
+            : typeof errors === 'string'
+              ? errors
+              : 'Invalid value';
           if (validFields.includes(field as keyof PlotFormValues)) {
             form.setError(field as keyof PlotFormValues, { message });
           } else {
@@ -141,7 +143,7 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
                   </SelectTrigger>
                   <SelectContent>
                     {locations.map((loc) => (
-                      <SelectItem key={loc.id} value={loc.id}>
+                      <SelectItem key={loc.id} value={String(loc.id)}>
                         {loc.name}
                       </SelectItem>
                     ))}

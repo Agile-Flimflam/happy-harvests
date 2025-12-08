@@ -29,30 +29,33 @@ interface AddressAutocompleteProps {
 }
 
 // Type for the retrieve response - using a compatible interface
+type AddressAutofillRetrieveFeature = {
+  type: string;
+  properties: {
+    address_line1?: string;
+    address_line2?: string;
+    address_level1?: string; // State
+    address_level2?: string; // City
+    postcode?: string; // ZIP
+    full_address?: string;
+    [key: string]: unknown;
+  };
+  geometry: {
+    type: string;
+    coordinates: number[]; // GeoJSON Position (longitude, latitude)
+  };
+};
+
 interface AddressAutofillRetrieveResponse {
   type: string;
-  feature: {
-    type: string;
-    properties: {
-      address_line1?: string;
-      address_line2?: string;
-      address_level1?: string; // State
-      address_level2?: string; // City
-      postcode?: string; // ZIP
-      full_address?: string;
-      [key: string]: unknown;
-    };
-    geometry: {
-      type: string;
-      coordinates: number[]; // GeoJSON Position (longitude, latitude)
-    };
-  };
+  // Mapbox AddressAutofillCore#retrieve (v1.5.0) returns a FeatureCollection
+  // with `features`. Keep optional singular `feature` for backward compatibility.
+  features?: AddressAutofillRetrieveFeature[];
+  feature?: AddressAutofillRetrieveFeature;
   [key: string]: unknown;
 }
 
-function isValidRetrieveFeature(
-  feature: unknown
-): feature is AddressAutofillRetrieveResponse['feature'] {
+function isValidRetrieveFeature(feature: unknown): feature is AddressAutofillRetrieveFeature {
   if (!feature || typeof feature !== 'object') return false;
   const f = feature as Record<string, unknown>;
   const props = f.properties as Record<string, unknown> | undefined;
@@ -70,8 +73,37 @@ function isValidRetrieveFeature(
 
 function isValidRetrieveResponse(res: unknown): res is AddressAutofillRetrieveResponse {
   if (!res || typeof res !== 'object') return false;
-  const maybeFeature = (res as Record<string, unknown>).feature;
-  return isValidRetrieveFeature(maybeFeature);
+  const record = res as Record<string, unknown>;
+  const features = record.features;
+  const hasValidFeatureArray =
+    Array.isArray(features) &&
+    (features as unknown[]).some((item): item is AddressAutofillRetrieveFeature =>
+      isValidRetrieveFeature(item)
+    );
+
+  const hasValidSingularFeature = isValidRetrieveFeature(record.feature);
+
+  return hasValidFeatureArray || hasValidSingularFeature;
+}
+
+function getRetrieveFeature(
+  res: AddressAutofillRetrieveResponse
+): AddressAutofillRetrieveFeature | null {
+  const validArrayFeature =
+    Array.isArray(res.features) &&
+    (res.features as unknown[]).find((item): item is AddressAutofillRetrieveFeature =>
+      isValidRetrieveFeature(item)
+    );
+
+  if (validArrayFeature) {
+    return validArrayFeature;
+  }
+
+  if (isValidRetrieveFeature(res.feature)) {
+    return res.feature;
+  }
+
+  return null;
 }
 
 // Constants
@@ -530,6 +562,12 @@ export function AddressAutocomplete({
         setError('Invalid address data returned. Please try again.');
         return;
       }
+      const feature = getRetrieveFeature(res);
+      if (!feature) {
+        setIsLoading(false);
+        setError('Invalid address data returned. Please try again.');
+        return;
+      }
       setIsLoading(false);
       setError(null);
 
@@ -553,7 +591,6 @@ export function AddressAutocomplete({
         });
       }
 
-      const feature = res.feature;
       const { properties, geometry } = feature;
 
       // Extract address components

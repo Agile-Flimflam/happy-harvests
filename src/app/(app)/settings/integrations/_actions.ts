@@ -115,6 +115,7 @@ const isValidDateYMD = (value: string): boolean => {
   const month = Number(mStr);
   const day = Number(dStr);
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return false;
+  if (year < 1900 || year > 2100) return false;
   if (month < 1 || month > 12) return false;
   if (day < 1 || day > 31) return false;
   const utc = new Date(Date.UTC(year, month - 1, day));
@@ -142,6 +143,7 @@ async function getFormDataText(
   options?: { allowFile?: boolean; fieldLabel?: string }
 ): Promise<string> {
   const { allowFile = false, fieldLabel } = options ?? {};
+  const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB guard to avoid large in-memory reads
   const value = formData.get(key);
 
   if (typeof value === 'string') {
@@ -151,6 +153,9 @@ async function getFormDataText(
   if (value instanceof File) {
     if (!allowFile) {
       throw new Error(`${fieldLabel ?? key} must be provided as text`);
+    }
+    if (typeof value.size === 'number' && value.size > MAX_FILE_BYTES) {
+      throw new Error(`${fieldLabel ?? key} file is too large (max 5MB)`);
     }
     return await value.text();
   }
@@ -299,7 +304,7 @@ export async function saveGoogleCalendarSettingsDirect(formData: FormData): Prom
     } = {
       enabled: payload.enabled,
       updated_by: payload.updated_by,
-      settings: payload.settings ?? undefined,
+      settings: payload.settings,
     };
     await admin.from('external_integrations').update(updates).eq('service', 'google_calendar');
   } else {
@@ -391,6 +396,8 @@ export async function createTestEventAction(
       }
       endDateTime = `${endDate}T${endTime}:00`;
     } else {
+      // Note: this simple +1h UTC math does not account for DST transitions.
+      // For production recurrence/duration handling consider a TZ-aware library.
       const endDateObj = new Date(startDateObj.getTime() + 60 * 60 * 1000);
       if (!Number.isFinite(endDateObj.getTime())) {
         return { ok: false, message: 'Invalid end date/time' };

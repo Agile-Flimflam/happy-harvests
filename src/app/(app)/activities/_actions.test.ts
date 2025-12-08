@@ -616,7 +616,7 @@ describe('Activities Actions', () => {
 
       expect(result.message).toBe('Database Error: Delete failed');
       expect(result.errors?.id?.[0]).toContain('Delete failed');
-      expect(revalidatePath).toHaveBeenCalledWith('/activities');
+      expect(revalidatePath).not.toHaveBeenCalled();
     });
   });
 

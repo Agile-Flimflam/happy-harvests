@@ -64,12 +64,16 @@ function parseSecret(raw: unknown): SecretPayload | null {
     : null;
 }
 
-function parseOpenWeatherSettings(raw: unknown): { defaultSecret: SecretPayload | null } {
-  if (!isRecord(raw)) return { defaultSecret: null };
-  const secretsRaw = (raw as Record<string, unknown>).secrets;
-  if (!isRecord(secretsRaw)) return { defaultSecret: null };
-  const def = parseSecret(secretsRaw.default);
-  return { defaultSecret: def };
+function parseOpenWeatherSettings(raw: unknown): {
+  defaultSecret: SecretPayload | null;
+  settings: JsonObject;
+} {
+  const settings = toJsonObject(raw) ?? {};
+  const secretsRaw = (settings as { secrets?: unknown }).secrets;
+  const defaultSecret =
+    isRecord(secretsRaw) && 'default' in secretsRaw ? parseSecret(secretsRaw.default) : null;
+
+  return { defaultSecret, settings };
 }
 
 async function getIntegrationRaw() {
@@ -132,7 +136,7 @@ export async function setOpenWeatherIntegration(params: {
     // Merge settings with guards
     const existingSettings = toJsonObject(existing.settings) ?? {};
     let settings: JsonObject = { ...existingSettings };
-    const existingSecrets = toJsonObject((existingSettings as { secrets?: unknown }).secrets);
+    const existingSecrets = toJsonObject(existingSettings.secrets);
     let secrets: JsonObject | undefined = existingSecrets ? { ...existingSecrets } : undefined;
     if (typeof cleanKey === 'string') {
       const key = getDataEncryptionKey();

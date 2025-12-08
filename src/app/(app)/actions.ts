@@ -27,8 +27,17 @@ const isRawDashboardLocation = (value: unknown): value is RawDashboardLocation =
   );
 };
 
-const parseDashboardLocations = (data: unknown): RawDashboardLocation[] =>
-  Array.isArray(data) ? data.filter(isRawDashboardLocation) : [];
+const parseDashboardLocations = (data: unknown): RawDashboardLocation[] => {
+  if (!Array.isArray(data)) return [];
+  const valid = data.filter(isRawDashboardLocation);
+  if (valid.length !== data.length) {
+    console.warn('[Dashboard] Filtered malformed location rows', {
+      received: data.length,
+      valid: valid.length,
+    });
+  }
+  return valid;
+};
 
 export type DashboardLocation = {
   id: string;

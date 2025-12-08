@@ -6,8 +6,8 @@ import { sanitizeErrorMessage } from '@/lib/sanitize';
 
 export default async function EditActivityPage({
   params,
-}: Readonly<{ params: Promise<{ id: string }> }>) {
-  const resolvedParams = await params;
+}: Readonly<{ params?: Promise<{ id: string }> }>) {
+  const resolvedParams = params ? await params : undefined;
   const id = Number(resolvedParams?.id);
   if (!Number.isFinite(id)) return notFound();
   const { activity, locations, error } = await getActivityEditData(id);
@@ -18,8 +18,11 @@ export default async function EditActivityPage({
       result?.errors &&
       Object.values(result.errors).some((errs) => Array.isArray(errs) && errs.length > 0);
     const message = result?.message ?? '';
-    const looksLikeError = message.toLowerCase().includes('error');
-    if (hasFieldErrors || looksLikeError) {
+    const lowerMsg = message.toLowerCase();
+    const looksLikeError =
+      lowerMsg.startsWith('database error') || lowerMsg.includes('validation failed');
+    const isSuccess = lowerMsg.includes('success');
+    if (hasFieldErrors || looksLikeError || !isSuccess) {
       throw new Error(message || 'Activity update failed');
     }
   };
