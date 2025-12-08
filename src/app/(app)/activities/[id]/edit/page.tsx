@@ -1,21 +1,15 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { updateActivity } from '../../_actions';
+import { updateActivity, getActivityEditData } from '../../actions';
 import { EditActivityContent } from '@/components/activities/EditActivityContent';
 import { notFound } from 'next/navigation';
 
 export default async function EditActivityPage({
   params,
 }: Readonly<{ params: Promise<{ id: string }> }>) {
-  const supabase = await createSupabaseServerClient();
   const { id: idParam } = await params;
   const id = Number(idParam);
-  const { data: activity } = await supabase.from('activities').select('*').eq('id', id).single();
+  const { activity, locations } = await getActivityEditData(id);
   if (!activity) return notFound();
-  const { data: locations } = await supabase
-    .from('locations')
-    .select('id,name')
-    .order('name', { ascending: true });
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Edit Activity</h1>

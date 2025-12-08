@@ -1,33 +1,17 @@
-import { createActivity } from '../_actions';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createActivity, getActivityFormOptions } from '../actions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ActivityForm } from '@/components/activities/ActivityForm';
+import type { Tables } from '@/lib/database.types';
 
-type LocationOption = { id: string; name: string };
+type LocationOption = Pick<Tables<'locations'>, 'id' | 'name'>;
 type PlotOption = { plot_id: number; name: string; location_id: string };
-type BedOption = { id: number; plot_id: number; name?: string | null };
+type BedOption = { id: number; plot_id: number; name: string | null };
 type NurseryOption = { id: string; name: string; location_id: string };
 
 export default async function NewActivityPage({
   searchParams,
 }: Readonly<{ searchParams?: Promise<{ start?: string }> }>) {
-  const supabase = await createSupabaseServerClient();
-  const { data: locations } = await supabase
-    .from('locations')
-    .select('id,name')
-    .order('name', { ascending: true });
-  const { data: plots } = await supabase
-    .from('plots')
-    .select('plot_id,name,location_id')
-    .order('name', { ascending: true });
-  const { data: beds } = await supabase
-    .from('beds')
-    .select('id,plot_id,name')
-    .order('id', { ascending: true });
-  const { data: nurseries } = await supabase
-    .from('nurseries')
-    .select('id,name,location_id')
-    .order('name', { ascending: true });
+  const { locations, plots, beds, nurseries } = await getActivityFormOptions();
   const sp = searchParams ? await searchParams : undefined;
   return (
     <div>

@@ -111,6 +111,88 @@ function buildActivitiesQuery(
   return query;
 }
 
+type LocationOption = Pick<Tables<'locations'>, 'id' | 'name'>;
+type PlotOption = { plot_id: number; name: string; location_id: string };
+type BedOption = { id: number; plot_id: number; name: string | null };
+type NurseryOption = { id: string; name: string; location_id: string };
+
+export async function getActivityLocations(): Promise<{
+  locations: LocationOption[];
+  error?: string;
+}> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('locations')
+    .select('id,name')
+    .order('name', { ascending: true });
+  if (error) {
+    return { locations: [], error: `Database Error: ${error.message}` };
+  }
+  return { locations: (data || []) as LocationOption[] };
+}
+
+export async function getActivityFormOptions(): Promise<{
+  locations: LocationOption[];
+  plots: PlotOption[];
+  beds: BedOption[];
+  nurseries: NurseryOption[];
+  error?: string;
+}> {
+  const supabase = await createSupabaseServerClient();
+  const [locationsRes, plotsRes, bedsRes, nurseriesRes] = await Promise.all([
+    supabase.from('locations').select('id,name').order('name', { ascending: true }),
+    supabase.from('plots').select('plot_id,name,location_id').order('name', { ascending: true }),
+    supabase.from('beds').select('id,plot_id,name').order('id', { ascending: true }),
+    supabase.from('nurseries').select('id,name,location_id').order('name', { ascending: true }),
+  ]);
+
+  const errors = [locationsRes.error, plotsRes.error, bedsRes.error, nurseriesRes.error].filter(
+    Boolean
+  );
+  if (errors.length) {
+    return {
+      locations: [],
+      plots: [],
+      beds: [],
+      nurseries: [],
+      error: `Database Error: ${errors[0]?.message}`,
+    };
+  }
+
+  return {
+    locations: (locationsRes.data || []) as LocationOption[],
+    plots: (plotsRes.data || []) as PlotOption[],
+    beds: (bedsRes.data || []) as BedOption[],
+    nurseries: (nurseriesRes.data || []) as NurseryOption[],
+  };
+}
+
+export async function getActivityEditData(idInput: number): Promise<{
+  activity: Tables<'activities'> | null;
+  locations: LocationOption[];
+  error?: string;
+}> {
+  const id = Number(idInput);
+  if (!Number.isFinite(id)) return { activity: null, locations: [], error: 'Invalid activity id' };
+  const supabase = await createSupabaseServerClient();
+  const { data: activity, error: activityError } = await supabase
+    .from('activities')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (activityError) {
+    return { activity: null, locations: [], error: `Database Error: ${activityError.message}` };
+  }
+  const { data: locations, error: locationsError } = await supabase
+    .from('locations')
+    .select('id,name')
+    .order('name', { ascending: true });
+  if (locationsError) {
+    return { activity, locations: [], error: `Database Error: ${locationsError.message}` };
+  }
+  return { activity, locations: (locations || []) as LocationOption[] };
+}
+
 export async function createActivity(
   prev: ActivityFormState,
   formData: FormData

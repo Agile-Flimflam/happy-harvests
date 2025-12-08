@@ -3,11 +3,55 @@
 import { revalidateTag } from 'next/cache';
 import { getUserAndProfile } from '@/lib/supabase-server';
 import { isAdmin } from '@/lib/authz';
-import { setOpenWeatherIntegration, testOpenWeatherApiKey, getOpenWeatherIntegration } from '@/lib/integrations';
+import {
+  setOpenWeatherIntegration,
+  testOpenWeatherApiKey,
+  getOpenWeatherIntegration,
+} from '@/lib/integrations';
 import { testGoogleCalendar, insertCalendarEvent } from '@/lib/google-calendar';
 import type { Json } from '@/lib/database.types';
+import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 
 export type SaveOpenWeatherState = { message: string; ok?: boolean };
+export type GoogleCalendarIntegrationSettings = {
+  enabled: boolean;
+  calendarId: string | null;
+  hasServiceAccount: boolean;
+};
+
+export async function getIntegrationsPageData(): Promise<{
+  openWeather: { enabled: boolean; hasKey: boolean };
+  googleCalendar: GoogleCalendarIntegrationSettings;
+  error?: string;
+}> {
+  const integration = await getOpenWeatherIntegration();
+  const admin = createSupabaseAdminClient();
+  const { data: gcalData, error: gcalError } = await admin
+    .from('external_integrations')
+    .select('enabled, settings')
+    .eq('service', 'google_calendar')
+    .maybeSingle();
+
+  const gSettings =
+    (gcalData?.settings as { calendar_id?: string; secrets?: Record<string, unknown> } | null) ||
+    null;
+  const defaultSecret = (gSettings?.secrets as Record<string, unknown> | undefined)?.['default'] as
+    | { ciphertextB64?: string; ivB64?: string; tagB64?: string }
+    | undefined;
+  const hasServiceAccount = Boolean(
+    defaultSecret?.ciphertextB64 && defaultSecret?.ivB64 && defaultSecret?.tagB64
+  );
+
+  return {
+    openWeather: { enabled: integration.enabled, hasKey: Boolean(integration.apiKey) },
+    googleCalendar: {
+      enabled: Boolean(gcalData?.enabled),
+      calendarId: gSettings?.calendar_id ?? null,
+      hasServiceAccount,
+    },
+    error: gcalError ? `Database Error: ${gcalError.message}` : undefined,
+  };
+}
 
 function getBool(formData: FormData, key: string): boolean {
   const v = formData.get(key);
@@ -27,7 +71,11 @@ export async function saveOpenWeatherSettings(
   const enabled = getBool(formData, 'enabled');
   const apiKey = (formData.get('apiKey') ?? '') as string;
   try {
-    await setOpenWeatherIntegration({ enabled, apiKey: apiKey ? apiKey : undefined, updatedBy: user.id });
+    await setOpenWeatherIntegration({
+      enabled,
+      apiKey: apiKey ? apiKey : undefined,
+      updatedBy: user.id,
+    });
     revalidateTag('integration-openweather');
     return { message: 'Settings saved', ok: true };
   } catch (e) {
@@ -36,7 +84,9 @@ export async function saveOpenWeatherSettings(
   }
 }
 
-export async function testOpenWeatherKeyAction(formData: FormData): Promise<{ ok: boolean; message: string }>{
+export async function testOpenWeatherKeyAction(
+  formData: FormData
+): Promise<{ ok: boolean; message: string }> {
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) {
     return { ok: false, message: 'Unauthorized' };
@@ -44,7 +94,10 @@ export async function testOpenWeatherKeyAction(formData: FormData): Promise<{ ok
   const apiKey = (formData.get('apiKey') ?? '') as string;
   const keyToTest = apiKey || undefined;
   const result = await testOpenWeatherApiKey(keyToTest);
-  return { ok: result.ok, message: result.ok ? 'API key is valid' : `Test failed: ${result.message}` };
+  return {
+    ok: result.ok,
+    message: result.ok ? 'API key is valid' : `Test failed: ${result.message}`,
+  };
 }
 
 // Convenience server actions for HTML form action types (void-returning)
@@ -54,9 +107,16 @@ export async function saveOpenWeatherSettingsDirect(formData: FormData): Promise
     return;
   }
   const enabledRaw = formData.get('enabled');
-  const enabled = typeof enabledRaw === 'string' ? ['on', 'true', '1'].includes(enabledRaw.toLowerCase()) : Boolean(enabledRaw);
+  const enabled =
+    typeof enabledRaw === 'string'
+      ? ['on', 'true', '1'].includes(enabledRaw.toLowerCase())
+      : Boolean(enabledRaw);
   const apiKey = (formData.get('apiKey') ?? '') as string;
-  await setOpenWeatherIntegration({ enabled, apiKey: apiKey ? apiKey : undefined, updatedBy: user.id });
+  await setOpenWeatherIntegration({
+    enabled,
+    apiKey: apiKey ? apiKey : undefined,
+    updatedBy: user.id,
+  });
   revalidateTag('integration-openweather');
 }
 
@@ -68,7 +128,11 @@ export async function testOpenWeatherKeyActionDirect(formData: FormData): Promis
   await testOpenWeatherApiKey(keyToTest);
 }
 
-export async function revealOpenWeatherKeyAction(): Promise<{ ok: boolean; apiKey?: string; message?: string }>{
+export async function revealOpenWeatherKeyAction(): Promise<{
+  ok: boolean;
+  apiKey?: string;
+  message?: string;
+}> {
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) {
     return { ok: false, message: 'Unauthorized' };
@@ -89,7 +153,10 @@ export async function saveGoogleCalendarSettingsDirect(formData: FormData): Prom
   // Persist into external_integrations with service = 'google_calendar'
   // We will reuse supabase admin client here to avoid adding a new file; keep logic inline
   const enabledRaw = formData.get('enabled');
-  const enabled = typeof enabledRaw === 'string' ? ['on', 'true', '1'].includes(enabledRaw.toLowerCase()) : Boolean(enabledRaw);
+  const enabled =
+    typeof enabledRaw === 'string'
+      ? ['on', 'true', '1'].includes(enabledRaw.toLowerCase())
+      : Boolean(enabledRaw);
   const calendarId = (formData.get('calendarId') ?? '') as string;
   const serviceAccountJson = (formData.get('serviceAccountJson') ?? '') as string;
 
@@ -110,12 +177,18 @@ export async function saveGoogleCalendarSettingsDirect(formData: FormData): Prom
     const key = getDataEncryptionKey();
     const { ciphertextB64, ivB64, tagB64 } = encryptSecret(serviceAccountJson, key);
     const secrets: Record<string, Json> = { default: { ciphertextB64, ivB64, tagB64 } };
-    const base: Record<string, Json> = payload.settings ? ((payload.settings as unknown) as Record<string, Json>) : {};
+    const base: Record<string, Json> = payload.settings
+      ? (payload.settings as unknown as Record<string, Json>)
+      : {};
     const merged: Record<string, Json> = { ...base, secrets };
     payload.settings = merged as unknown as Json;
   }
   // Upsert by service
-  const { data: existing } = await admin.from('external_integrations').select('id').eq('service', 'google_calendar').maybeSingle();
+  const { data: existing } = await admin
+    .from('external_integrations')
+    .select('id')
+    .eq('service', 'google_calendar')
+    .maybeSingle();
   if (existing) {
     const updates: {
       enabled: boolean;
@@ -133,19 +206,26 @@ export async function saveGoogleCalendarSettingsDirect(formData: FormData): Prom
   revalidateTag('integration-google-calendar');
 }
 
-export async function testGoogleCalendarAction(formData: FormData): Promise<{ ok: boolean; message: string }>{
+export async function testGoogleCalendarAction(
+  formData: FormData
+): Promise<{ ok: boolean; message: string }> {
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) return { ok: false, message: 'Unauthorized' };
   const calendarId = (formData.get('calendarId') ?? '') as string;
   const serviceAccountJson = (formData.get('serviceAccountJson') ?? '') as string;
-  const res = await testGoogleCalendar({ calendarId: calendarId || undefined, serviceAccountJson: serviceAccountJson || undefined });
+  const res = await testGoogleCalendar({
+    calendarId: calendarId || undefined,
+    serviceAccountJson: serviceAccountJson || undefined,
+  });
   return res;
 }
 
-export async function createTestEventAction(formData: FormData): Promise<{ ok: boolean; message: string }>{
+export async function createTestEventAction(
+  formData: FormData
+): Promise<{ ok: boolean; message: string }> {
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) return { ok: false, message: 'Unauthorized' };
-  
+
   const title = (formData.get('title') ?? 'Test Event') as string;
   const date = (formData.get('date') ?? '') as string;
   const description = (formData.get('description') ?? '') as string;
@@ -156,9 +236,9 @@ export async function createTestEventAction(formData: FormData): Promise<{ ok: b
   const endTime = (formData.get('endTime') ?? '') as string;
   const timezone = (formData.get('timezone') ?? 'America/Los_Angeles') as string;
   const colorId = (formData.get('colorId') ?? '') as string;
-  
+
   if (!date) return { ok: false, message: 'Date is required' };
-  
+
   const event: import('googleapis').calendar_v3.Schema$Event = {
     summary: title,
     description: description || undefined,
@@ -171,20 +251,22 @@ export async function createTestEventAction(formData: FormData): Promise<{ ok: b
     const startDate = new Date(date + 'T00:00:00.000Z');
     const nextDay = new Date(startDate);
     nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-    
+
     event.start = { date: date };
     event.end = { date: nextDay.toISOString().slice(0, 10) };
   } else {
     // Timed event
     if (!startTime) return { ok: false, message: 'Start time is required for timed events' };
-    
+
     const startDateTime = `${date}T${startTime}:00`;
-    const endDateTime = endTime ? `${endDate}T${endTime}:00` : `${date}T${(parseInt(startTime.split(':')[0]) + 1).toString().padStart(2, '0')}:${startTime.split(':')[1]}:00`;
-    
+    const endDateTime = endTime
+      ? `${endDate}T${endTime}:00`
+      : `${date}T${(parseInt(startTime.split(':')[0]) + 1).toString().padStart(2, '0')}:${startTime.split(':')[1]}:00`;
+
     event.start = { dateTime: startDateTime, timeZone: timezone };
     event.end = { dateTime: endDateTime, timeZone: timezone };
   }
-  
+
   const result = await insertCalendarEvent(event);
   if (result.ok) {
     return { ok: true, message: 'Test event created successfully' };

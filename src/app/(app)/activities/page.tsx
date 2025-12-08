@@ -1,8 +1,12 @@
 import Link from 'next/link';
-import { getActivitiesGrouped, getActivitiesFlat, deleteActivitiesBulk } from './_actions';
+import {
+  getActivitiesGrouped,
+  getActivitiesFlat,
+  deleteActivitiesBulk,
+  getActivityLocations,
+} from './actions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
 import type { Tables } from '@/lib/database.types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ActivitiesTable } from '@/components/activities/ActivitiesTable';
@@ -28,11 +32,7 @@ export default async function ActivitiesPage({
 }: Readonly<{
   searchParams?: Promise<{ type?: string; from?: string; to?: string; location_id?: string }>;
 }>) {
-  const supabase = await createSupabaseServerClient();
-  const { data: locations } = await supabase
-    .from('locations')
-    .select('id,name')
-    .order('name', { ascending: true });
+  const { locations = [] } = await getActivityLocations();
   const sp = searchParams ? await searchParams : undefined;
   const type = isActivityType(sp?.type) ? sp?.type : undefined;
   const { grouped, error } = await getActivitiesGrouped({
