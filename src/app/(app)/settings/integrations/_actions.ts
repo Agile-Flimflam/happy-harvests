@@ -19,6 +19,37 @@ export type GoogleCalendarIntegrationSettings = {
   hasServiceAccount: boolean;
 };
 
+type GoogleCalendarSettingsRecord = {
+  calendar_id?: string;
+  secrets?: Record<string, unknown>;
+} | null;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseDefaultSecret(
+  raw: unknown
+): { ciphertextB64?: string; ivB64?: string; tagB64?: string } | undefined {
+  if (!isRecord(raw)) return undefined;
+  const { ciphertextB64, ivB64, tagB64 } = raw;
+  return {
+    ciphertextB64: typeof ciphertextB64 === 'string' ? ciphertextB64 : undefined,
+    ivB64: typeof ivB64 === 'string' ? ivB64 : undefined,
+    tagB64: typeof tagB64 === 'string' ? tagB64 : undefined,
+  };
+}
+
+function parseGoogleCalendarSettings(raw: unknown): GoogleCalendarSettingsRecord {
+  if (!isRecord(raw)) return null;
+  const calendar_id = typeof raw.calendar_id === 'string' ? raw.calendar_id : undefined;
+  const secrets = isRecord(raw.secrets) ? raw.secrets : undefined;
+  return {
+    calendar_id,
+    secrets,
+  };
+}
+
 export async function getIntegrationsPageData(): Promise<{
   openWeather: { enabled: boolean; hasKey: boolean };
   googleCalendar: GoogleCalendarIntegrationSettings;
@@ -32,12 +63,8 @@ export async function getIntegrationsPageData(): Promise<{
     .eq('service', 'google_calendar')
     .maybeSingle();
 
-  const gSettings =
-    (gcalData?.settings as { calendar_id?: string; secrets?: Record<string, unknown> } | null) ||
-    null;
-  const defaultSecret = (gSettings?.secrets as Record<string, unknown> | undefined)?.['default'] as
-    | { ciphertextB64?: string; ivB64?: string; tagB64?: string }
-    | undefined;
+  const gSettings = parseGoogleCalendarSettings(gcalData?.settings);
+  const defaultSecret = parseDefaultSecret(gSettings?.secrets?.['default']);
   const hasServiceAccount = Boolean(
     defaultSecret?.ciphertextB64 && defaultSecret?.ivB64 && defaultSecret?.tagB64
   );
@@ -58,6 +85,13 @@ function getBool(formData: FormData, key: string): boolean {
   if (v == null) return false;
   const s = String(v).toLowerCase();
   return s === 'on' || s === 'true' || s === '1';
+}
+
+async function getFormDataText(formData: FormData, key: string): Promise<string> {
+  const value = formData.get(key);
+  if (typeof value === 'string') return value;
+  if (value instanceof File) return await value.text();
+  return '';
 }
 
 export async function saveOpenWeatherSettings(
@@ -158,7 +192,7 @@ export async function saveGoogleCalendarSettingsDirect(formData: FormData): Prom
       ? ['on', 'true', '1'].includes(enabledRaw.toLowerCase())
       : Boolean(enabledRaw);
   const calendarId = (formData.get('calendarId') ?? '') as string;
-  const serviceAccountJson = (formData.get('serviceAccountJson') ?? '') as string;
+  const serviceAccountJson = (await getFormDataText(formData, 'serviceAccountJson')).trim();
 
   const admin = (await import('@/lib/supabase-admin')).createSupabaseAdminClient();
   const payload: {
@@ -170,7 +204,7 @@ export async function saveGoogleCalendarSettingsDirect(formData: FormData): Prom
     service: 'google_calendar',
     enabled,
     updated_by: user.id,
-    settings: calendarId ? ({ calendar_id: calendarId } as unknown as Json) : null,
+    settings: calendarId ? ({ calendar_id: calendarId } as Json) : null,
   };
   if (serviceAccountJson) {
     const { getDataEncryptionKey, encryptSecret } = await import('@/lib/crypto');
@@ -178,10 +212,10 @@ export async function saveGoogleCalendarSettingsDirect(formData: FormData): Prom
     const { ciphertextB64, ivB64, tagB64 } = encryptSecret(serviceAccountJson, key);
     const secrets: Record<string, Json> = { default: { ciphertextB64, ivB64, tagB64 } };
     const base: Record<string, Json> = payload.settings
-      ? (payload.settings as unknown as Record<string, Json>)
+      ? (payload.settings as Record<string, Json>)
       : {};
     const merged: Record<string, Json> = { ...base, secrets };
-    payload.settings = merged as unknown as Json;
+    payload.settings = merged as Json;
   }
   // Upsert by service
   const { data: existing } = await admin
@@ -212,7 +246,7 @@ export async function testGoogleCalendarAction(
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) return { ok: false, message: 'Unauthorized' };
   const calendarId = (formData.get('calendarId') ?? '') as string;
-  const serviceAccountJson = (formData.get('serviceAccountJson') ?? '') as string;
+  const serviceAccountJson = (await getFormDataText(formData, 'serviceAccountJson')).trim();
   const res = await testGoogleCalendar({
     calendarId: calendarId || undefined,
     serviceAccountJson: serviceAccountJson || undefined,

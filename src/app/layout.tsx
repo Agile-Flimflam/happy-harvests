@@ -1,24 +1,26 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { Toaster } from "@/components/ui/sonner";
-import { ThemeProvider } from "@/components/theme/ThemeProvider";
-import { ThemeSwitcherMount } from "@/components/theme/ThemeSwitcherMount";
-import { FormControlSetup } from "@/components/form/FormControlSetup";
+import type { Metadata } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
+import './globals.css';
+import { Toaster } from '@/components/ui/sonner';
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import { ThemeSwitcherMount } from '@/components/theme/ThemeSwitcherMount';
+import { FormControlSetup } from '@/components/form/FormControlSetup';
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
+  preload: false,
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
+  preload: false,
 });
 
 export const metadata: Metadata = {
-  title: "Happy Harvests",
-  description: "Garden plot management app",
+  title: 'Happy Harvests',
+  description: 'Garden plot management app',
 };
 
 export const viewport = {
@@ -34,7 +36,12 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
           {children}
           <Toaster richColors />
           {/* Theme switcher state, mounted once at app root */}

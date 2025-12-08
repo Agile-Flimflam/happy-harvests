@@ -27,27 +27,52 @@ import {
 
 type ActivityRow = Tables<'activities'> & { locations?: { name?: string | null } | null };
 
+function normalizeActivityRows(
+  rows: (Tables<'activities'> & { locations?: { name?: string | null } | null })[] | undefined
+): ActivityRow[] {
+  return (rows ?? []).map((row) => ({
+    ...row,
+    locations: row.locations ? { name: row.locations.name ?? null } : null,
+  }));
+}
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function firstParamValue(param?: string | string[]): string | undefined {
+  if (typeof param === 'string') return param;
+  if (Array.isArray(param)) return param[0];
+  return undefined;
+}
+
 export default async function ActivitiesPage({
   searchParams,
 }: Readonly<{
-  searchParams?: Promise<{ type?: string; from?: string; to?: string; location_id?: string }>;
+  searchParams?: Promise<SearchParams>;
 }>) {
-  const { locations = [] } = await getActivityLocations();
-  const sp = searchParams ? await searchParams : undefined;
-  const type = isActivityType(sp?.type) ? sp?.type : undefined;
+  const { locations = [], error: locationsError } = await getActivityLocations();
+  const sp = searchParams ? await searchParams : {};
+  const typeParam = firstParamValue(sp.type);
+  const type = isActivityType(typeParam) ? typeParam : undefined;
+  const from = firstParamValue(sp.from);
+  const to = firstParamValue(sp.to);
+  const locationId = firstParamValue(sp.location_id);
   const { grouped, error } = await getActivitiesGrouped({
     type,
-    from: sp?.from,
-    to: sp?.to,
-    location_id: sp?.location_id,
+    from,
+    to,
+    location_id: locationId,
   });
   if (error) {
     return <div className="text-red-500">{error}</div>;
   }
-  const types: ActivityType[] = Object.keys(grouped || {})
+  const groupedRows = Object.fromEntries(
+    Object.entries(grouped ?? {}).map(([key, rows]) => [key, normalizeActivityRows(rows)])
+  );
+
+  const types: ActivityType[] = Object.keys(groupedRows || {})
     .filter(isActivityType)
     .sort((a, b) => prettyActivityType(a).localeCompare(prettyActivityType(b)));
-  const allRows = Object.values(grouped || {})
+  const allRows = Object.values(groupedRows || [])
     .flat()
     .sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
   const typeToCount = Object.fromEntries(
@@ -55,15 +80,16 @@ export default async function ActivitiesPage({
   ) as Record<ActivityType, number>;
   const { rows: flatRows = [], error: flatErr } = await getActivitiesFlat({
     type,
-    from: sp?.from,
-    to: sp?.to,
-    location_id: sp?.location_id,
+    from,
+    to,
+    location_id: locationId,
   });
+  const normalizedFlatRows = normalizeActivityRows(flatRows);
   const exportParams = new URLSearchParams();
   if (type) exportParams.set('type', type);
-  if (sp?.from) exportParams.set('from', sp.from);
-  if (sp?.to) exportParams.set('to', sp.to);
-  if (sp?.location_id) exportParams.set('location_id', sp.location_id);
+  if (from) exportParams.set('from', from);
+  if (to) exportParams.set('to', to);
+  if (locationId) exportParams.set('location_id', locationId);
   const exportParamsString = exportParams.toString();
   const exportHref = exportParamsString
     ? `/api/activities/export?${exportParamsString}`
@@ -91,13 +117,18 @@ export default async function ActivitiesPage({
           </div>
         ) : null}
       </div>
+      {locationsError ? (
+        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {locationsError}
+        </div>
+      ) : null}
       <ActivitiesFilters
-        locations={(locations || []) as { id: string; name: string | null }[]}
+        locations={locations ?? []}
         initial={{
           type: type || '',
-          location_id: sp?.location_id ?? '',
-          from: sp?.from ?? '',
-          to: sp?.to ?? '',
+          location_id: locationId ?? '',
+          from: from ?? '',
+          to: to ?? '',
         }}
       />
       <div>
@@ -130,7 +161,7 @@ export default async function ActivitiesPage({
                     <div className="text-red-500 text-sm">{flatErr}</div>
                   ) : (
                     <ActivitiesTable
-                      rows={flatRows as ActivityRow[]}
+                      rows={normalizedFlatRows}
                       bulkDeleteAction={deleteActivitiesBulk}
                     />
                   )}
@@ -145,7 +176,7 @@ export default async function ActivitiesPage({
                 </CardHeader>
                 <CardContent>
                   <ul className="divide-y">
-                    {allRows.map((a: ActivityRow) => (
+                    {allRows.map((a) => (
                       <ActivityListItem key={a.id} activity={a} showTypeBadge />
                     ))}
                   </ul>
@@ -161,7 +192,7 @@ export default async function ActivitiesPage({
                   </CardHeader>
                   <CardContent>
                     <ul className="divide-y">
-                      {(grouped?.[t] || []).map((a: ActivityRow) => (
+                      {(groupedRows?.[t] || []).map((a) => (
                         <ActivityListItem key={a.id} activity={a} showTypeBadge={false} />
                       ))}
                     </ul>

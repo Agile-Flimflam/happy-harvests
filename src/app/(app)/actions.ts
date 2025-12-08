@@ -2,10 +2,16 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 
-export type DashboardLocation = {
+type RawDashboardLocation = {
   id: string;
   latitude: number | null;
   longitude: number | null;
+};
+
+export type DashboardLocation = {
+  id: string;
+  latitude: number;
+  longitude: number;
 };
 
 export type DashboardOverview = {
@@ -36,9 +42,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     plantingRes.error,
     locationsRes.error,
   ].filter(Boolean);
-  const primary = (locationsRes.data || []).find(
-    (loc) => loc.latitude != null && loc.longitude != null
-  ) as DashboardLocation | undefined;
+  const primary = (locationsRes.data as RawDashboardLocation[] | null | undefined)?.find(
+    (loc): loc is DashboardLocation => loc.latitude != null && loc.longitude != null
+  );
 
   return {
     cropVarietyCount: cropVarietyRes.count ?? null,

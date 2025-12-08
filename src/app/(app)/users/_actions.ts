@@ -83,7 +83,16 @@ export async function listUsersWithRolesAction(): Promise<{ users: ListedUser[];
     full_name: string | null;
     avatar_url: string | null;
   };
-  const idToProfile = new Map<string, ProfileRow>((profiles as ProfileRow[]).map((p) => [p.id, p]));
+  const profileRows: ProfileRow[] = Array.isArray(profiles)
+    ? profiles.map((p) => ({
+        id: p.id,
+        role: p.role as ProfileRow['role'],
+        display_name: p.display_name ?? null,
+        full_name: p.full_name ?? null,
+        avatar_url: p.avatar_url ?? null,
+      }))
+    : [];
+  const idToProfile = new Map<string, ProfileRow>(profileRows.map((p) => [p.id, p]));
   const users: ListedUser[] = authUsers.map((u) => ({
     id: u.id,
     email: u.email || '',
@@ -112,16 +121,15 @@ export async function updateUserRoleAction(input: {
   return { ok: true };
 }
 
-export async function updateUserProfileAction(
-  formData: FormData
-): Promise<{
+export async function updateUserProfileAction(formData: FormData): Promise<{
   ok: boolean;
   error?: string;
   user?: { id: string; displayName: string; role: 'admin' | 'member'; avatarUrl: string | null };
 }> {
   const admin = createSupabaseAdminClient();
   const userId = String(formData.get('userId') || '');
-  const role = String(formData.get('role') || 'member') as 'admin' | 'member';
+  const roleInput = String(formData.get('role') || '').toLowerCase();
+  const role: 'admin' | 'member' = roleInput === 'admin' ? 'admin' : 'member';
   const displayName = String(formData.get('displayName') || '');
   const file = formData.get('avatar') as File | null;
   if (!userId) return { ok: false, error: 'Missing userId' };
@@ -141,7 +149,11 @@ export async function updateUserProfileAction(
       avatarUrl = pub.publicUrl;
     }
 
-    const updatePayload: Record<string, unknown> = { role };
+    const updatePayload: {
+      role: 'admin' | 'member';
+      display_name?: string;
+      avatar_url?: string | null;
+    } = { role };
     if (displayName) updatePayload.display_name = displayName;
     if (avatarUrl !== null) updatePayload.avatar_url = avatarUrl;
 

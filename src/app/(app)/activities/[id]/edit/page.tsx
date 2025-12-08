@@ -8,7 +8,11 @@ export default async function EditActivityPage({
 }: Readonly<{ params: Promise<{ id: string }> }>) {
   const { id: idParam } = await params;
   const id = Number(idParam);
-  const { activity, locations } = await getActivityEditData(id);
+  if (!Number.isFinite(id)) return notFound();
+  const { activity, locations, error } = await getActivityEditData(id);
+  if (error) {
+    return <div className="text-red-500 text-sm">{error}</div>;
+  }
   if (!activity) return notFound();
   return (
     <div>

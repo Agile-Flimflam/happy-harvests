@@ -11,4 +11,10 @@ export {
   renameBed,
 } from './_actions';
 
-export type { ActivityFormState } from './_actions';
+export type {
+  ActivityFormState,
+  LocationOption,
+  PlotOption,
+  BedOption,
+  NurseryOption,
+} from './_actions';

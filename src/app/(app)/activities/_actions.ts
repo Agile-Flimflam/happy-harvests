@@ -111,10 +111,33 @@ function buildActivitiesQuery(
   return query;
 }
 
-type LocationOption = Pick<Tables<'locations'>, 'id' | 'name'>;
-type PlotOption = { plot_id: number; name: string; location_id: string };
-type BedOption = { id: number; plot_id: number; name: string | null };
-type NurseryOption = { id: string; name: string; location_id: string };
+export type LocationOption = Pick<Tables<'locations'>, 'id' | 'name'>;
+export type PlotOption = { plot_id: number; name: string; location_id: string };
+export type BedOption = { id: number; plot_id: number; name: string | null };
+export type NurseryOption = { id: string; name: string; location_id: string };
+
+function serializeWeatherToJson(w: Awaited<ReturnType<typeof fetchWeatherByCoords>>): Json {
+  return {
+    timezone: w.timezone,
+    current: {
+      dt: w.current.dt,
+      sunrise: w.current.sunrise ?? null,
+      sunset: w.current.sunset ?? null,
+      temp: w.current.temp,
+      humidity: w.current.humidity,
+      weather: w.current.weather
+        ? {
+            id: w.current.weather.id,
+            main: w.current.weather.main,
+            description: w.current.weather.description,
+            icon: w.current.weather.icon,
+          }
+        : null,
+    },
+    moonPhase: w.moonPhase ?? null,
+    moonPhaseLabel: w.moonPhaseLabel ?? null,
+  };
+}
 
 export async function getActivityLocations(): Promise<{
   locations: LocationOption[];
@@ -128,7 +151,8 @@ export async function getActivityLocations(): Promise<{
   if (error) {
     return { locations: [], error: `Database Error: ${error.message}` };
   }
-  return { locations: (data || []) as LocationOption[] };
+  const locations = (data ?? []).map(({ id, name }) => ({ id, name }));
+  return { locations };
 }
 
 export async function getActivityFormOptions(): Promise<{
@@ -159,11 +183,24 @@ export async function getActivityFormOptions(): Promise<{
     };
   }
 
+  const locations = (locationsRes.data ?? []).map(({ id, name }) => ({ id, name }));
+  const plots = (plotsRes.data ?? []).map(({ plot_id, name, location_id }) => ({
+    plot_id,
+    name,
+    location_id,
+  }));
+  const beds = (bedsRes.data ?? []).map(({ id, plot_id, name }) => ({ id, plot_id, name }));
+  const nurseries = (nurseriesRes.data ?? []).map(({ id, name, location_id }) => ({
+    id,
+    name,
+    location_id,
+  }));
+
   return {
-    locations: (locationsRes.data || []) as LocationOption[],
-    plots: (plotsRes.data || []) as PlotOption[],
-    beds: (bedsRes.data || []) as BedOption[],
-    nurseries: (nurseriesRes.data || []) as NurseryOption[],
+    locations,
+    plots,
+    beds,
+    nurseries,
   };
 }
 
@@ -257,7 +294,7 @@ async function fetchActivityWeather(
   if (!locErr && loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number') {
     try {
       const w = await fetchWeatherByCoords(loc.latitude, loc.longitude, { units: 'imperial' });
-      return w as unknown as Json;
+      return serializeWeatherToJson(w);
     } catch (e) {
       console.error('Weather fetch failed:', e);
     }
