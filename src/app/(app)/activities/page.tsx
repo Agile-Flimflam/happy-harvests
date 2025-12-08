@@ -29,30 +29,23 @@ type ActivityRow = Tables<'activities'> & { locations?: { name?: string | null }
 type SearchParams = Record<string, string | string[] | undefined>;
 
 function normalizeActivityRows(
-  rows: (Tables<'activities'> & { locations?: { name?: string | null } | null })[] | undefined
+  rows: (Tables<'activities'> & { locations?: unknown })[] | undefined
 ): ActivityRow[] {
   if (!rows?.length) return [];
-
-  let needsNormalization = false;
-  for (const row of rows) {
+  return rows.map((row) => {
     const loc = row.locations;
-    if (loc !== undefined && loc !== null && typeof loc !== 'object') {
-      needsNormalization = true;
-      break;
+    if (loc === undefined) return row as ActivityRow;
+    if (loc === null) return { ...row, locations: null };
+    if (typeof loc === 'object') {
+      const name =
+        typeof (loc as { name?: unknown }).name === 'string'
+          ? (loc as { name: string }).name
+          : null;
+      return { ...row, locations: { name } };
     }
-    const name = (loc as { name?: unknown } | null | undefined)?.name;
-    if (name !== undefined && name !== null && typeof name !== 'string') {
-      needsNormalization = true;
-      break;
-    }
-  }
-
-  if (!needsNormalization) return rows as ActivityRow[];
-
-  return rows.map((row) => ({
-    ...row,
-    locations: row.locations ? { name: row.locations.name ?? null } : null,
-  }));
+    // Fallback: coerce invalid shapes to null-safe structure
+    return { ...row, locations: null };
+  });
 }
 
 function firstParamValue(param?: string | string[]): string | undefined {

@@ -5,7 +5,6 @@ import { WeatherBadge } from '@/components/weather/WeatherBadge';
 import { DeleteActivityDialog } from '@/components/activities/DeleteActivityDialog';
 import { deleteActivity } from '@/app/(app)/activities/_actions';
 import type { Tables } from '@/lib/database.types';
-import * as React from 'react';
 
 type ActivityRow = Tables<'activities'> & { locations?: { name?: string | null } | null };
 
@@ -35,10 +34,12 @@ interface ActivityListItemProps {
   readonly showTypeBadge?: boolean;
 }
 
+const deleteActivityAction = async (formData: FormData): Promise<void> => {
+  'use server';
+  await deleteActivity(formData);
+};
+
 export function ActivityListItem({ activity: a, showTypeBadge = false }: ActivityListItemProps) {
-  const deleteActivityAction = React.useCallback(async (formData: FormData): Promise<void> => {
-    await deleteActivity(formData);
-  }, []);
   return (
     <li className="py-3">
       <div className="flex flex-col gap-1">

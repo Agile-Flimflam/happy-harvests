@@ -31,7 +31,7 @@ interface AddressAutocompleteProps {
 // Type for the retrieve response - using a compatible interface
 interface AddressAutofillRetrieveResponse {
   type: string;
-  features: Array<{
+  feature: {
     type: string;
     properties: {
       address_line1?: string;
@@ -46,13 +46,13 @@ interface AddressAutofillRetrieveResponse {
       type: string;
       coordinates: number[]; // GeoJSON Position (longitude, latitude)
     };
-  }>;
+  };
   [key: string]: unknown;
 }
 
 function isValidRetrieveFeature(
   feature: unknown
-): feature is AddressAutofillRetrieveResponse['features'][number] {
+): feature is AddressAutofillRetrieveResponse['feature'] {
   if (!feature || typeof feature !== 'object') return false;
   const f = feature as Record<string, unknown>;
   const props = f.properties as Record<string, unknown> | undefined;
@@ -62,15 +62,16 @@ function isValidRetrieveFeature(
     Array.isArray(coords) &&
     coords.length >= 2 &&
     typeof coords[0] === 'number' &&
-    typeof coords[1] === 'number';
+    typeof coords[1] === 'number' &&
+    Number.isFinite(coords[0]) &&
+    Number.isFinite(coords[1]);
   return Boolean(props && geometry && coordsOk);
 }
 
 function isValidRetrieveResponse(res: unknown): res is AddressAutofillRetrieveResponse {
   if (!res || typeof res !== 'object') return false;
-  const maybeFeatures = (res as Record<string, unknown>).features;
-  if (!Array.isArray(maybeFeatures) || maybeFeatures.length === 0) return false;
-  return maybeFeatures.every(isValidRetrieveFeature);
+  const maybeFeature = (res as Record<string, unknown>).feature;
+  return isValidRetrieveFeature(maybeFeature);
 }
 
 // Constants
@@ -391,6 +392,7 @@ export function AddressAutocomplete({
 
   // Validate provided formId to avoid silent failures when the form cannot be found
   useEffect(() => {
+    // Only warn when a formId is explicitly provided
     if (!isMounted || !formId || typeof document === 'undefined') return;
     const formEl = document.getElementById(formId);
     if (!formEl || formEl.tagName !== 'FORM') {
@@ -531,11 +533,6 @@ export function AddressAutocomplete({
       setIsLoading(false);
       setError(null);
 
-      if (!res?.features || res.features.length === 0) {
-        setError('No address found. Please try a different search.');
-        return;
-      }
-
       // Check if component is mounted before proceeding
       // setValue is guaranteed to exist from useFormContext (throws if not in FormProvider)
       if (!isMounted) {
@@ -556,7 +553,7 @@ export function AddressAutocomplete({
         });
       }
 
-      const feature = res.features[0];
+      const feature = res.feature;
       const { properties, geometry } = feature;
 
       // Extract address components

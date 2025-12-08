@@ -13,7 +13,15 @@ export default async function EditActivityPage({
   const { activity, locations, error } = await getActivityEditData(id);
   const updateActivityAction = async (formData: FormData): Promise<void> => {
     'use server';
-    await updateActivity(formData);
+    const result = await updateActivity(formData);
+    const hasFieldErrors =
+      result?.errors &&
+      Object.values(result.errors).some((errs) => Array.isArray(errs) && errs.length > 0);
+    const message = result?.message ?? '';
+    const looksLikeError = message.toLowerCase().includes('error');
+    if (hasFieldErrors || looksLikeError) {
+      throw new Error(message || 'Activity update failed');
+    }
   };
   if (error) {
     const safeError = sanitizeErrorMessage(error);

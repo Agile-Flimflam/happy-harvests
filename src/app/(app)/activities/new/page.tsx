@@ -25,7 +25,11 @@ export default async function NewActivityPage({
         </CardHeader>
         <CardContent>
           {error ? (
-            <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <div
+              className="mb-4 rounded-md border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+              role="alert"
+              aria-live="assertive"
+            >
               {error}
             </div>
           ) : null}

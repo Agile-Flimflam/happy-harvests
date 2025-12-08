@@ -30,10 +30,12 @@ function sanitizeErrorText(message: unknown): string {
 }
 
 const SAFE_LOCATION_ID_REGEX = /^[A-Za-z0-9_-]{1,64}$/;
+const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 function sanitizeLocationId(value: string | null): string | null {
   if (!value) return null;
   const trimmed = value.trim();
+  if (UUID_REGEX.test(trimmed)) return trimmed;
   return SAFE_LOCATION_ID_REGEX.test(trimmed) ? trimmed : null;
 }
 

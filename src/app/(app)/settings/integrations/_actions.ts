@@ -110,8 +110,20 @@ function getBool(formData: FormData, key: string): boolean {
 
 const isValidDateYMD = (value: string): boolean => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const d = new Date(`${value}T00:00:00Z`);
-  return Number.isFinite(d.getTime());
+  const [yStr, mStr, dStr] = value.split('-');
+  const year = Number(yStr);
+  const month = Number(mStr);
+  const day = Number(dStr);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return false;
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  return (
+    Number.isFinite(utc.getTime()) &&
+    utc.getUTCFullYear() === year &&
+    utc.getUTCMonth() === month - 1 &&
+    utc.getUTCDate() === day
+  );
 };
 
 const isValidTimeHM = (value: string): boolean => {
@@ -122,7 +134,9 @@ const isValidTimeHM = (value: string): boolean => {
   return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
 };
 
-function getFormDataText(
+const pad2 = (value: number): string => value.toString().padStart(2, '0');
+
+async function getFormDataText(
   formData: FormData,
   key: string,
   options?: { allowFile?: boolean; fieldLabel?: string }
@@ -131,17 +145,17 @@ function getFormDataText(
   const value = formData.get(key);
 
   if (typeof value === 'string') {
-    return Promise.resolve(value);
+    return value;
   }
 
   if (value instanceof File) {
     if (!allowFile) {
       throw new Error(`${fieldLabel ?? key} must be provided as text`);
     }
-    return value.text();
+    return await value.text();
   }
 
-  return Promise.resolve('');
+  return '';
 }
 
 export async function saveOpenWeatherSettings(
@@ -378,9 +392,13 @@ export async function createTestEventAction(
       endDateTime = `${endDate}T${endTime}:00`;
     } else {
       const endDateObj = new Date(startDateObj.getTime() + 60 * 60 * 1000);
-      const iso = endDateObj.toISOString();
-      const computedDate = iso.slice(0, 10);
-      const computedTime = iso.slice(11, 16);
+      if (!Number.isFinite(endDateObj.getTime())) {
+        return { ok: false, message: 'Invalid end date/time' };
+      }
+      const computedDate = `${endDateObj.getFullYear()}-${pad2(endDateObj.getMonth() + 1)}-${pad2(
+        endDateObj.getDate()
+      )}`;
+      const computedTime = `${pad2(endDateObj.getHours())}:${pad2(endDateObj.getMinutes())}`;
       endDateTime = `${computedDate}T${computedTime}:00`;
     }
 

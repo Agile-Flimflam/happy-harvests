@@ -67,7 +67,6 @@ function getNumber(data: FormDataEntryValue | null): number | null {
   if (typeof data !== 'string') return null;
   const trimmed = data.trim();
   if (!trimmed) return null;
-  // Return the parsed value so schema validation can flag non-finite numbers.
   return Number(trimmed);
 }
 
@@ -305,7 +304,13 @@ export async function createActivity(
     return { message: `Database Error: ${errorToMessage(error)}` };
   }
 
-  await insertSoilAmendments(supabase, validated.data, inserted.id);
+  const activityId = inserted?.id;
+  if (!Number.isInteger(activityId)) {
+    console.error('Activities insert missing id:', inserted);
+    return { message: 'Database Error: Missing activity id after insert' };
+  }
+
+  await insertSoilAmendments(supabase, validated.data, activityId);
 
   revalidatePath('/activities');
   return { message: 'Activity created successfully', errors: {} };

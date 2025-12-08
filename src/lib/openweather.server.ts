@@ -20,7 +20,15 @@ function openWeatherError(res: Response, body: string): Error {
     statusText: res.statusText,
     body,
   });
-  return new Error('Weather service error');
+  let clientMessage = 'Weather service error';
+  if (res.status === 401) {
+    clientMessage = 'Weather API authentication failed';
+  } else if (res.status === 403) {
+    clientMessage = 'Weather API access is forbidden';
+  } else if (res.status === 429) {
+    clientMessage = 'Weather API rate limit exceeded';
+  }
+  return new Error(clientMessage);
 }
 
 const OpenWeatherOneCallSchema = z.object({

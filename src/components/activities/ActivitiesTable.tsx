@@ -26,21 +26,23 @@ type ActivitiesTableProps = {
 };
 
 export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps) {
-  const [selected, setSelected] = React.useState<Record<number, boolean>>({});
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [confirmOpen, setConfirmOpen] = React.useState(false);
 
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'started_at', desc: true }]);
+  const selectedRef = React.useRef<Record<string, boolean>>({});
+  selectedRef.current = selected;
 
   const toggleAll = React.useCallback(
     (checked: boolean) => {
-      const next: Record<number, boolean> = {};
-      if (checked) for (const r of rows) next[r.id] = true;
+      const next: Record<string, boolean> = {};
+      if (checked) for (const r of rows) next[String(r.id)] = true;
       setSelected(next);
     },
     [rows]
   );
 
-  const toggleOne = React.useCallback((id: number, checked: boolean) => {
+  const toggleOne = React.useCallback((id: string, checked: boolean) => {
     setSelected((prev) => ({ ...prev, [id]: checked }));
   }, []);
 
@@ -54,8 +56,8 @@ export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps
         cell: ({ row }) => (
           <input
             type="checkbox"
-            checked={!!selected[row.original.id]}
-            onChange={(e) => toggleOne(row.original.id, e.currentTarget.checked)}
+            checked={!!selectedRef.current[String(row.original.id)]}
+            onChange={(e) => toggleOne(String(row.original.id), e.currentTarget.checked)}
           />
         ),
         enableSorting: false,
@@ -124,7 +126,7 @@ export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps
         enableSorting: false,
       },
     ],
-    [selected, toggleAll, toggleOne]
+    [toggleAll, toggleOne]
   );
 
   const table = useReactTable({

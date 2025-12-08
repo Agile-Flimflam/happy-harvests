@@ -86,6 +86,10 @@ function isValidBlobUrl(url: string): boolean {
     // blob:null/<uuid> is valid for opaque origins; do not attempt to parse "null" as a URL
     if (originPart.toLowerCase() === 'null') return true;
 
+    // Require an explicit protocol before parsing to URL to avoid throwing on ambiguous origins
+    const hasProtocolPrefix = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(originPart);
+    if (!hasProtocolPrefix) return false;
+
     const originUrl = new URL(originPart);
     const allowedOriginProtocols = new Set<string>(['http:', 'https:']);
     return allowedOriginProtocols.has(originUrl.protocol);
@@ -293,7 +297,11 @@ export function CropVarietyForm({
   }, []);
 
   const onSubmit = async (values: CropVarietyFormValues) => {
-    if (!Number.isFinite(values.crop_id)) {
+    if (
+      typeof values.crop_id !== 'number' ||
+      !Number.isFinite(values.crop_id) ||
+      values.crop_id <= 0
+    ) {
       form.setError('crop_id', { message: 'Please select a crop' });
       toast.error('Please select a crop');
       return;

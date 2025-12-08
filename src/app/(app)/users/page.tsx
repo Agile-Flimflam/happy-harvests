@@ -10,8 +10,8 @@ export default async function UsersPage() {
   const { ok } = await ensureAdminUser();
   if (!ok) notFound();
 
-  const { users = [], error } = await listUsersWithRolesAction();
-  const safeError = error ? sanitizeErrorMessage(error) : null;
+  const { users = [], error: rawError } = await listUsersWithRolesAction();
+  const safeError = rawError ? sanitizeErrorMessage(rawError) : null;
 
   return (
     <div className="space-y-8">

@@ -62,7 +62,7 @@ export const ActivitySchema = z.object({
         name: z.string().min(1),
         quantity: z.coerce
           .number()
-          .finite({ message: 'Must be a finite number' })
+          .finite({ message: 'Amendment quantity must be a finite number' })
           .optional()
           .nullable(),
         unit: z.string().optional().nullable(),

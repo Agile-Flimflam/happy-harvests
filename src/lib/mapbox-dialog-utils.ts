@@ -10,10 +10,10 @@
  */
 
 /**
- * Type for MouseEvent or PointerEvent with optional Mapbox click marker.
+ * Type for MouseEvent or PointerEvent used in Mapbox detection helpers.
  * PointerEvent is used by onPointerDownOutside, MouseEvent is used by onInteractOutside.
  */
-export type MapboxMouseEvent = (MouseEvent | PointerEvent) & { __isMapboxClick?: boolean };
+export type MapboxMouseEvent = MouseEvent | PointerEvent;
 
 // Track Mapbox-related click events without mutating native event objects.
 const mapboxClickEvents = new WeakSet<MouseEvent | PointerEvent>();
@@ -157,11 +157,6 @@ export function getElementAtPoint(event: MouseEvent | PointerEvent): HTMLElement
 export function isMapboxRelatedClick(event: MapboxMouseEvent): boolean {
   // Prefer WeakSet marker to avoid mutating native events
   if (mapboxClickEvents.has(event)) {
-    return true;
-  }
-
-  // Check if event was explicitly marked as a Mapbox click
-  if (event.__isMapboxClick) {
     return true;
   }
 
