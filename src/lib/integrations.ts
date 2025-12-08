@@ -28,7 +28,8 @@ async function getIntegrationRaw() {
   let apiKey: string | null = null;
   const row = data as Tables<'external_integrations'> & { settings?: Record<string, unknown> };
   try {
-    const settings = (row.settings as unknown as { secrets?: Record<string, unknown> } | null) || null;
+    const settings =
+      (row.settings as unknown as { secrets?: Record<string, unknown> } | null) || null;
     const def = (settings?.secrets as Record<string, unknown> | undefined)?.['default'] as
       | { ciphertextB64?: string; ivB64?: string; tagB64?: string }
       | undefined;
@@ -45,15 +46,27 @@ async function getIntegrationRaw() {
   } catch {
     apiKey = null;
   }
-  return { enabled: Boolean(row.enabled), apiKey } as OpenWeatherIntegration;
+  const trimmed = apiKey?.trim() || null;
+  return { enabled: Boolean(row.enabled), apiKey: trimmed } as OpenWeatherIntegration;
 }
 
 export async function getOpenWeatherIntegration(): Promise<OpenWeatherIntegration> {
   return getIntegrationRaw();
 }
 
-export async function setOpenWeatherIntegration(params: { enabled: boolean; apiKey?: string | null; updatedBy?: string | null; }): Promise<void> {
+export async function setOpenWeatherIntegration(params: {
+  enabled: boolean;
+  apiKey?: string | null;
+  updatedBy?: string | null;
+}): Promise<void> {
   const supabase = createSupabaseAdminClient();
+
+  const cleanKey =
+    typeof params.apiKey === 'string'
+      ? params.apiKey.trim() === ''
+        ? null
+        : params.apiKey.trim()
+      : (params.apiKey ?? null);
 
   type ExternalIntegrationsInsert = Database['public']['Tables']['external_integrations']['Insert'];
   type ExternalIntegrationsUpdate = Database['public']['Tables']['external_integrations']['Update'];
@@ -79,9 +92,9 @@ export async function setOpenWeatherIntegration(params: { enabled: boolean; apiK
     } catch {
       settings = {};
     }
-    if (typeof params.apiKey === 'string') {
+    if (typeof cleanKey === 'string') {
       const key = getDataEncryptionKey();
-      const { ciphertextB64, ivB64, tagB64 } = encryptSecret(params.apiKey, key);
+      const { ciphertextB64, ivB64, tagB64 } = encryptSecret(cleanKey, key);
       const secrets: Record<string, Json> = {
         ...(settings.secrets as Record<string, Json> | undefined),
         default: { ciphertextB64, ivB64, tagB64 } as unknown as Json,
@@ -101,11 +114,11 @@ export async function setOpenWeatherIntegration(params: { enabled: boolean; apiK
   } else {
     // Build settings for insert
     let settings: Json | null = null;
-    if (typeof params.apiKey === 'string') {
+    if (typeof cleanKey === 'string') {
       const key = getDataEncryptionKey();
-      const { ciphertextB64, ivB64, tagB64 } = encryptSecret(params.apiKey, key);
+      const { ciphertextB64, ivB64, tagB64 } = encryptSecret(cleanKey, key);
       const secrets: Record<string, Json> = { default: { ciphertextB64, ivB64, tagB64 } };
-      settings = ({ secrets } as unknown) as Json;
+      settings = { secrets } as unknown as Json;
     }
     const { error: insertError } = await supabase
       .from('external_integrations')
@@ -115,8 +128,11 @@ export async function setOpenWeatherIntegration(params: { enabled: boolean; apiK
   revalidateTag(INTEGRATION_TAG);
 }
 
-export async function testOpenWeatherApiKey(keyToTest?: string | null): Promise<{ ok: boolean; status: number; message: string }> {
-  const apiKey = keyToTest ?? (await getOpenWeatherIntegration()).apiKey;
+export async function testOpenWeatherApiKey(
+  keyToTest?: string | null
+): Promise<{ ok: boolean; status: number; message: string }> {
+  const apiKeyRaw = keyToTest ?? (await getOpenWeatherIntegration()).apiKey;
+  const apiKey = apiKeyRaw?.trim() || null;
   if (!apiKey) {
     return { ok: false, status: 400, message: 'Missing API key' };
   }

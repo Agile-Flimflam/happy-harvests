@@ -5,6 +5,11 @@ import { getUserAndProfile } from '@/lib/supabase-server';
 import { isAdmin } from '@/lib/authz';
 
 export async function inviteUserAction(input: { email: string }) {
+  const { user, profile } = await getUserAndProfile();
+  if (!user || !isAdmin(profile)) {
+    return { ok: false, error: 'Unauthorized' };
+  }
+
   const admin = createSupabaseAdminClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:4000';
   const redirectTo = `${siteUrl}/auth/update-password`;
@@ -19,6 +24,10 @@ export async function inviteUserAction(input: { email: string }) {
 }
 
 export async function inviteUserWithRoleAction(input: { email: string; role: 'admin' | 'member' }) {
+  const { user, profile } = await getUserAndProfile();
+  if (!user || !isAdmin(profile)) {
+    return { ok: false, error: 'Unauthorized' };
+  }
   const admin = createSupabaseAdminClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:4000';
   const redirectTo = `${siteUrl}/auth/update-password`;
@@ -41,9 +50,12 @@ export async function inviteUserWithRoleAction(input: { email: string; role: 'ad
 }
 
 export async function listUsersAction() {
+  const { user, profile } = await getUserAndProfile();
+  if (!user || !isAdmin(profile)) return { users: [], error: 'Unauthorized' };
+
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin.auth.admin.listUsers();
-  if (error) return { users: [], error: error.message };
+  const { data, error: listError } = await admin.auth.admin.listUsers();
+  if (listError) return { users: [], error: listError.message };
   return { users: data.users };
 }
 
@@ -65,6 +77,9 @@ export type ListedUser = {
 };
 
 export async function listUsersWithRolesAction(): Promise<{ users: ListedUser[]; error?: string }> {
+  const { user, profile } = await getUserAndProfile();
+  if (!user || !isAdmin(profile)) return { users: [], error: 'Unauthorized' };
+
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin.auth.admin.listUsers();
   if (error) return { users: [], error: error.message };
@@ -83,14 +98,21 @@ export async function listUsersWithRolesAction(): Promise<{ users: ListedUser[];
     full_name: string | null;
     avatar_url: string | null;
   };
+  const invalidRoleIds: string[] = [];
   const profileRows: ProfileRow[] = Array.isArray(profiles)
-    ? profiles.map((p) => ({
-        id: p.id,
-        role: p.role as ProfileRow['role'],
-        display_name: p.display_name ?? null,
-        full_name: p.full_name ?? null,
-        avatar_url: p.avatar_url ?? null,
-      }))
+    ? profiles.map((p) => {
+        const isValidRole = p.role === 'admin' || p.role === 'member';
+        if (!isValidRole) {
+          invalidRoleIds.push(p.id);
+        }
+        return {
+          id: p.id,
+          role: isValidRole ? p.role : 'member',
+          display_name: p.display_name ?? null,
+          full_name: p.full_name ?? null,
+          avatar_url: p.avatar_url ?? null,
+        };
+      })
     : [];
   const idToProfile = new Map<string, ProfileRow>(profileRows.map((p) => [p.id, p]));
   const users: ListedUser[] = authUsers.map((u) => ({
@@ -101,17 +123,24 @@ export async function listUsersWithRolesAction(): Promise<{ users: ListedUser[];
       const fallback = (u.email || '').split('@')[0] || '';
       return p?.display_name || p?.full_name || fallback;
     })(),
-    createdAt: u.created_at as unknown as string,
+    createdAt: typeof u.created_at === 'string' ? u.created_at : '',
     role: idToProfile.get(u.id)?.role || 'member',
     avatarUrl: idToProfile.get(u.id)?.avatar_url ?? null,
   }));
-  return { users };
+  const invalidRoleError =
+    invalidRoleIds.length > 0
+      ? `Invalid role values found for profile ids: ${invalidRoleIds.join(', ')} (defaulted to member)`
+      : undefined;
+  return { users, error: invalidRoleError };
 }
 
 export async function updateUserRoleAction(input: {
   userId: string;
   role: 'admin' | 'member';
 }): Promise<{ ok: boolean; error?: string }> {
+  const { user, profile } = await getUserAndProfile();
+  if (!user || !isAdmin(profile)) return { ok: false, error: 'Unauthorized' };
+
   const admin = createSupabaseAdminClient();
   const { error } = await admin
     .from('profiles')
@@ -126,10 +155,19 @@ export async function updateUserProfileAction(formData: FormData): Promise<{
   error?: string;
   user?: { id: string; displayName: string; role: 'admin' | 'member'; avatarUrl: string | null };
 }> {
+  const { user, profile } = await getUserAndProfile();
+  if (!user || !isAdmin(profile)) {
+    return { ok: false, error: 'Unauthorized' };
+  }
+
   const admin = createSupabaseAdminClient();
   const userId = String(formData.get('userId') || '');
-  const roleInput = String(formData.get('role') || '').toLowerCase();
-  const role: 'admin' | 'member' = roleInput === 'admin' ? 'admin' : 'member';
+  const roleRaw = formData.get('role');
+  const roleInput = typeof roleRaw === 'string' ? roleRaw.toLowerCase() : '';
+  if (roleInput !== 'admin' && roleInput !== 'member') {
+    return { ok: false, error: 'Invalid role' };
+  }
+  const role: 'admin' | 'member' = roleInput;
   const displayName = String(formData.get('displayName') || '');
   const file = formData.get('avatar') as File | null;
   if (!userId) return { ok: false, error: 'Missing userId' };

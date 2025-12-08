@@ -23,6 +23,8 @@ interface AddressAutocompleteProps {
   disabled?: boolean;
   // Optional field props for use within FormField
   field?: ControllerRenderProps<LocationFormValues, 'street'>;
+  // Explicit form association to ensure form is available even if DOM is reparented
+  formId?: string;
 }
 
 // Type for the retrieve response - using a compatible interface
@@ -323,6 +325,7 @@ export function AddressAutocomplete({
   placeholder = 'Start typing an address...',
   disabled = false,
   field,
+  formId,
 }: AddressAutocompleteProps) {
   // useFormContext must be called unconditionally (React hook rules)
   // It will throw if used outside FormProvider, which is expected
@@ -708,6 +711,7 @@ export function AddressAutocomplete({
             }}
             type="text"
             name="street"
+            form={formId}
             value={addressValue}
             onChange={handleInputChange}
             onFocus={handleFocus}

@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useActionState } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -41,6 +41,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty';
+import { setupFormControlProperty } from '@/lib/form-utils';
 
 type Nursery = Tables<'nurseries'>;
 type Location = Tables<'locations'>;
@@ -71,6 +72,7 @@ export default function NurseriesPageContent({
   );
   const [deleteTarget, setDeleteTarget] = useState<Nursery | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const hasNurseries = nurseries.length > 0;
 
   // Initialize/reset form state when opening dialog
@@ -87,6 +89,14 @@ export default function NurseriesPageContent({
       setFieldErrors({});
     }
   }, [open, editing]);
+
+  // Ensure browser extensions see a form.control property to avoid runtime errors
+  useLayoutEffect(() => {
+    if (!open) return;
+    const formEl = formRef.current;
+    if (!formEl) return;
+    setupFormControlProperty(formEl);
+  }, [open]);
 
   useEffect(() => {
     const state = editing ? updateState : createState;
@@ -249,6 +259,7 @@ export default function NurseriesPageContent({
       >
         <form
           id="nurseryForm"
+          ref={formRef}
           action={editing ? updateAction : createAction}
           className="space-y-4"
           noValidate

@@ -8,6 +8,25 @@ type RawDashboardLocation = {
   longitude: number | null;
 };
 
+const isNumberOrNull = (value: unknown): value is number | null =>
+  value === null || typeof value === 'number';
+
+const isRawDashboardLocation = (value: unknown): value is RawDashboardLocation => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.id === 'string' &&
+    isNumberOrNull(record.latitude) &&
+    isNumberOrNull(record.longitude)
+  );
+};
+
+const parseDashboardLocations = (data: unknown): RawDashboardLocation[] =>
+  Array.isArray(data) ? data.filter(isRawDashboardLocation) : [];
+
 export type DashboardLocation = {
   id: string;
   latitude: number;
@@ -42,8 +61,13 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     plantingRes.error,
     locationsRes.error,
   ].filter(Boolean);
-  const primary = (locationsRes.data as RawDashboardLocation[] | null | undefined)?.find(
-    (loc): loc is DashboardLocation => loc.latitude != null && loc.longitude != null
+  const rawLocations = parseDashboardLocations(locationsRes.data);
+  const primary = rawLocations.find(
+    (loc): loc is DashboardLocation =>
+      typeof loc.latitude === 'number' &&
+      Number.isFinite(loc.latitude) &&
+      typeof loc.longitude === 'number' &&
+      Number.isFinite(loc.longitude)
   );
 
   return {

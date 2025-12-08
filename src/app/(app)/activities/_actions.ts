@@ -63,23 +63,31 @@ function getString(data: FormDataEntryValue | null): string {
   return typeof data === 'string' ? data : '';
 }
 
+function getNumber(data: FormDataEntryValue | null): number | null {
+  if (typeof data !== 'string') return null;
+  const trimmed = data.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function extractActivityFormData(formData: FormData) {
   return {
-    activity_type: formData.get('activity_type'),
+    activity_type: getString(formData.get('activity_type')),
     started_at: getString(formData.get('started_at')),
     ended_at: getString(formData.get('ended_at')) || null,
-    duration_minutes: formData.get('duration_minutes') || null,
-    labor_hours: formData.get('labor_hours') || null,
+    duration_minutes: getNumber(formData.get('duration_minutes')),
+    labor_hours: getNumber(formData.get('labor_hours')),
     location_id: getString(formData.get('location_id')) || null,
-    plot_id: formData.get('plot_id') || null,
-    bed_id: formData.get('bed_id') || null,
-    nursery_id: formData.get('nursery_id') || null,
+    plot_id: getNumber(formData.get('plot_id')),
+    bed_id: getNumber(formData.get('bed_id')),
+    nursery_id: getString(formData.get('nursery_id')) || null,
     crop: getString(formData.get('crop')) || null,
     asset_id: getString(formData.get('asset_id')) || null,
     asset_name: getString(formData.get('asset_name')) || null,
-    quantity: formData.get('quantity') || null,
+    quantity: getNumber(formData.get('quantity')),
     unit: getString(formData.get('unit')) || null,
-    cost: formData.get('cost') || null,
+    cost: getNumber(formData.get('cost')),
     notes: getString(formData.get('notes')) || null,
     amendments: parseAmendmentsJson(formData.get('amendments_json')),
   };
@@ -116,26 +124,51 @@ export type PlotOption = { plot_id: number; name: string; location_id: string };
 export type BedOption = { id: number; plot_id: number; name: string | null };
 export type NurseryOption = { id: string; name: string; location_id: string };
 
-function serializeWeatherToJson(w: Awaited<ReturnType<typeof fetchWeatherByCoords>>): Json {
+type WeatherJson = {
+  timezone: string | null;
+  current: {
+    dt: number | null;
+    sunrise: number | null;
+    sunset: number | null;
+    temp: number | null;
+    humidity: number | null;
+    weather: {
+      id: number | null;
+      main: string | null;
+      description: string | null;
+      icon: string | null;
+    } | null;
+  };
+  moonPhase: number | null;
+  moonPhaseLabel: string | null;
+};
+
+function serializeWeatherToJson(w: Awaited<ReturnType<typeof fetchWeatherByCoords>>): WeatherJson {
+  const weatherDetails =
+    w.current?.weather && typeof w.current.weather === 'object'
+      ? {
+          id: typeof w.current.weather.id === 'number' ? w.current.weather.id : null,
+          main: typeof w.current.weather.main === 'string' ? w.current.weather.main : null,
+          description:
+            typeof w.current.weather.description === 'string'
+              ? w.current.weather.description
+              : null,
+          icon: typeof w.current.weather.icon === 'string' ? w.current.weather.icon : null,
+        }
+      : null;
+
   return {
-    timezone: w.timezone,
+    timezone: typeof w.timezone === 'string' ? w.timezone : null,
     current: {
-      dt: w.current.dt,
-      sunrise: w.current.sunrise ?? null,
-      sunset: w.current.sunset ?? null,
-      temp: w.current.temp,
-      humidity: w.current.humidity,
-      weather: w.current.weather
-        ? {
-            id: w.current.weather.id,
-            main: w.current.weather.main,
-            description: w.current.weather.description,
-            icon: w.current.weather.icon,
-          }
-        : null,
+      dt: typeof w.current?.dt === 'number' ? w.current.dt : null,
+      sunrise: typeof w.current?.sunrise === 'number' ? w.current.sunrise : null,
+      sunset: typeof w.current?.sunset === 'number' ? w.current.sunset : null,
+      temp: typeof w.current?.temp === 'number' ? w.current.temp : null,
+      humidity: typeof w.current?.humidity === 'number' ? w.current.humidity : null,
+      weather: weatherDetails,
     },
-    moonPhase: w.moonPhase ?? null,
-    moonPhaseLabel: w.moonPhaseLabel ?? null,
+    moonPhase: typeof w.moonPhase === 'number' ? w.moonPhase : null,
+    moonPhaseLabel: typeof w.moonPhaseLabel === 'string' ? w.moonPhaseLabel : null,
   };
 }
 
@@ -227,7 +260,10 @@ export async function getActivityEditData(idInput: number): Promise<{
   if (locationsError) {
     return { activity, locations: [], error: `Database Error: ${locationsError.message}` };
   }
-  return { activity, locations: (locations || []) as LocationOption[] };
+  return {
+    activity,
+    locations: (locations ?? []).map(({ id, name }) => ({ id, name })),
+  };
 }
 
 export async function createActivity(
@@ -284,7 +320,7 @@ export async function createActivity(
 async function fetchActivityWeather(
   supabase: SupabaseClient<Database>,
   locationId: string | null
-): Promise<Json | null> {
+): Promise<WeatherJson | null> {
   if (!locationId) return null;
   const { data: loc, error: locErr } = await supabase
     .from('locations')

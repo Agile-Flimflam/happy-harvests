@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, startTransition } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, startTransition } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useActionState } from 'react';
 import Image from 'next/image';
@@ -25,6 +25,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogClose,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Constants } from '@/lib/database.types';
@@ -48,6 +49,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { setupFormControlProperty } from '@/lib/form-utils';
 
 type CropVariety = Tables<'crop_varieties'> & {
   crops?: { name: string } | null;
@@ -150,6 +152,8 @@ export function CropVarietyForm({
   const [newCropType, setNewCropType] = useState<string>('');
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [removeExistingImage, setRemoveExistingImage] = useState(false);
+  const mainFormRef = useRef<HTMLFormElement>(null);
+  const inlineCropFormRef = useRef<HTMLFormElement>(null);
 
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -269,6 +273,19 @@ export function CropVarietyForm({
     }
   }, [cropCreateState, form]);
 
+  // Ensure form.control exists for browser extensions on both forms
+  useLayoutEffect(() => {
+    if (mainFormRef.current) {
+      setupFormControlProperty(mainFormRef.current);
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    if (isCropDialogOpen && inlineCropFormRef.current) {
+      setupFormControlProperty(inlineCropFormRef.current);
+    }
+  }, [isCropDialogOpen]);
+
   const onSubmit = async (values: CropVarietyFormValues) => {
     const sanitizedName = sanitizePlainText(values.name);
     const sanitizedLatinName = sanitizePlainText(values.latin_name);
@@ -344,7 +361,12 @@ export function CropVarietyForm({
   return (
     <TooltipProvider>
       <Form {...form}>
-        <form id={formId} onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form
+          id={formId}
+          ref={mainFormRef}
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="space-y-4"
+        >
           {/* Hidden input for ID if editing */}
           {isEditing && <input type="hidden" name="id" value={cropVariety?.id} />}
 
@@ -733,8 +755,14 @@ export function CropVarietyForm({
         <DialogContent className="sm:max-w-[425px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Crop</DialogTitle>
+            <DialogDescription>Enter the crop name and type to add it.</DialogDescription>
           </DialogHeader>
-          <form action={createCropAction} className="space-y-4" onSubmit={sanitizeInlineCropForm}>
+          <form
+            ref={inlineCropFormRef}
+            action={createCropAction}
+            className="space-y-4"
+            onSubmit={sanitizeInlineCropForm}
+          >
             <div>
               <Label htmlFor="new_crop_name">Name</Label>
               <Input

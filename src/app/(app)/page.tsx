@@ -22,8 +22,8 @@ export default async function DashboardPage() {
         </div>
       ) : null}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Link href="/crop-varieties" className="block">
-          <Card className="cursor-pointer transition hover:shadow-md">
+        <Card className="cursor-pointer transition hover:shadow-md">
+          <Link href="/crop-varieties" className="block h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Crop Varieties</CardTitle>
               <Leaf className="h-4 w-4 text-muted-foreground" />
@@ -32,10 +32,10 @@ export default async function DashboardPage() {
               <div className="text-2xl font-bold">{cropVarietyCount ?? 'N/A'}</div>
               {error && <p className="text-xs text-red-500">Error loading</p>}
             </CardContent>
-          </Card>
-        </Link>
-        <Link href="/plots" className="block">
-          <Card className="cursor-pointer transition hover:shadow-md">
+          </Link>
+        </Card>
+        <Card className="cursor-pointer transition hover:shadow-md">
+          <Link href="/plots" className="block h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Plots</CardTitle>
               <Tractor className="h-4 w-4 text-muted-foreground" />
@@ -44,10 +44,10 @@ export default async function DashboardPage() {
               <div className="text-2xl font-bold">{plotCount ?? 'N/A'}</div>
               {error && <p className="text-xs text-red-500">Error loading</p>}
             </CardContent>
-          </Card>
-        </Link>
-        <Link href="/plantings" className="block">
-          <Card className="cursor-pointer transition hover:shadow-md">
+          </Link>
+        </Card>
+        <Card className="cursor-pointer transition hover:shadow-md">
+          <Link href="/plantings" className="block h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Plantings</CardTitle>
               <Sprout className="h-4 w-4 text-muted-foreground" />
@@ -56,8 +56,8 @@ export default async function DashboardPage() {
               <div className="text-2xl font-bold">{plantingCount ?? 'N/A'}</div>
               {error && <p className="text-xs text-red-500">Error loading</p>}
             </CardContent>
-          </Card>
-        </Link>
+          </Link>
+        </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>

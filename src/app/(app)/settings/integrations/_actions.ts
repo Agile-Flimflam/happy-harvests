@@ -24,6 +24,8 @@ type GoogleCalendarSettingsRecord = {
   secrets?: Record<string, unknown>;
 } | null;
 
+type JsonObject = { [key: string]: Json };
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -48,6 +50,12 @@ function parseGoogleCalendarSettings(raw: unknown): GoogleCalendarSettingsRecord
     calendar_id,
     secrets,
   };
+}
+
+function buildGoogleCalendarSettings(calendarId: string | null): JsonObject | null {
+  const trimmed = calendarId?.trim();
+  if (!trimmed) return null;
+  return { calendar_id: trimmed };
 }
 
 export async function getIntegrationsPageData(): Promise<{
@@ -103,7 +111,7 @@ export async function saveOpenWeatherSettings(
     return { message: 'Unauthorized', ok: false };
   }
   const enabled = getBool(formData, 'enabled');
-  const apiKey = (formData.get('apiKey') ?? '') as string;
+  const apiKey = (await getFormDataText(formData, 'apiKey')).trim();
   try {
     await setOpenWeatherIntegration({
       enabled,
@@ -125,7 +133,7 @@ export async function testOpenWeatherKeyAction(
   if (!user || !isAdmin(profile)) {
     return { ok: false, message: 'Unauthorized' };
   }
-  const apiKey = (formData.get('apiKey') ?? '') as string;
+  const apiKey = (await getFormDataText(formData, 'apiKey')).trim();
   const keyToTest = apiKey || undefined;
   const result = await testOpenWeatherApiKey(keyToTest);
   return {
@@ -145,7 +153,7 @@ export async function saveOpenWeatherSettingsDirect(formData: FormData): Promise
     typeof enabledRaw === 'string'
       ? ['on', 'true', '1'].includes(enabledRaw.toLowerCase())
       : Boolean(enabledRaw);
-  const apiKey = (formData.get('apiKey') ?? '') as string;
+  const apiKey = (await getFormDataText(formData, 'apiKey')).trim();
   await setOpenWeatherIntegration({
     enabled,
     apiKey: apiKey ? apiKey : undefined,
@@ -157,7 +165,7 @@ export async function saveOpenWeatherSettingsDirect(formData: FormData): Promise
 export async function testOpenWeatherKeyActionDirect(formData: FormData): Promise<void> {
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) return;
-  const apiKey = (formData.get('apiKey') ?? '') as string;
+  const apiKey = (await getFormDataText(formData, 'apiKey')).trim();
   const keyToTest = apiKey || undefined;
   await testOpenWeatherApiKey(keyToTest);
 }
@@ -191,10 +199,11 @@ export async function saveGoogleCalendarSettingsDirect(formData: FormData): Prom
     typeof enabledRaw === 'string'
       ? ['on', 'true', '1'].includes(enabledRaw.toLowerCase())
       : Boolean(enabledRaw);
-  const calendarId = (formData.get('calendarId') ?? '') as string;
+  const calendarId = (await getFormDataText(formData, 'calendarId')).trim();
   const serviceAccountJson = (await getFormDataText(formData, 'serviceAccountJson')).trim();
 
   const admin = (await import('@/lib/supabase-admin')).createSupabaseAdminClient();
+  const baseSettings = buildGoogleCalendarSettings(calendarId);
   const payload: {
     service: 'google_calendar';
     enabled: boolean;
@@ -204,18 +213,16 @@ export async function saveGoogleCalendarSettingsDirect(formData: FormData): Prom
     service: 'google_calendar',
     enabled,
     updated_by: user.id,
-    settings: calendarId ? ({ calendar_id: calendarId } as Json) : null,
+    settings: baseSettings,
   };
   if (serviceAccountJson) {
     const { getDataEncryptionKey, encryptSecret } = await import('@/lib/crypto');
     const key = getDataEncryptionKey();
     const { ciphertextB64, ivB64, tagB64 } = encryptSecret(serviceAccountJson, key);
     const secrets: Record<string, Json> = { default: { ciphertextB64, ivB64, tagB64 } };
-    const base: Record<string, Json> = payload.settings
-      ? (payload.settings as Record<string, Json>)
-      : {};
-    const merged: Record<string, Json> = { ...base, secrets };
-    payload.settings = merged as Json;
+    const base: JsonObject = baseSettings ?? {};
+    const merged: JsonObject = { ...base, secrets };
+    payload.settings = merged;
   }
   // Upsert by service
   const { data: existing } = await admin
@@ -245,7 +252,7 @@ export async function testGoogleCalendarAction(
 ): Promise<{ ok: boolean; message: string }> {
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) return { ok: false, message: 'Unauthorized' };
-  const calendarId = (formData.get('calendarId') ?? '') as string;
+  const calendarId = (await getFormDataText(formData, 'calendarId')).trim();
   const serviceAccountJson = (await getFormDataText(formData, 'serviceAccountJson')).trim();
   const res = await testGoogleCalendar({
     calendarId: calendarId || undefined,
@@ -260,16 +267,16 @@ export async function createTestEventAction(
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) return { ok: false, message: 'Unauthorized' };
 
-  const title = (formData.get('title') ?? 'Test Event') as string;
-  const date = (formData.get('date') ?? '') as string;
-  const description = (formData.get('description') ?? '') as string;
-  const location = (formData.get('location') ?? '') as string;
-  const isAllDay = formData.get('allDay') === 'on';
-  const startTime = (formData.get('startTime') ?? '') as string;
-  const endDate = (formData.get('endDate') ?? date) as string;
-  const endTime = (formData.get('endTime') ?? '') as string;
-  const timezone = (formData.get('timezone') ?? 'America/Los_Angeles') as string;
-  const colorId = (formData.get('colorId') ?? '') as string;
+  const title = (await getFormDataText(formData, 'title')).trim() || 'Test Event';
+  const date = (await getFormDataText(formData, 'date')).trim();
+  const description = (await getFormDataText(formData, 'description')).trim();
+  const location = (await getFormDataText(formData, 'location')).trim();
+  const isAllDay = getBool(formData, 'allDay');
+  const startTime = (await getFormDataText(formData, 'startTime')).trim();
+  const endDate = (await getFormDataText(formData, 'endDate')).trim() || date;
+  const endTime = (await getFormDataText(formData, 'endTime')).trim();
+  const timezone = (await getFormDataText(formData, 'timezone')).trim() || 'America/Los_Angeles';
+  const colorId = (await getFormDataText(formData, 'colorId')).trim();
 
   if (!date) return { ok: false, message: 'Date is required' };
 

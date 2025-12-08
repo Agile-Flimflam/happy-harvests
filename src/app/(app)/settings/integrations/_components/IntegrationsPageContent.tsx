@@ -6,6 +6,12 @@ import { getIntegrationsPageData } from '../actions';
 
 export async function IntegrationsPageContent() {
   const { openWeather, googleCalendar, error } = await getIntegrationsPageData();
+  const safeOpenWeather = openWeather ?? { enabled: false, hasKey: false };
+  const safeGoogleCalendar = googleCalendar ?? {
+    enabled: false,
+    calendarId: null,
+    hasServiceAccount: false,
+  };
   return (
     <div className="space-y-6">
       <PageHeader title="Integrations" />
@@ -16,11 +22,14 @@ export async function IntegrationsPageContent() {
               {error}
             </div>
           ) : null}
-          <OpenWeatherCardClient enabled={openWeather.enabled} hasKey={openWeather.hasKey} />
+          <OpenWeatherCardClient
+            enabled={safeOpenWeather.enabled}
+            hasKey={safeOpenWeather.hasKey}
+          />
           <GoogleCalendarCardClient
-            enabled={googleCalendar.enabled}
-            calendarId={googleCalendar.calendarId}
-            hasServiceAccount={googleCalendar.hasServiceAccount}
+            enabled={safeGoogleCalendar.enabled}
+            calendarId={safeGoogleCalendar.calendarId}
+            hasServiceAccount={safeGoogleCalendar.hasServiceAccount}
           />
         </div>
       </PageContent>
