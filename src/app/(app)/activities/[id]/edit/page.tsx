@@ -5,7 +5,14 @@ import { notFound } from 'next/navigation';
 
 function sanitizeErrorMessage(message?: string): string {
   if (!message) return 'An unexpected error occurred';
-  return message.replace(/[<>]/g, '');
+  const replacements: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return message.replace(/[&<>"']/g, (ch) => replacements[ch] || '');
 }
 
 export default async function EditActivityPage({
@@ -15,6 +22,9 @@ export default async function EditActivityPage({
   const id = Number(resolvedParams?.id);
   if (!Number.isFinite(id)) return notFound();
   const { activity, locations, error } = await getActivityEditData(id);
+  const updateActivityAction = async (formData: FormData) => {
+    await updateActivity(formData);
+  };
   if (error) {
     const safeError = sanitizeErrorMessage(error);
     return (
@@ -32,7 +42,7 @@ export default async function EditActivityPage({
           <CardTitle>Activity #{id}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={updateActivity}>
+          <form action={updateActivityAction}>
             <input type="hidden" name="id" value={id} />
             <EditActivityContent activity={activity} locations={locations || []} />
           </form>

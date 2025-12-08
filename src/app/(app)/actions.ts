@@ -38,8 +38,16 @@ export type DashboardOverview = {
   plotCount: number | null;
   plantingCount: number | null;
   primaryLocation: DashboardLocation | null;
+  cropVarietyError?: string;
+  plotError?: string;
+  plantingError?: string;
   error?: string;
 };
+
+function redactDbError(context: string, err: unknown): string {
+  console.error(`[Dashboard] ${context}`, err);
+  return 'Unable to load data right now.';
+}
 
 export async function getDashboardOverview(): Promise<DashboardOverview> {
   const supabase = await createSupabaseServerClient();
@@ -61,6 +69,13 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     plantingRes.error,
     locationsRes.error,
   ].filter(Boolean);
+  const cropVarietyError = cropVarietyRes.error
+    ? redactDbError('Error loading crop varieties', cropVarietyRes.error)
+    : undefined;
+  const plotError = plotRes.error ? redactDbError('Error loading plots', plotRes.error) : undefined;
+  const plantingError = plantingRes.error
+    ? redactDbError('Error loading plantings', plantingRes.error)
+    : undefined;
   const rawLocations = parseDashboardLocations(locationsRes.data);
   const primary = rawLocations.find(
     (loc): loc is DashboardLocation =>
@@ -75,6 +90,9 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     plotCount: plotRes.count ?? null,
     plantingCount: plantingRes.count ?? null,
     primaryLocation: primary ?? null,
-    error: errors.length ? `Database Error: ${errors[0]?.message ?? 'Unknown error'}` : undefined,
+    cropVarietyError,
+    plotError,
+    plantingError,
+    error: errors.length ? 'Unable to load dashboard data.' : undefined,
   };
 }

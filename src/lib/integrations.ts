@@ -25,11 +25,31 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isJsonValue(value: unknown): value is Json {
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'boolean' ||
+    (typeof value === 'number' && Number.isFinite(value))
+  ) {
+    return true;
+  }
+  if (Array.isArray(value)) {
+    return value.every(isJsonValue);
+  }
+  if (isRecord(value)) {
+    return Object.values(value).every(isJsonValue);
+  }
+  return false;
+}
+
 function toJsonObject(raw: unknown): JsonObject | null {
   if (!isRecord(raw)) return null;
   const obj: JsonObject = {};
   for (const [k, v] of Object.entries(raw)) {
-    obj[k] = v as Json;
+    if (isJsonValue(v)) {
+      obj[k] = v;
+    }
   }
   return obj;
 }

@@ -24,6 +24,11 @@ type WeatherResponse = {
   moonPhaseLabel?: string;
 };
 
+function sanitizeErrorText(message: unknown): string {
+  if (typeof message !== 'string') return 'Unknown error';
+  return message.replace(/[<>]/g, '');
+}
+
 const SAFE_LOCATION_ID_REGEX = /^[A-Za-z0-9_-]{1,64}$/;
 
 function sanitizeLocationId(value: string | null): string | null {
@@ -66,9 +71,10 @@ export default function CalendarHeaderWeather({ id, latitude, longitude }: Props
       })
       .catch((e) => {
         if (cancelled) return;
+        const msg = e instanceof Error ? e.message : 'Failed to load weather';
         setState({
           status: 'error',
-          message: e instanceof Error ? e.message : 'Failed to load weather',
+          message: sanitizeErrorText(msg),
         });
       });
     return () => {

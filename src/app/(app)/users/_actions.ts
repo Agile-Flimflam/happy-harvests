@@ -6,6 +6,53 @@ import { isAdmin } from '@/lib/authz';
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5MB
 
+type DetectedImage =
+  | { ext: 'png' | 'jpg' | 'jpeg' | 'gif' | 'webp'; mime: string }
+  | { error: string };
+
+async function detectImageType(file: File): Promise<DetectedImage> {
+  const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+
+  const isPng =
+    head.length >= 8 &&
+    head[0] === 0x89 &&
+    head[1] === 0x50 &&
+    head[2] === 0x4e &&
+    head[3] === 0x47 &&
+    head[4] === 0x0d &&
+    head[5] === 0x0a &&
+    head[6] === 0x1a &&
+    head[7] === 0x0a;
+  if (isPng) return { ext: 'png', mime: 'image/png' };
+
+  const isJpeg = head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
+  if (isJpeg) return { ext: 'jpg', mime: 'image/jpeg' };
+
+  const isGif =
+    head.length >= 6 &&
+    head[0] === 0x47 &&
+    head[1] === 0x49 &&
+    head[2] === 0x46 &&
+    head[3] === 0x38 &&
+    (head[4] === 0x39 || head[4] === 0x37) &&
+    head[5] === 0x61;
+  if (isGif) return { ext: 'gif', mime: 'image/gif' };
+
+  const isWebp =
+    head.length >= 12 &&
+    head[0] === 0x52 && // R
+    head[1] === 0x49 && // I
+    head[2] === 0x46 && // F
+    head[3] === 0x46 && // F
+    head[8] === 0x57 && // W
+    head[9] === 0x45 && // E
+    head[10] === 0x42 && // B
+    head[11] === 0x50; // P
+  if (isWebp) return { ext: 'webp', mime: 'image/webp' };
+
+  return { error: 'Avatar must be a valid PNG, JPEG, GIF, or WEBP image' };
+}
+
 export async function inviteUserAction(input: { email: string }) {
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) {
@@ -190,17 +237,12 @@ export async function updateUserProfileAction(formData: FormData): Promise<{
       if (file.size > MAX_AVATAR_BYTES) {
         return { ok: false, error: 'Avatar must be 5MB or smaller' };
       }
-      const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-      const ext = (file.name.split('.').pop() || '').toLowerCase();
-      const isAllowedExt = allowedExtensions.includes(ext);
-      const isImageType = typeof file.type === 'string' && file.type.startsWith('image/');
-      if (!isAllowedExt || !isImageType) {
-        return {
-          ok: false,
-          error: 'Avatar must be an image of type jpg, jpeg, png, gif, or webp',
-        };
+      const detected = await detectImageType(file);
+      if ('error' in detected) {
+        return { ok: false, error: detected.error };
       }
-      const contentType = file.type || `image/${ext || 'jpeg'}`;
+      const { ext, mime } = detected;
+      const contentType = mime;
       const path = `${userId}/${Date.now()}.${ext}`;
       const { error: upErr } = await admin.storage.from('avatars').upload(path, file, {
         cacheControl: '3600',

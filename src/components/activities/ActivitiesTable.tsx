@@ -20,7 +20,9 @@ type Row = Tables<'activities'> & { locations?: { name?: string | null } | null 
 
 type ActivitiesTableProps = {
   rows: Row[];
-  bulkDeleteAction: (formData: FormData) => Promise<void>;
+  bulkDeleteAction: (
+    formData: FormData
+  ) => Promise<{ message: string; errors?: Record<string, string[] | undefined> }>;
 };
 
 export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps) {
@@ -141,6 +143,13 @@ export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps
     .map(([k]) => k)
     .join(',');
 
+  const handleBulkDelete = React.useCallback(
+    async (formData: FormData) => {
+      await bulkDeleteAction(formData);
+    },
+    [bulkDeleteAction]
+  );
+
   return (
     <div className="border rounded-md overflow-auto">
       <ConfirmDialog
@@ -191,7 +200,7 @@ export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps
         <div className="text-xs text-muted-foreground">
           {Object.values(selected).filter(Boolean).length} selected
         </div>
-        <form id="bulk-delete-form" action={bulkDeleteAction}>
+        <form id="bulk-delete-form" action={handleBulkDelete}>
           <input type="hidden" name="ids" value={idsCsv} />
           <Button
             type="button"

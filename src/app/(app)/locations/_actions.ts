@@ -187,7 +187,6 @@ export async function deleteLocation(id: string): Promise<DeleteLocationResult> 
   return { message: 'Location deleted successfully.' };
 }
 
-type LocationWithMaybePlots = Location & { plots: Tables<'plots'>[] | null };
 type LocationWithPlots = Location & { plots: Tables<'plots'>[] };
 
 export async function getLocations(): Promise<{ locations: Location[]; error?: string }> {
@@ -211,6 +210,6 @@ export async function getLocationWithPlots(
     .single();
   if (error) return { error: `Database Error: ${error.message}` };
   if (!data) return { error: 'Location not found.' };
-  const loc = data as LocationWithMaybePlots;
-  return { location: { ...loc, plots: loc.plots || [] } };
+  const location: LocationWithPlots = { ...data, plots: data.plots ?? [] };
+  return { location };
 }

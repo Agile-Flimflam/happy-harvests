@@ -302,46 +302,30 @@ export function CropVarietyForm({
     fd.append('latin_name', sanitizedLatinName);
     fd.append('is_organic', values.is_organic ? 'on' : 'off');
     fd.append('notes', sanitizedNotes);
-    fd.append(
-      'dtm_direct_seed_min',
-      values.dtm_direct_seed_min !== undefined && values.dtm_direct_seed_min !== null
-        ? String(values.dtm_direct_seed_min)
-        : ''
-    );
-    fd.append(
-      'dtm_direct_seed_max',
-      values.dtm_direct_seed_max !== undefined && values.dtm_direct_seed_max !== null
-        ? String(values.dtm_direct_seed_max)
-        : ''
-    );
-    fd.append(
-      'dtm_transplant_min',
-      values.dtm_transplant_min !== undefined && values.dtm_transplant_min !== null
-        ? String(values.dtm_transplant_min)
-        : ''
-    );
-    fd.append(
-      'dtm_transplant_max',
-      values.dtm_transplant_max !== undefined && values.dtm_transplant_max !== null
-        ? String(values.dtm_transplant_max)
-        : ''
-    );
-    fd.append(
-      'plant_spacing_min',
-      values.plant_spacing_min != null ? String(values.plant_spacing_min) : ''
-    );
-    fd.append(
-      'plant_spacing_max',
-      values.plant_spacing_max != null ? String(values.plant_spacing_max) : ''
-    );
-    fd.append(
-      'row_spacing_min',
-      values.row_spacing_min != null ? String(values.row_spacing_min) : ''
-    );
-    fd.append(
-      'row_spacing_max',
-      values.row_spacing_max != null ? String(values.row_spacing_max) : ''
-    );
+    if (values.dtm_direct_seed_min != null) {
+      fd.append('dtm_direct_seed_min', String(values.dtm_direct_seed_min));
+    }
+    if (values.dtm_direct_seed_max != null) {
+      fd.append('dtm_direct_seed_max', String(values.dtm_direct_seed_max));
+    }
+    if (values.dtm_transplant_min != null) {
+      fd.append('dtm_transplant_min', String(values.dtm_transplant_min));
+    }
+    if (values.dtm_transplant_max != null) {
+      fd.append('dtm_transplant_max', String(values.dtm_transplant_max));
+    }
+    if (values.plant_spacing_min != null) {
+      fd.append('plant_spacing_min', String(values.plant_spacing_min));
+    }
+    if (values.plant_spacing_max != null) {
+      fd.append('plant_spacing_max', String(values.plant_spacing_max));
+    }
+    if (values.row_spacing_min != null) {
+      fd.append('row_spacing_min', String(values.row_spacing_min));
+    }
+    if (values.row_spacing_max != null) {
+      fd.append('row_spacing_max', String(values.row_spacing_max));
+    }
     const inputEl = document.getElementById('image') as HTMLInputElement | null;
     if (inputEl && inputEl.files && inputEl.files[0]) {
       fd.append('image', inputEl.files[0]);

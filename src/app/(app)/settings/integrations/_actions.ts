@@ -30,6 +30,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function logAndRedactDbError(context: string, err: unknown): string {
+  console.error(`[Integrations] ${context}`, err);
+  return 'Database error. Please try again.';
+}
+
 function parseDefaultSecret(
   raw: unknown
 ): { ciphertextB64?: string; ivB64?: string; tagB64?: string } | undefined {
@@ -92,7 +97,7 @@ export async function getIntegrationsPageData(): Promise<{
       calendarId: gSettings?.calendar_id ?? null,
       hasServiceAccount,
     },
-    error: gcalError ? `Database Error: ${gcalError.message}` : undefined,
+    error: gcalError ? logAndRedactDbError('google_calendar fetch failed', gcalError) : undefined,
   };
 }
 

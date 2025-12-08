@@ -5,11 +5,11 @@ import { ActivityForm } from '@/components/activities/ActivityForm';
 export default async function NewActivityPage({
   searchParams,
 }: Readonly<{
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  searchParams?: Promise<Readonly<Record<string, string | string[] | undefined>>>;
 }>) {
   const { locations, plots, beds, nurseries, error } = await getActivityFormOptions();
-  const sp = searchParams ? await searchParams : undefined;
-  const startParam = sp?.start;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const startParam = resolvedSearchParams?.start;
   const defaultStart =
     typeof startParam === 'string'
       ? startParam

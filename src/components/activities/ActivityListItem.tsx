@@ -5,6 +5,7 @@ import { WeatherBadge } from '@/components/weather/WeatherBadge';
 import { DeleteActivityDialog } from '@/components/activities/DeleteActivityDialog';
 import { deleteActivity } from '@/app/(app)/activities/_actions';
 import type { Tables } from '@/lib/database.types';
+import * as React from 'react';
 
 type ActivityRow = Tables<'activities'> & { locations?: { name?: string | null } | null };
 
@@ -35,6 +36,10 @@ interface ActivityListItemProps {
 }
 
 export function ActivityListItem({ activity: a, showTypeBadge = false }: ActivityListItemProps) {
+  const deleteActivityAction = React.useCallback(async (formData: FormData) => {
+    await deleteActivity(formData);
+  }, []);
+
   return (
     <li className="py-3">
       <div className="flex flex-col gap-1">
@@ -65,7 +70,7 @@ export function ActivityListItem({ activity: a, showTypeBadge = false }: Activit
             <Button asChild size="sm" variant="outline">
               <Link href={`/activities/${a.id}/edit`}>Edit</Link>
             </Button>
-            <form id={`delete-activity-${a.id}`} action={deleteActivity} className="hidden">
+            <form id={`delete-activity-${a.id}`} action={deleteActivityAction} className="hidden">
               <input type="hidden" name="id" value={a.id} />
             </form>
             <DeleteActivityDialog formId={`delete-activity-${a.id}`} />

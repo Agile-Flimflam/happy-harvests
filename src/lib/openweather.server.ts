@@ -13,6 +13,16 @@ const WeatherEntrySchema = z.object({
   icon: z.string(),
 });
 
+function openWeatherError(res: Response, body: string): Error {
+  // Log detailed response server-side for diagnostics while returning a generic message
+  console.error('OpenWeather API error', {
+    status: res.status,
+    statusText: res.statusText,
+    body,
+  });
+  return new Error('Weather service error');
+}
+
 const OpenWeatherOneCallSchema = z.object({
   timezone: z.string(),
   current: z.object({
@@ -70,7 +80,7 @@ export async function fetchWeatherByCoords(
   const res = await fetch(url.toString(), { method: 'GET', cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(text || res.statusText);
+    throw openWeatherError(res, text);
   }
 
   const json = OpenWeatherOneCallSchema.parse(await res.json());
@@ -141,7 +151,7 @@ export async function fetchForecastForDateByCoords(
   const res = await fetch(url.toString(), { method: 'GET', cache: 'no-store' });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(text || res.statusText);
+    throw openWeatherError(res, text);
   }
   const json = OpenWeatherOneCallSchema.parse(await res.json());
 

@@ -9,6 +9,7 @@ import type { LocationFormValues } from '@/lib/validation/locations';
 import { isValidCoordinatePair } from '@/lib/validation/locations';
 import { getValidatedMapboxToken } from '@/lib/mapbox-utils';
 import { setupFormControlPropertyFromInput } from '@/lib/form-utils';
+import { markMapboxClick } from '@/lib/mapbox-dialog-utils';
 import { Z_INDEX } from '@/lib/ui-constants';
 
 // Dynamically import AddressAutofill to avoid SSR issues
@@ -47,6 +48,29 @@ interface AddressAutofillRetrieveResponse {
     };
   }>;
   [key: string]: unknown;
+}
+
+function isValidRetrieveFeature(
+  feature: unknown
+): feature is AddressAutofillRetrieveResponse['features'][number] {
+  if (!feature || typeof feature !== 'object') return false;
+  const f = feature as Record<string, unknown>;
+  const props = f.properties as Record<string, unknown> | undefined;
+  const geometry = f.geometry as Record<string, unknown> | undefined;
+  const coords = geometry?.coordinates;
+  const coordsOk =
+    Array.isArray(coords) &&
+    coords.length >= 2 &&
+    typeof coords[0] === 'number' &&
+    typeof coords[1] === 'number';
+  return Boolean(props && geometry && coordsOk);
+}
+
+function isValidRetrieveResponse(res: unknown): res is AddressAutofillRetrieveResponse {
+  if (!res || typeof res !== 'object') return false;
+  const maybeFeatures = (res as Record<string, unknown>).features;
+  if (!Array.isArray(maybeFeatures) || maybeFeatures.length === 0) return false;
+  return maybeFeatures.every(isValidRetrieveFeature);
 }
 
 // Constants
@@ -255,7 +279,7 @@ class MapboxAutocompleteResourceManager {
       if (isMapboxElement) {
         // Mark the event so the dialog knows not to close
         // We don't stop propagation to allow Mapbox to handle the click
-        (e as (MouseEvent | PointerEvent) & { __isMapboxClick?: boolean }).__isMapboxClick = true;
+        markMapboxClick(e);
       }
     };
 
@@ -364,6 +388,17 @@ export function AddressAutocomplete({
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Validate provided formId to avoid silent failures when the form cannot be found
+  useEffect(() => {
+    if (!isMounted || !formId || typeof document === 'undefined') return;
+    const formEl = document.getElementById(formId);
+    if (!formEl || formEl.tagName !== 'FORM') {
+      const message = 'Form not found for the provided formId.';
+      console.warn('[AddressAutocomplete] ' + message, { formId });
+      setError(message);
+    }
+  }, [formId, isMounted]);
 
   // Workaround for browser extensions that try to access form.control
   // Some extensions (password managers, autofill tools) expect a 'control' property
@@ -487,7 +522,12 @@ export function AddressAutocomplete({
   );
 
   const handleRetrieve = useCallback(
-    (res: AddressAutofillRetrieveResponse) => {
+    (res: unknown) => {
+      if (!isValidRetrieveResponse(res)) {
+        setIsLoading(false);
+        setError('Invalid address data returned. Please try again.');
+        return;
+      }
       setIsLoading(false);
       setError(null);
 
@@ -692,7 +732,7 @@ export function AddressAutocomplete({
       <div className="isolate pointer-events-auto overflow-visible relative">
         <AddressAutofill
           accessToken={mapboxToken}
-          onRetrieve={handleRetrieve as (res: unknown) => void}
+          onRetrieve={handleRetrieve}
           onSuggest={handleSuggest}
           onSuggestError={handleSuggestError}
           options={{

@@ -144,31 +144,25 @@ type WeatherJson = {
 };
 
 function serializeWeatherToJson(w: Awaited<ReturnType<typeof fetchWeatherByCoords>>): WeatherJson {
-  const weatherDetails =
-    w.current?.weather && typeof w.current.weather === 'object'
-      ? {
-          id: typeof w.current.weather.id === 'number' ? w.current.weather.id : null,
-          main: typeof w.current.weather.main === 'string' ? w.current.weather.main : null,
-          description:
-            typeof w.current.weather.description === 'string'
-              ? w.current.weather.description
-              : null,
-          icon: typeof w.current.weather.icon === 'string' ? w.current.weather.icon : null,
-        }
-      : null;
-
   return {
-    timezone: typeof w.timezone === 'string' ? w.timezone : null,
+    timezone: w.timezone ?? null,
     current: {
-      dt: typeof w.current?.dt === 'number' ? w.current.dt : null,
-      sunrise: typeof w.current?.sunrise === 'number' ? w.current.sunrise : null,
-      sunset: typeof w.current?.sunset === 'number' ? w.current.sunset : null,
-      temp: typeof w.current?.temp === 'number' ? w.current.temp : null,
-      humidity: typeof w.current?.humidity === 'number' ? w.current.humidity : null,
-      weather: weatherDetails,
+      dt: w.current?.dt ?? null,
+      sunrise: w.current?.sunrise ?? null,
+      sunset: w.current?.sunset ?? null,
+      temp: w.current?.temp ?? null,
+      humidity: w.current?.humidity ?? null,
+      weather: w.current?.weather
+        ? {
+            id: w.current.weather.id ?? null,
+            main: w.current.weather.main ?? null,
+            description: w.current.weather.description ?? null,
+            icon: w.current.weather.icon ?? null,
+          }
+        : null,
     },
-    moonPhase: typeof w.moonPhase === 'number' ? w.moonPhase : null,
-    moonPhaseLabel: typeof w.moonPhaseLabel === 'string' ? w.moonPhaseLabel : null,
+    moonPhase: w.moonPhase ?? null,
+    moonPhaseLabel: w.moonPhaseLabel ?? null,
   };
 }
 
@@ -360,13 +354,21 @@ async function insertSoilAmendments(
   }
 }
 
-export async function updateActivity(formData: FormData): Promise<void> {
-  const supabase = await createSupabaseServerClient();
+export async function updateActivity(formData: FormData): Promise<ActivityFormState> {
   const id = Number(formData.get('id'));
-  if (!Number.isInteger(id) || id <= 0) return;
+  if (!Number.isInteger(id) || id <= 0) {
+    return { message: 'Invalid activity id', errors: { id: ['Invalid activity id'] } };
+  }
 
   const validated = ActivitySchema.safeParse(extractActivityFormData(formData));
-  if (!validated.success) return;
+  if (!validated.success) {
+    return {
+      message: 'Validation failed',
+      errors: validated.error.flatten().fieldErrors,
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
 
   // Weather recompute if location changed
   let weather: Json | null = null;
@@ -397,16 +399,30 @@ export async function updateActivity(formData: FormData): Promise<void> {
       weather,
     })
     .eq('id', id);
-  if (error) return;
+  if (error) {
+    console.error('Activities update error:', error);
+    return { message: `Database Error: ${errorToMessage(error)}`, errors: {} };
+  }
   revalidatePath('/activities');
+  return { message: 'Activity updated successfully', errors: {} };
 }
 
-export async function deleteActivity(formData: FormData): Promise<void> {
-  const supabase = await createSupabaseServerClient();
+export async function deleteActivity(formData: FormData): Promise<ActivityFormState> {
   const id = Number(formData.get('id'));
-  if (!Number.isInteger(id) || id <= 0) return;
-  await supabase.from('activities').delete().eq('id', id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return { message: 'Invalid activity id', errors: { id: ['Invalid activity id'] } };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from('activities').delete().eq('id', id);
+  if (error) {
+    console.error('Activities delete error:', error);
+    const message = `Database Error: ${errorToMessage(error)}`;
+    revalidatePath('/activities');
+    return { message, errors: { id: [message] } };
+  }
   revalidatePath('/activities');
+  return { message: 'Activity deleted successfully', errors: {} };
 }
 
 export async function getActivitiesGrouped(filters?: {
@@ -422,9 +438,12 @@ export async function getActivitiesGrouped(filters?: {
   if (error) return { error: `Database Error: ${error.message}` };
   const grouped: Record<string, Tables<'activities'>[]> = {};
   for (const row of data || []) {
-    const k = row.activity_type as string;
-    grouped[k] ||= [];
-    grouped[k].push(row);
+    const key =
+      typeof row.activity_type === 'string' && row.activity_type.trim().length > 0
+        ? row.activity_type
+        : 'unknown';
+    grouped[key] ||= [];
+    grouped[key].push(row);
   }
   return { grouped };
 }
@@ -449,23 +468,36 @@ export async function getActivitiesFlat(params?: {
   return { rows: data || [] };
 }
 
-export async function deleteActivitiesBulk(formData: FormData): Promise<void> {
-  const supabase = await createSupabaseServerClient();
+export async function deleteActivitiesBulk(formData: FormData): Promise<ActivityFormState> {
   const csv = getString(formData.get('ids'));
   const ids = csv
     .split(',')
     .map((s) => Number(s.trim()))
     .filter((n) => Number.isInteger(n) && n > 0);
-  if (!ids.length) return;
-  await supabase.from('activities').delete().in('id', ids);
+
+  if (!ids.length) {
+    return { message: 'No valid activity ids provided', errors: { ids: ['No valid ids'] } };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from('activities').delete().in('id', ids);
+  if (error) {
+    console.error('Activities bulk delete error:', error);
+    const message = `Database Error: ${errorToMessage(error)}`;
+    revalidatePath('/activities');
+    return { message, errors: { ids: [message] } };
+  }
   revalidatePath('/activities');
+  return { message: 'Activities deleted successfully', errors: {} };
 }
 
 export async function renameBed(formData: FormData): Promise<{ message: string }> {
   const supabase = await createSupabaseServerClient();
   const id = Number(formData.get('bed_id'));
   const name = getString(formData.get('name')).trim();
-  if (!Number.isInteger(id) || id <= 0 || !name) return { message: 'Missing bed id or name' };
+  if (!Number.isInteger(id) || id <= 0 || !name) {
+    return { message: 'Missing bed id or name' };
+  }
   const { error } = await supabase.from('beds').update({ name }).eq('id', id);
   if (error) return { message: `Database Error: ${errorToMessage(error)}` };
   return { message: 'Bed renamed' };

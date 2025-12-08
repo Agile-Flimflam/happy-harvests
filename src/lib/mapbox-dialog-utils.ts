@@ -15,6 +15,16 @@
  */
 export type MapboxMouseEvent = (MouseEvent | PointerEvent) & { __isMapboxClick?: boolean };
 
+// Track Mapbox-related click events without mutating native event objects.
+const mapboxClickEvents = new WeakSet<MouseEvent | PointerEvent>();
+
+/**
+ * Mark an event as originating from Mapbox UI (used to keep dialogs open).
+ */
+export function markMapboxClick(event: MouseEvent | PointerEvent): void {
+  mapboxClickEvents.add(event);
+}
+
 /**
  * Validates that a Mapbox autofill container actually exists in the document.
  * This helps prevent false positives from unrelated elements with similar naming patterns.
@@ -145,6 +155,11 @@ export function getElementAtPoint(event: MouseEvent | PointerEvent): HTMLElement
  * Determines if a click event is related to Mapbox components and should prevent dialog closing.
  */
 export function isMapboxRelatedClick(event: MapboxMouseEvent): boolean {
+  // Prefer WeakSet marker to avoid mutating native events
+  if (mapboxClickEvents.has(event)) {
+    return true;
+  }
+
   // Check if event was explicitly marked as a Mapbox click
   if (event.__isMapboxClick) {
     return true;

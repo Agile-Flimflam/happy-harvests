@@ -6,8 +6,15 @@ import CalendarHeaderWeather from './calendar/CalendarHeaderWeather';
 import { getDashboardOverview } from './actions';
 
 export default async function DashboardPage() {
-  const { cropVarietyCount, plotCount, plantingCount, primaryLocation, error } =
-    await getDashboardOverview();
+  const {
+    cropVarietyCount,
+    plotCount,
+    plantingCount,
+    primaryLocation,
+    cropVarietyError,
+    plotError,
+    plantingError,
+  } = await getDashboardOverview();
 
   return (
     <div>
@@ -30,7 +37,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{cropVarietyCount ?? 'N/A'}</div>
-              {error && <p className="text-xs text-red-500">Error loading</p>}
+              {cropVarietyError && <p className="text-xs text-red-500">{cropVarietyError}</p>}
             </CardContent>
           </Link>
         </Card>
@@ -42,7 +49,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{plotCount ?? 'N/A'}</div>
-              {error && <p className="text-xs text-red-500">Error loading</p>}
+              {plotError && <p className="text-xs text-red-500">{plotError}</p>}
             </CardContent>
           </Link>
         </Card>
@@ -54,7 +61,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{plantingCount ?? 'N/A'}</div>
-              {error && <p className="text-xs text-red-500">Error loading</p>}
+              {plantingError && <p className="text-xs text-red-500">{plantingError}</p>}
             </CardContent>
           </Link>
         </Card>
