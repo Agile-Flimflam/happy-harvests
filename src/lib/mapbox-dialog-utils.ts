@@ -148,7 +148,7 @@ export function getElementAtPoint(event: MouseEvent | PointerEvent): HTMLElement
     return null;
   }
   const element = document.elementFromPoint(event.clientX, event.clientY);
-  return element as HTMLElement | null;
+  return element instanceof HTMLElement ? element : null;
 }
 
 /**
@@ -165,7 +165,7 @@ export function isMapboxRelatedClick(event: MapboxMouseEvent): boolean {
     return true;
   }
 
-  const target = event.target as HTMLElement | null;
+  const target = event.target instanceof HTMLElement ? event.target : null;
   if (!target) return false;
 
   // Check if target is a Mapbox element

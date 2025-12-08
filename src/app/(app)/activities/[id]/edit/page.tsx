@@ -2,18 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { updateActivity, getActivityEditData } from '../../actions';
 import { EditActivityContent } from '@/components/activities/EditActivityContent';
 import { notFound } from 'next/navigation';
-
-function sanitizeErrorMessage(message?: string): string {
-  if (!message) return 'An unexpected error occurred';
-  const replacements: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  };
-  return message.replace(/[&<>"']/g, (ch) => replacements[ch] || '');
-}
+import { sanitizeErrorMessage } from '@/lib/sanitize';
 
 export default async function EditActivityPage({
   params,
@@ -22,7 +11,8 @@ export default async function EditActivityPage({
   const id = Number(resolvedParams?.id);
   if (!Number.isFinite(id)) return notFound();
   const { activity, locations, error } = await getActivityEditData(id);
-  const updateActivityAction = async (formData: FormData) => {
+  const updateActivityAction = async (formData: FormData): Promise<void> => {
+    'use server';
     await updateActivity(formData);
   };
   if (error) {

@@ -40,7 +40,8 @@ interface PlotFormProps {
 // Submit button is owned by parent dialog footer
 
 export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps) {
-  const isEditing = Boolean(plot?.plot_id);
+  const plotId = typeof plot?.plot_id === 'number' ? plot.plot_id : undefined;
+  const isEditing = Boolean(plotId);
   const action = isEditing ? updatePlot : createPlot;
   const initialState: PlotFormState = { message: '', errors: {}, plot: plot };
   const [state, dispatch] = useActionState(action, initialState);
@@ -50,7 +51,7 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
     resolver: zodResolver(PlotSchema) as Resolver<PlotFormValues>,
     mode: 'onSubmit',
     defaultValues: {
-      plot_id: plot?.plot_id ?? undefined,
+      plot_id: plotId,
       name: plot?.name ?? '',
       location_id: plot?.location_id ?? '',
     },
@@ -58,13 +59,19 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
 
   useEffect(() => {
     if (state.message) {
-      if (state.errors && Object.keys(state.errors || {}).length > 0) {
-        Object.entries(state.errors || {}).forEach(([field, errors]) => {
+      const fieldErrors = state.errors;
+      if (fieldErrors && Object.keys(fieldErrors).length > 0) {
+        const validFields: Array<keyof PlotFormValues> = ['plot_id', 'name', 'location_id'];
+        Object.entries(fieldErrors).forEach(([field, errors]) => {
           const message = Array.isArray(errors)
             ? errors[0]
             : (errors as unknown as string) || 'Invalid value';
-          // name and location_id are only expected keys
-          form.setError(field as keyof PlotFormValues, { message });
+          if (validFields.includes(field as keyof PlotFormValues)) {
+            form.setError(field as keyof PlotFormValues, { message });
+          } else {
+            // Surface unexpected errors to the user without attaching to a field
+            toast.error(message);
+          }
         });
         toast.error(state.message);
       } else {
@@ -81,7 +88,7 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
 
   const onSubmit: SubmitHandler<PlotFormValues> = async (values) => {
     const fd = new FormData();
-    if (isEditing && plot?.plot_id) fd.append('plot_id', String(plot.plot_id));
+    if (isEditing && plotId !== undefined) fd.append('plot_id', String(plotId));
     fd.append('name', values.name);
     fd.append('location_id', values.location_id ?? '');
     startTransition(() => {
@@ -98,7 +105,9 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
         noValidate
         className="space-y-4"
       >
-        {isEditing && <input type="hidden" name="plot_id" value={plot?.plot_id} />}
+        {isEditing && plotId !== undefined ? (
+          <input type="hidden" name="plot_id" value={plotId} />
+        ) : null}
 
         <FormField
           control={form.control}
@@ -127,7 +136,7 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
                   </SelectTrigger>
                   <SelectContent>
                     {locations.map((loc) => (
-                      <SelectItem key={loc.id} value={String(loc.id)}>
+                      <SelectItem key={loc.id} value={loc.id}>
                         {loc.name}
                       </SelectItem>
                     ))}

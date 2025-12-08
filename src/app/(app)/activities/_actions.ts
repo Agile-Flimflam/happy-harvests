@@ -67,8 +67,8 @@ function getNumber(data: FormDataEntryValue | null): number | null {
   if (typeof data !== 'string') return null;
   const trimmed = data.trim();
   if (!trimmed) return null;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? parsed : null;
+  // Return the parsed value so schema validation can flag non-finite numbers.
+  return Number(trimmed);
 }
 
 function extractActivityFormData(formData: FormData) {
@@ -125,13 +125,13 @@ export type BedOption = { id: number; plot_id: number; name: string | null };
 export type NurseryOption = { id: string; name: string; location_id: string };
 
 type WeatherJson = {
-  timezone: string | null;
+  timezone: string;
   current: {
-    dt: number | null;
+    dt: number;
     sunrise: number | null;
     sunset: number | null;
-    temp: number | null;
-    humidity: number | null;
+    temp: number;
+    humidity: number;
     weather: {
       id: number | null;
       main: string | null;
@@ -145,14 +145,14 @@ type WeatherJson = {
 
 function serializeWeatherToJson(w: Awaited<ReturnType<typeof fetchWeatherByCoords>>): WeatherJson {
   return {
-    timezone: w.timezone ?? null,
+    timezone: w.timezone,
     current: {
-      dt: w.current?.dt ?? null,
-      sunrise: w.current?.sunrise ?? null,
-      sunset: w.current?.sunset ?? null,
-      temp: w.current?.temp ?? null,
-      humidity: w.current?.humidity ?? null,
-      weather: w.current?.weather
+      dt: w.current.dt,
+      sunrise: w.current.sunrise ?? null,
+      sunset: w.current.sunset ?? null,
+      temp: w.current.temp,
+      humidity: w.current.humidity,
+      weather: w.current.weather
         ? {
             id: w.current.weather.id ?? null,
             main: w.current.weather.main ?? null,

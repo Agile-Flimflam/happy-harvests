@@ -2,14 +2,14 @@ import { createActivity, getActivityFormOptions } from '../actions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ActivityForm } from '@/components/activities/ActivityForm';
 
+type SearchParams = Record<string, string | string[] | undefined>;
+
 export default async function NewActivityPage({
   searchParams,
-}: Readonly<{
-  searchParams?: Promise<Readonly<Record<string, string | string[] | undefined>>>;
-}>) {
+}: Readonly<{ searchParams?: Promise<SearchParams> }>) {
   const { locations, plots, beds, nurseries, error } = await getActivityFormOptions();
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const startParam = resolvedSearchParams?.start;
+  const sp = searchParams ? await searchParams : {};
+  const startParam = sp.start;
   const defaultStart =
     typeof startParam === 'string'
       ? startParam

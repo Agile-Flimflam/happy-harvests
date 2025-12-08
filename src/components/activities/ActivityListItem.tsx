@@ -36,10 +36,9 @@ interface ActivityListItemProps {
 }
 
 export function ActivityListItem({ activity: a, showTypeBadge = false }: ActivityListItemProps) {
-  const deleteActivityAction = React.useCallback(async (formData: FormData) => {
+  const deleteActivityAction = React.useCallback(async (formData: FormData): Promise<void> => {
     await deleteActivity(formData);
   }, []);
-
   return (
     <li className="py-3">
       <div className="flex flex-col gap-1">

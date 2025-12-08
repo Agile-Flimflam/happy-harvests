@@ -11,6 +11,7 @@ type DetectedImage =
   | { error: string };
 
 async function detectImageType(file: File): Promise<DetectedImage> {
+  const declaredType = typeof file.type === 'string' ? file.type.trim().toLowerCase() : '';
   const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
 
   const isPng =
@@ -23,10 +24,22 @@ async function detectImageType(file: File): Promise<DetectedImage> {
     head[5] === 0x0a &&
     head[6] === 0x1a &&
     head[7] === 0x0a;
-  if (isPng) return { ext: 'png', mime: 'image/png' };
+  if (isPng) {
+    const allowedDeclared = declaredType ? ['image/png'] : null;
+    if (allowedDeclared && !allowedDeclared.includes(declaredType)) {
+      return { error: 'Avatar file type does not match the detected PNG content' };
+    }
+    return { ext: 'png', mime: 'image/png' };
+  }
 
   const isJpeg = head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
-  if (isJpeg) return { ext: 'jpg', mime: 'image/jpeg' };
+  if (isJpeg) {
+    const allowedDeclared = declaredType ? ['image/jpeg', 'image/jpg'] : null;
+    if (allowedDeclared && !allowedDeclared.includes(declaredType)) {
+      return { error: 'Avatar file type does not match the detected JPEG content' };
+    }
+    return { ext: 'jpg', mime: 'image/jpeg' };
+  }
 
   const isGif =
     head.length >= 6 &&
@@ -36,7 +49,13 @@ async function detectImageType(file: File): Promise<DetectedImage> {
     head[3] === 0x38 &&
     (head[4] === 0x39 || head[4] === 0x37) &&
     head[5] === 0x61;
-  if (isGif) return { ext: 'gif', mime: 'image/gif' };
+  if (isGif) {
+    const allowedDeclared = declaredType ? ['image/gif'] : null;
+    if (allowedDeclared && !allowedDeclared.includes(declaredType)) {
+      return { error: 'Avatar file type does not match the detected GIF content' };
+    }
+    return { ext: 'gif', mime: 'image/gif' };
+  }
 
   const isWebp =
     head.length >= 12 &&
@@ -48,7 +67,13 @@ async function detectImageType(file: File): Promise<DetectedImage> {
     head[9] === 0x45 && // E
     head[10] === 0x42 && // B
     head[11] === 0x50; // P
-  if (isWebp) return { ext: 'webp', mime: 'image/webp' };
+  if (isWebp) {
+    const allowedDeclared = declaredType ? ['image/webp'] : null;
+    if (allowedDeclared && !allowedDeclared.includes(declaredType)) {
+      return { error: 'Avatar file type does not match the detected WEBP content' };
+    }
+    return { ext: 'webp', mime: 'image/webp' };
+  }
 
   return { error: 'Avatar must be a valid PNG, JPEG, GIF, or WEBP image' };
 }
@@ -60,12 +85,19 @@ export async function inviteUserAction(input: { email: string }) {
   }
 
   const admin = createSupabaseAdminClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:4000';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (!siteUrl) {
+    return { ok: false, error: 'Site URL is not configured for invitations.' };
+  }
   const redirectTo = `${siteUrl}/auth/update-password`;
   try {
     const { data, error } = await admin.auth.admin.inviteUserByEmail(input.email, { redirectTo });
     if (error) return { ok: false, error: error.message };
-    return { ok: true, userId: data?.user?.id };
+    const userId = data?.user?.id;
+    if (!userId) {
+      return { ok: false, error: 'Invitation succeeded but user id was not returned.' };
+    }
+    return { ok: true, userId };
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return { ok: false, error: message };
@@ -78,7 +110,10 @@ export async function inviteUserWithRoleAction(input: { email: string; role: 'ad
     return { ok: false, error: 'Unauthorized' };
   }
   const admin = createSupabaseAdminClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:4000';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (!siteUrl) {
+    return { ok: false, error: 'Site URL is not configured for invitations.' };
+  }
   const redirectTo = `${siteUrl}/auth/update-password`;
   try {
     const { data, error } = await admin.auth.admin.inviteUserByEmail(input.email, { redirectTo });
@@ -168,6 +203,7 @@ export async function listUsersWithRolesAction(): Promise<{
       })
     : [];
   const idToProfile = new Map<string, ProfileRow>(profileRows.map((p) => [p.id, p]));
+  const fallbackCreatedAtIso = new Date(0).toISOString();
   const users: ListedUser[] = authUsers.map((u) => ({
     id: u.id,
     email: u.email || '',
@@ -176,7 +212,7 @@ export async function listUsersWithRolesAction(): Promise<{
       const fallback = (u.email || '').split('@')[0] || '';
       return p?.display_name || p?.full_name || fallback;
     })(),
-    createdAt: typeof u.created_at === 'string' ? u.created_at : 'Unknown',
+    createdAt: typeof u.created_at === 'string' ? u.created_at : fallbackCreatedAtIso,
     role: idToProfile.get(u.id)?.role || 'member',
     avatarUrl: idToProfile.get(u.id)?.avatar_url ?? null,
   }));
@@ -220,7 +256,7 @@ export async function updateUserProfileAction(formData: FormData): Promise<{
   const roleRaw = formData.get('role');
   const roleInput = typeof roleRaw === 'string' ? roleRaw.toLowerCase() : '';
   if (roleInput !== 'admin' && roleInput !== 'member') {
-    return { ok: false, error: 'Invalid role' };
+    return { ok: false, error: 'Invalid role. Must be either "admin" or "member".' };
   }
   const role: 'admin' | 'member' = roleInput;
   const displayName = String(formData.get('displayName') || '');
@@ -228,7 +264,13 @@ export async function updateUserProfileAction(formData: FormData): Promise<{
   if (typeof avatarEntry === 'string') {
     return { ok: false, error: 'Avatar must be an uploaded image file' };
   }
-  const file = (avatarEntry instanceof File ? avatarEntry : null) as File | null;
+  let file: File | null = null;
+  if (avatarEntry instanceof File) {
+    if (avatarEntry.size === 0) {
+      return { ok: false, error: 'Avatar file is empty; please choose an image' };
+    }
+    file = avatarEntry;
+  }
   if (!userId) return { ok: false, error: 'Missing userId' };
 
   let avatarUrl: string | null = null;

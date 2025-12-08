@@ -30,7 +30,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function logAndRedactDbError(context: string, err: unknown): string {
+function logDbErrorAndRedact(context: string, err: unknown): string {
   console.error(`[Integrations] ${context}`, err);
   return 'Database error. Please try again.';
 }
@@ -97,7 +97,7 @@ export async function getIntegrationsPageData(): Promise<{
       calendarId: gSettings?.calendar_id ?? null,
       hasServiceAccount,
     },
-    error: gcalError ? logAndRedactDbError('google_calendar fetch failed', gcalError) : undefined,
+    error: gcalError ? logDbErrorAndRedact('google_calendar fetch failed', gcalError) : undefined,
   };
 }
 
@@ -108,21 +108,40 @@ function getBool(formData: FormData, key: string): boolean {
   return s === 'on' || s === 'true' || s === '1';
 }
 
-async function getFormDataText(
+const isValidDateYMD = (value: string): boolean => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(d.getTime());
+};
+
+const isValidTimeHM = (value: string): boolean => {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return false;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+};
+
+function getFormDataText(
   formData: FormData,
   key: string,
   options?: { allowFile?: boolean; fieldLabel?: string }
 ): Promise<string> {
   const { allowFile = false, fieldLabel } = options ?? {};
   const value = formData.get(key);
-  if (typeof value === 'string') return value;
+
+  if (typeof value === 'string') {
+    return Promise.resolve(value);
+  }
+
   if (value instanceof File) {
     if (!allowFile) {
       throw new Error(`${fieldLabel ?? key} must be provided as text`);
     }
-    return await value.text();
+    return value.text();
   }
-  return '';
+
+  return Promise.resolve('');
 }
 
 export async function saveOpenWeatherSettings(
@@ -312,6 +331,7 @@ export async function createTestEventAction(
   const colorId = (await getFormDataText(formData, 'colorId')).trim();
 
   if (!date) return { ok: false, message: 'Date is required' };
+  if (!isValidDateYMD(date)) return { ok: false, message: 'Date must be in YYYY-MM-DD format' };
 
   const event: import('googleapis').calendar_v3.Schema$Event = {
     summary: title,
@@ -323,6 +343,9 @@ export async function createTestEventAction(
   if (isAllDay) {
     // All-day event
     const startDate = new Date(date + 'T00:00:00.000Z');
+    if (!Number.isFinite(startDate.getTime())) {
+      return { ok: false, message: 'Invalid start date' };
+    }
     const nextDay = new Date(startDate);
     nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
@@ -331,11 +354,37 @@ export async function createTestEventAction(
   } else {
     // Timed event
     if (!startTime) return { ok: false, message: 'Start time is required for timed events' };
+    if (!isValidTimeHM(startTime)) {
+      return { ok: false, message: 'Start time must be in HH:MM (24h) format' };
+    }
+    if (!isValidDateYMD(endDate)) {
+      return { ok: false, message: 'End date must be in YYYY-MM-DD format' };
+    }
+    if (endTime && !isValidTimeHM(endTime)) {
+      return { ok: false, message: 'End time must be in HH:MM (24h) format' };
+    }
+
+    const startDateObj = new Date(`${date}T${startTime}:00`);
+    if (!Number.isFinite(startDateObj.getTime())) {
+      return { ok: false, message: 'Invalid start date/time' };
+    }
+
+    let endDateTime: string;
+    if (endTime) {
+      const endDateObj = new Date(`${endDate}T${endTime}:00`);
+      if (!Number.isFinite(endDateObj.getTime())) {
+        return { ok: false, message: 'Invalid end date/time' };
+      }
+      endDateTime = `${endDate}T${endTime}:00`;
+    } else {
+      const endDateObj = new Date(startDateObj.getTime() + 60 * 60 * 1000);
+      const iso = endDateObj.toISOString();
+      const computedDate = iso.slice(0, 10);
+      const computedTime = iso.slice(11, 16);
+      endDateTime = `${computedDate}T${computedTime}:00`;
+    }
 
     const startDateTime = `${date}T${startTime}:00`;
-    const endDateTime = endTime
-      ? `${endDate}T${endTime}:00`
-      : `${date}T${(parseInt(startTime.split(':')[0]) + 1).toString().padStart(2, '0')}:${startTime.split(':')[1]}:00`;
 
     event.start = { dateTime: startDateTime, timeZone: timezone };
     event.end = { dateTime: endDateTime, timeZone: timezone };

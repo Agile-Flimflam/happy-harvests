@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { listUsersWithRolesAction, inviteUserWithRoleAction, ensureAdminUser } from './actions';
+import { sanitizeErrorMessage } from '@/lib/sanitize';
 import InviteUserDialog from './ui/InviteUserDialog';
 import UsersTable from './ui/UsersTable';
 import PageHeader from '@/components/page-header';
@@ -10,6 +11,7 @@ export default async function UsersPage() {
   if (!ok) notFound();
 
   const { users = [], error } = await listUsersWithRolesAction();
+  const safeError = error ? sanitizeErrorMessage(error) : null;
 
   return (
     <div className="space-y-8">
@@ -18,9 +20,9 @@ export default async function UsersPage() {
         action={<InviteUserDialog onInvite={inviteUserWithRoleAction} />}
       />
       <PageContent>
-        {error ? (
+        {safeError ? (
           <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            {error}
+            {safeError}
           </div>
         ) : null}
         <UsersTable initialUsers={users} />

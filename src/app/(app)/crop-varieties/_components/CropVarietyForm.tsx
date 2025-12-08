@@ -74,20 +74,21 @@ function isValidBlobUrl(url: string): boolean {
     return false;
   }
   try {
-    const parsedUrl = new URL(url);
-    // Blob URLs should have protocol 'blob:' and a pathname (the UUID part)
-    if (parsedUrl.protocol !== 'blob:' || !parsedUrl.pathname || parsedUrl.pathname.length === 0) {
-      return false;
-    }
-    // Validate the origin (part after `blob:`) - reject dangerous protocols
     const withoutScheme = url.slice('blob:'.length);
     const slashIndex = withoutScheme.indexOf('/');
-    const originPart = slashIndex === -1 ? withoutScheme : withoutScheme.slice(0, slashIndex);
-    if (!originPart) return false;
-    if (originPart === 'null') return true;
-    const originProtocol = new URL(originPart).protocol.toLowerCase();
+    if (slashIndex <= 0) return false;
+    const originPart = withoutScheme.slice(0, slashIndex).trim();
+    const pathPart = withoutScheme.slice(slashIndex + 1);
+
+    // Ensure there is a UUID/path portion after the origin
+    if (!originPart || !pathPart) return false;
+
+    // blob:null/<uuid> is valid for opaque origins; do not attempt to parse "null" as a URL
+    if (originPart.toLowerCase() === 'null') return true;
+
+    const originUrl = new URL(originPart);
     const allowedOriginProtocols = new Set<string>(['http:', 'https:']);
-    return allowedOriginProtocols.has(originProtocol);
+    return allowedOriginProtocols.has(originUrl.protocol);
   } catch {
     // Invalid URL format - reject (this catches blob:javascript:alert(1) type attacks)
     return false;
@@ -292,12 +293,18 @@ export function CropVarietyForm({
   }, []);
 
   const onSubmit = async (values: CropVarietyFormValues) => {
+    if (!Number.isFinite(values.crop_id)) {
+      form.setError('crop_id', { message: 'Please select a crop' });
+      toast.error('Please select a crop');
+      return;
+    }
+    const cropId = values.crop_id;
     const sanitizedName = sanitizePlainText(values.name);
     const sanitizedLatinName = sanitizePlainText(values.latin_name);
     const sanitizedNotes = sanitizePlainText(values.notes ?? '');
     const fd = new FormData();
     if (isEditing && cropVariety?.id) fd.append('id', String(cropVariety.id));
-    fd.append('crop_id', String(values.crop_id));
+    fd.append('crop_id', String(cropId));
     fd.append('name', sanitizedName);
     fd.append('latin_name', sanitizedLatinName);
     fd.append('is_organic', values.is_organic ? 'on' : 'off');

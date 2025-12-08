@@ -26,17 +26,34 @@ import {
 } from '@/components/ui/empty';
 
 type ActivityRow = Tables<'activities'> & { locations?: { name?: string | null } | null };
+type SearchParams = Record<string, string | string[] | undefined>;
 
 function normalizeActivityRows(
   rows: (Tables<'activities'> & { locations?: { name?: string | null } | null })[] | undefined
 ): ActivityRow[] {
-  return (rows ?? []).map((row) => ({
+  if (!rows?.length) return [];
+
+  let needsNormalization = false;
+  for (const row of rows) {
+    const loc = row.locations;
+    if (loc !== undefined && loc !== null && typeof loc !== 'object') {
+      needsNormalization = true;
+      break;
+    }
+    const name = (loc as { name?: unknown } | null | undefined)?.name;
+    if (name !== undefined && name !== null && typeof name !== 'string') {
+      needsNormalization = true;
+      break;
+    }
+  }
+
+  if (!needsNormalization) return rows as ActivityRow[];
+
+  return rows.map((row) => ({
     ...row,
     locations: row.locations ? { name: row.locations.name ?? null } : null,
   }));
 }
-
-type SearchParams = Record<string, string | string[] | undefined>;
 
 function firstParamValue(param?: string | string[]): string | undefined {
   if (typeof param === 'string') return param;
@@ -46,9 +63,7 @@ function firstParamValue(param?: string | string[]): string | undefined {
 
 export default async function ActivitiesPage({
   searchParams,
-}: Readonly<{
-  searchParams?: Promise<SearchParams>;
-}>) {
+}: Readonly<{ searchParams?: Promise<SearchParams> }>) {
   const { locations = [], error: locationsError } = await getActivityLocations();
   const sp = searchParams ? await searchParams : {};
   const typeParam = firstParamValue(sp.type);

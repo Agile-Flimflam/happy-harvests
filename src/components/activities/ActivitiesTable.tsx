@@ -144,7 +144,7 @@ export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps
     .join(',');
 
   const handleBulkDelete = React.useCallback(
-    async (formData: FormData) => {
+    async (formData: FormData): Promise<void> => {
       await bulkDeleteAction(formData);
     },
     [bulkDeleteAction]

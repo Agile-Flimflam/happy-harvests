@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Leaf, Sprout, Tractor } from 'lucide-react';
 import CalendarHeaderWeather from './calendar/CalendarHeaderWeather';
 import { getDashboardOverview } from './actions';
+import { sanitizeErrorMessage } from '@/lib/sanitize';
 
 export default async function DashboardPage() {
   const {
@@ -15,6 +16,9 @@ export default async function DashboardPage() {
     plotError,
     plantingError,
   } = await getDashboardOverview();
+  const safeCropVarietyError = cropVarietyError ? sanitizeErrorMessage(cropVarietyError) : null;
+  const safePlotError = plotError ? sanitizeErrorMessage(plotError) : null;
+  const safePlantingError = plantingError ? sanitizeErrorMessage(plantingError) : null;
 
   return (
     <div>
@@ -37,7 +41,9 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{cropVarietyCount ?? 'N/A'}</div>
-              {cropVarietyError && <p className="text-xs text-red-500">{cropVarietyError}</p>}
+              {safeCropVarietyError && (
+                <p className="text-xs text-red-500">{safeCropVarietyError}</p>
+              )}
             </CardContent>
           </Link>
         </Card>
@@ -49,7 +55,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{plotCount ?? 'N/A'}</div>
-              {plotError && <p className="text-xs text-red-500">{plotError}</p>}
+              {safePlotError && <p className="text-xs text-red-500">{safePlotError}</p>}
             </CardContent>
           </Link>
         </Card>
@@ -61,7 +67,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{plantingCount ?? 'N/A'}</div>
-              {plantingError && <p className="text-xs text-red-500">{plantingError}</p>}
+              {safePlantingError && <p className="text-xs text-red-500">{safePlantingError}</p>}
             </CardContent>
           </Link>
         </Card>

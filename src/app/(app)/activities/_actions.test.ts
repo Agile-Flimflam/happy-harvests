@@ -347,6 +347,20 @@ describe('Activities Actions', () => {
       expect(Object.keys(result.errors || {}).length).toBeGreaterThan(0);
     });
 
+    it('should surface validation errors for non-finite numeric inputs', async () => {
+      const formData = new FormData();
+      formData.set('activity_type', 'irrigation');
+      formData.set('started_at', '2023-10-27T10:00:00');
+      formData.set('duration_minutes', 'Infinity');
+      formData.set('cost', '-Infinity');
+
+      const result = await createActivity({ message: '' }, formData);
+
+      expect(result.message).toBe('Validation failed');
+      expect(result.errors?.duration_minutes?.length).toBeGreaterThan(0);
+      expect(result.errors?.cost?.length).toBeGreaterThan(0);
+    });
+
     it('should handle database insert error', async () => {
       const formData = new FormData();
       formData.set('activity_type', 'irrigation');
