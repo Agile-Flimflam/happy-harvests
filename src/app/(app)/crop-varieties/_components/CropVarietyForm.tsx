@@ -49,7 +49,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { setupFormControlProperty } from '@/lib/form-utils';
+import { setupFormControlProperty, setupGlobalFormControlListener } from '@/lib/form-utils';
 
 type CropVariety = Tables<'crop_varieties'> & {
   crops?: { name: string } | null;
@@ -285,6 +285,11 @@ export function CropVarietyForm({
       setupFormControlProperty(inlineCropFormRef.current);
     }
   }, [isCropDialogOpen]);
+
+  // Global safety for aggressive browser extensions
+  useEffect(() => {
+    setupGlobalFormControlListener();
+  }, []);
 
   const onSubmit = async (values: CropVarietyFormValues) => {
     const sanitizedName = sanitizePlainText(values.name);

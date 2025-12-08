@@ -3,15 +3,25 @@ import { updateActivity, getActivityEditData } from '../../actions';
 import { EditActivityContent } from '@/components/activities/EditActivityContent';
 import { notFound } from 'next/navigation';
 
+function sanitizeErrorMessage(message?: string): string {
+  if (!message) return 'An unexpected error occurred';
+  return message.replace(/[<>]/g, '');
+}
+
 export default async function EditActivityPage({
   params,
 }: Readonly<{ params: Promise<{ id: string }> }>) {
-  const { id: idParam } = await params;
-  const id = Number(idParam);
+  const resolvedParams = await params;
+  const id = Number(resolvedParams?.id);
   if (!Number.isFinite(id)) return notFound();
   const { activity, locations, error } = await getActivityEditData(id);
   if (error) {
-    return <div className="text-red-500 text-sm">{error}</div>;
+    const safeError = sanitizeErrorMessage(error);
+    return (
+      <div className="text-red-500 text-sm" role="alert">
+        {safeError}
+      </div>
+    );
   }
   if (!activity) return notFound();
   return (

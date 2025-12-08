@@ -7,9 +7,9 @@ export default async function NewActivityPage({
 }: Readonly<{
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }>) {
-  const sp = searchParams ? await searchParams : {};
   const { locations, plots, beds, nurseries, error } = await getActivityFormOptions();
-  const startParam = sp.start;
+  const sp = searchParams ? await searchParams : undefined;
+  const startParam = sp?.start;
   const defaultStart =
     typeof startParam === 'string'
       ? startParam

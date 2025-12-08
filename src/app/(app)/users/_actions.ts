@@ -4,6 +4,8 @@ import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 import { getUserAndProfile } from '@/lib/supabase-server';
 import { isAdmin } from '@/lib/authz';
 
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5MB
+
 export async function inviteUserAction(input: { email: string }) {
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) {
@@ -83,7 +85,7 @@ export async function listUsersWithRolesAction(): Promise<{ users: ListedUser[];
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin.auth.admin.listUsers();
   if (error) return { users: [], error: error.message };
-  const authUsers = data.users;
+  const authUsers = Array.isArray(data?.users) ? data.users : [];
   const ids = authUsers.map((u) => u.id).filter(Boolean) as string[];
   if (ids.length === 0) return { users: [] };
   const { data: profiles, error: profilesError } = await admin
@@ -175,12 +177,25 @@ export async function updateUserProfileAction(formData: FormData): Promise<{
   let avatarUrl: string | null = null;
   try {
     if (file && file instanceof File && file.size > 0) {
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      if (file.size > MAX_AVATAR_BYTES) {
+        return { ok: false, error: 'Avatar must be 5MB or smaller' };
+      }
+      const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'] as const;
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      const isAllowedExt = allowedExtensions.includes(ext as (typeof allowedExtensions)[number]);
+      const isImageType = typeof file.type === 'string' && file.type.startsWith('image/');
+      if (!isAllowedExt || !isImageType) {
+        return {
+          ok: false,
+          error: 'Avatar must be an image of type jpg, jpeg, png, gif, or webp',
+        };
+      }
+      const contentType = file.type || `image/${ext || 'jpeg'}`;
       const path = `${userId}/${Date.now()}.${ext}`;
       const { error: upErr } = await admin.storage.from('avatars').upload(path, file, {
         cacheControl: '3600',
         upsert: false,
-        contentType: file.type || 'image/*',
+        contentType,
       });
       if (upErr) return { ok: false, error: upErr.message };
       const { data: pub } = admin.storage.from('avatars').getPublicUrl(path);

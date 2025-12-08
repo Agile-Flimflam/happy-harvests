@@ -63,6 +63,14 @@ export async function getIntegrationsPageData(): Promise<{
   googleCalendar: GoogleCalendarIntegrationSettings;
   error?: string;
 }> {
+  const { user, profile } = await getUserAndProfile();
+  if (!user || !isAdmin(profile)) {
+    return {
+      openWeather: { enabled: false, hasKey: false },
+      googleCalendar: { enabled: false, calendarId: null, hasServiceAccount: false },
+      error: 'Unauthorized',
+    };
+  }
   const integration = await getOpenWeatherIntegration();
   const admin = createSupabaseAdminClient();
   const { data: gcalData, error: gcalError } = await admin
@@ -95,10 +103,20 @@ function getBool(formData: FormData, key: string): boolean {
   return s === 'on' || s === 'true' || s === '1';
 }
 
-async function getFormDataText(formData: FormData, key: string): Promise<string> {
+async function getFormDataText(
+  formData: FormData,
+  key: string,
+  options?: { allowFile?: boolean; fieldLabel?: string }
+): Promise<string> {
+  const { allowFile = true, fieldLabel } = options ?? {};
   const value = formData.get(key);
   if (typeof value === 'string') return value;
-  if (value instanceof File) return await value.text();
+  if (value instanceof File) {
+    if (!allowFile) {
+      throw new Error(`${fieldLabel ?? key} must be provided as text`);
+    }
+    return await value.text();
+  }
   return '';
 }
 
@@ -111,7 +129,9 @@ export async function saveOpenWeatherSettings(
     return { message: 'Unauthorized', ok: false };
   }
   const enabled = getBool(formData, 'enabled');
-  const apiKey = (await getFormDataText(formData, 'apiKey')).trim();
+  const apiKey = (
+    await getFormDataText(formData, 'apiKey', { allowFile: false, fieldLabel: 'API key' })
+  ).trim();
   try {
     await setOpenWeatherIntegration({
       enabled,
@@ -133,7 +153,9 @@ export async function testOpenWeatherKeyAction(
   if (!user || !isAdmin(profile)) {
     return { ok: false, message: 'Unauthorized' };
   }
-  const apiKey = (await getFormDataText(formData, 'apiKey')).trim();
+  const apiKey = (
+    await getFormDataText(formData, 'apiKey', { allowFile: false, fieldLabel: 'API key' })
+  ).trim();
   const keyToTest = apiKey || undefined;
   const result = await testOpenWeatherApiKey(keyToTest);
   return {
@@ -148,12 +170,10 @@ export async function saveOpenWeatherSettingsDirect(formData: FormData): Promise
   if (!user || !isAdmin(profile)) {
     return;
   }
-  const enabledRaw = formData.get('enabled');
-  const enabled =
-    typeof enabledRaw === 'string'
-      ? ['on', 'true', '1'].includes(enabledRaw.toLowerCase())
-      : Boolean(enabledRaw);
-  const apiKey = (await getFormDataText(formData, 'apiKey')).trim();
+  const enabled = getBool(formData, 'enabled');
+  const apiKey = (
+    await getFormDataText(formData, 'apiKey', { allowFile: false, fieldLabel: 'API key' })
+  ).trim();
   await setOpenWeatherIntegration({
     enabled,
     apiKey: apiKey ? apiKey : undefined,
@@ -165,7 +185,9 @@ export async function saveOpenWeatherSettingsDirect(formData: FormData): Promise
 export async function testOpenWeatherKeyActionDirect(formData: FormData): Promise<void> {
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) return;
-  const apiKey = (await getFormDataText(formData, 'apiKey')).trim();
+  const apiKey = (
+    await getFormDataText(formData, 'apiKey', { allowFile: false, fieldLabel: 'API key' })
+  ).trim();
   const keyToTest = apiKey || undefined;
   await testOpenWeatherApiKey(keyToTest);
 }
@@ -194,13 +216,14 @@ export async function saveGoogleCalendarSettingsDirect(formData: FormData): Prom
   if (!user || !isAdmin(profile)) return;
   // Persist into external_integrations with service = 'google_calendar'
   // We will reuse supabase admin client here to avoid adding a new file; keep logic inline
-  const enabledRaw = formData.get('enabled');
-  const enabled =
-    typeof enabledRaw === 'string'
-      ? ['on', 'true', '1'].includes(enabledRaw.toLowerCase())
-      : Boolean(enabledRaw);
+  const enabled = getBool(formData, 'enabled');
   const calendarId = (await getFormDataText(formData, 'calendarId')).trim();
-  const serviceAccountJson = (await getFormDataText(formData, 'serviceAccountJson')).trim();
+  const serviceAccountJson = (
+    await getFormDataText(formData, 'serviceAccountJson', {
+      allowFile: false,
+      fieldLabel: 'Service account JSON',
+    })
+  ).trim();
 
   const admin = (await import('@/lib/supabase-admin')).createSupabaseAdminClient();
   const baseSettings = buildGoogleCalendarSettings(calendarId);
@@ -253,7 +276,12 @@ export async function testGoogleCalendarAction(
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) return { ok: false, message: 'Unauthorized' };
   const calendarId = (await getFormDataText(formData, 'calendarId')).trim();
-  const serviceAccountJson = (await getFormDataText(formData, 'serviceAccountJson')).trim();
+  const serviceAccountJson = (
+    await getFormDataText(formData, 'serviceAccountJson', {
+      allowFile: false,
+      fieldLabel: 'Service account JSON',
+    })
+  ).trim();
   const res = await testGoogleCalendar({
     calendarId: calendarId || undefined,
     serviceAccountJson: serviceAccountJson || undefined,
@@ -275,7 +303,8 @@ export async function createTestEventAction(
   const startTime = (await getFormDataText(formData, 'startTime')).trim();
   const endDate = (await getFormDataText(formData, 'endDate')).trim() || date;
   const endTime = (await getFormDataText(formData, 'endTime')).trim();
-  const timezone = (await getFormDataText(formData, 'timezone')).trim() || 'America/Los_Angeles';
+  const timezone = (await getFormDataText(formData, 'timezone')).trim();
+  if (!timezone) return { ok: false, message: 'Timezone is required' };
   const colorId = (await getFormDataText(formData, 'colorId')).trim();
 
   if (!date) return { ok: false, message: 'Date is required' };

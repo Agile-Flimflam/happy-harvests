@@ -41,7 +41,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty';
-import { setupFormControlProperty } from '@/lib/form-utils';
+import { setupFormControlProperty, setupGlobalFormControlListener } from '@/lib/form-utils';
 
 type Nursery = Tables<'nurseries'>;
 type Location = Tables<'locations'>;
@@ -74,6 +74,14 @@ export default function NurseriesPageContent({
   const [deleting, setDeleting] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const hasNurseries = nurseries.length > 0;
+  const dialogDescription = editing
+    ? 'Update nursery name, location, and optional notes.'
+    : 'Add a nursery by providing name, location, and optional notes.';
+
+  // Global safety for aggressive browser extensions
+  useEffect(() => {
+    setupGlobalFormControlListener();
+  }, []);
 
   // Initialize/reset form state when opening dialog
   useEffect(() => {
@@ -253,7 +261,7 @@ export default function NurseriesPageContent({
         open={open}
         onOpenChange={setOpen}
         title={editing ? 'Edit Nursery' : 'Add Nursery'}
-        description={editing ? 'Update nursery details' : 'Create a new nursery'}
+        description={dialogDescription}
         submitLabel={editing ? 'Save changes' : 'Create nursery'}
         formId="nurseryForm"
       >

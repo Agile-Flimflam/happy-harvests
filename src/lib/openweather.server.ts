@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { getOpenWeatherIntegration } from './integrations';
 import { hawaiianMoonPhaseLabel, lunarPhaseFractionAtLocalNoon } from './hawaiian-moon';
 
@@ -5,18 +6,35 @@ export type FetchWeatherOptions = {
   units?: 'imperial' | 'metric';
 };
 
-type OpenWeatherOneCall = {
-  timezone: string;
-  current: {
-    dt: number;
-    sunrise?: number;
-    sunset?: number;
-    temp: number;
-    humidity: number;
-    weather?: Array<{ id: number; main: string; description: string; icon: string }>;
-  };
-  daily?: Array<{ moon_phase?: number }>;
-};
+const WeatherEntrySchema = z.object({
+  id: z.number(),
+  main: z.string(),
+  description: z.string(),
+  icon: z.string(),
+});
+
+const OpenWeatherOneCallSchema = z.object({
+  timezone: z.string(),
+  current: z.object({
+    dt: z.number(),
+    sunrise: z.number().optional(),
+    sunset: z.number().optional(),
+    temp: z.number(),
+    humidity: z.number(),
+    weather: z.array(WeatherEntrySchema).optional(),
+  }),
+  daily: z
+    .array(
+      z.object({
+        dt: z.number().optional(),
+        temp: z.object({ day: z.number().optional() }).optional(),
+        moon_phase: z.number().optional(),
+        humidity: z.number().optional(),
+        weather: z.array(WeatherEntrySchema).optional(),
+      })
+    )
+    .optional(),
+});
 
 export async function fetchWeatherByCoords(
   latitude: number,
@@ -55,9 +73,9 @@ export async function fetchWeatherByCoords(
     throw new Error(text || res.statusText);
   }
 
-  const json = (await res.json()) as OpenWeatherOneCall;
+  const json = OpenWeatherOneCallSchema.parse(await res.json());
 
-  const currentWeather = (json.current.weather && json.current.weather[0]) || null;
+  const currentWeather = json.current.weather?.[0] ?? null;
   let moonPhase = json.daily && json.daily[0] ? json.daily[0].moon_phase : undefined;
   // Fallback: compute from local-noon at the location's timezone
   if (moonPhase == null) {
@@ -125,15 +143,7 @@ export async function fetchForecastForDateByCoords(
     const text = await res.text().catch(() => '');
     throw new Error(text || res.statusText);
   }
-  const json = (await res.json()) as OpenWeatherOneCall & {
-    daily?: Array<{
-      dt: number;
-      temp?: { day?: number };
-      moon_phase?: number;
-      humidity?: number;
-      weather?: Array<{ id: number; main: string; description: string; icon: string }>;
-    }>;
-  };
+  const json = OpenWeatherOneCallSchema.parse(await res.json());
 
   const targetYmd = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
@@ -148,9 +158,11 @@ export async function fetchForecastForDateByCoords(
   } | null = null;
   let bestDiff = Infinity;
   for (const d of json.daily || []) {
-    const diff = Math.abs((d.dt || 0) - targetDayStart);
+    const dayDt = typeof d.dt === 'number' ? d.dt : null;
+    if (dayDt == null) continue;
+    const diff = Math.abs(dayDt - targetDayStart);
     if (diff < bestDiff) {
-      best = d;
+      best = { ...d, dt: dayDt };
       bestDiff = diff;
     }
   }

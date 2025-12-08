@@ -24,6 +24,12 @@ type WeatherResponse = {
   moonPhaseLabel?: string;
 };
 
+function sanitizeLocationId(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return /^[A-Za-z0-9_-]+$/.test(trimmed) ? trimmed : null;
+}
+
 export default function CalendarHeaderWeather({ id, latitude, longitude }: Props) {
   const [state, setState] = useState<
     | { status: 'idle' }
@@ -38,10 +44,15 @@ export default function CalendarHeaderWeather({ id, latitude, longitude }: Props
       typeof longitude === 'number' &&
       Number.isFinite(latitude) &&
       Number.isFinite(longitude);
-    if (!id || !hasValidCoords) return;
+    const safeId = sanitizeLocationId(id);
+    if (!safeId || !hasValidCoords) {
+      if (!hasValidCoords) return;
+      setState({ status: 'error', message: 'Invalid location id' });
+      return;
+    }
     let cancelled = false;
     setState({ status: 'loading' });
-    fetch(`/api/locations/${id}/weather`, { cache: 'no-store' })
+    fetch(`/api/locations/${encodeURIComponent(safeId)}/weather`, { cache: 'no-store' })
       .then(async (res) => {
         if (!res.ok) throw new Error((await res.json()).error || res.statusText);
         return res.json();
