@@ -1,36 +1,46 @@
-import { NextResponse } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { fetchWeatherByCoords } from '@/lib/openweather.server'
+import { NextResponse } from 'next/server';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { fetchWeatherByCoords } from '@/lib/openweather.server';
 
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const supabase = await createSupabaseServerClient()
-    const pathname = new URL(req.url).pathname
-    const match = pathname.match(/\/api\/locations\/([^/]+)\/weather$/)
-    const id = match?.[1]
-    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+    const supabase = await createSupabaseServerClient();
+    const pathname = new URL(req.url).pathname;
+    const match = pathname.match(/\/api\/locations\/([^/]+)\/weather$/);
+    const id = match?.[1];
+    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+
+    // Server-side guard against malformed ids (mirrors client sanitization)
+    const SAFE_LOCATION_ID_REGEX = /^[A-Za-z0-9_-]{1,64}$/;
+    const UUID_REGEX =
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!UUID_REGEX.test(id) && !SAFE_LOCATION_ID_REGEX.test(id)) {
+      return NextResponse.json({ error: 'Invalid location id' }, { status: 400 });
+    }
 
     const { data: location, error } = await supabase
       .from('locations')
       .select('id, latitude, longitude')
       .eq('id', id)
-      .single()
-    if (error || !location) return NextResponse.json({ error: 'Location not found' }, { status: 404 })
+      .single();
+    if (error || !location)
+      return NextResponse.json({ error: 'Location not found' }, { status: 404 });
 
-    const { latitude, longitude } = location as { latitude: number | null; longitude: number | null }
+    const { latitude, longitude } = location as {
+      latitude: number | null;
+      longitude: number | null;
+    };
     if (latitude == null || longitude == null) {
-      return NextResponse.json({ error: 'Location coordinates are missing' }, { status: 400 })
+      return NextResponse.json({ error: 'Location coordinates are missing' }, { status: 400 });
     }
 
-    const weather = await fetchWeatherByCoords(latitude, longitude, { units: 'imperial' })
+    const weather = await fetchWeatherByCoords(latitude, longitude, { units: 'imperial' });
 
-    return NextResponse.json(weather, { status: 200 })
+    return NextResponse.json(weather, { status: 200 });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-
-

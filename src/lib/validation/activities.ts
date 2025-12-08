@@ -14,27 +14,27 @@ export const ActivitySchema = z.object({
     .nullable(),
   duration_minutes: z.coerce
     .number()
-    .finite({ message: 'Must be a finite number' })
+    .finite({ message: 'Must be a valid finite number' })
     .int()
     .min(0)
     .optional()
     .nullable(),
   labor_hours: z.coerce
     .number()
-    .finite({ message: 'Must be a finite number' })
+    .finite({ message: 'Must be a valid finite number' })
     .min(0)
     .optional()
     .nullable(),
   location_id: z.string().uuid().optional().nullable(),
   plot_id: z.coerce
     .number()
-    .finite({ message: 'Must be a finite number' })
+    .finite({ message: 'Must be a valid finite number' })
     .int()
     .optional()
     .nullable(),
   bed_id: z.coerce
     .number()
-    .finite({ message: 'Must be a finite number' })
+    .finite({ message: 'Must be a valid finite number' })
     .int()
     .optional()
     .nullable(),
@@ -44,14 +44,14 @@ export const ActivitySchema = z.object({
   asset_name: z.string().optional().nullable(),
   quantity: z.coerce
     .number()
-    .finite({ message: 'Must be a finite number' })
+    .finite({ message: 'Must be a valid finite number' })
     .min(0)
     .optional()
     .nullable(),
   unit: z.string().optional().nullable(),
   cost: z.coerce
     .number()
-    .finite({ message: 'Must be a finite number' })
+    .finite({ message: 'Must be a valid finite number' })
     .min(0)
     .optional()
     .nullable(),
@@ -62,7 +62,7 @@ export const ActivitySchema = z.object({
         name: z.string().min(1),
         quantity: z.coerce
           .number()
-          .finite({ message: 'Amendment quantity must be a finite number' })
+          .finite({ message: 'Amendment quantity must be a valid finite number' })
           .optional()
           .nullable(),
         unit: z.string().optional().nullable(),

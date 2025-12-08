@@ -396,9 +396,10 @@ export async function createTestEventAction(
       }
       endDateTime = `${endDate}T${endTime}:00`;
     } else {
-      // Note: this simple +1h UTC math does not account for DST transitions.
-      // For production recurrence/duration handling consider a TZ-aware library.
-      const endDateObj = new Date(startDateObj.getTime() + 60 * 60 * 1000);
+      // Advance by 1h using local time math to better respect DST transitions for the parsed time.
+      // For full TZ awareness, use a library like luxon/temporal.
+      const endDateObj = new Date(startDateObj);
+      endDateObj.setHours(endDateObj.getHours() + 1);
       if (!Number.isFinite(endDateObj.getTime())) {
         return { ok: false, message: 'Invalid end date/time' };
       }

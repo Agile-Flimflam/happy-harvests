@@ -345,13 +345,19 @@ async function insertSoilAmendments(
   if (data.activity_type === 'soil_amendment' && Array.isArray(data.amendments) && activityId) {
     const rows = data.amendments
       .filter((a) => a && typeof a.name === 'string' && a.name.trim().length > 0)
-      .map((a) => ({
-        activity_id: activityId,
-        name: a.name,
-        quantity: a.quantity ?? null,
-        unit: a.unit ?? null,
-        notes: a.notes ?? null,
-      }));
+      .map((a) => {
+        const quantity =
+          typeof a.quantity === 'number' && Number.isFinite(a.quantity) ? a.quantity : null;
+        const unit = typeof a.unit === 'string' ? a.unit : null;
+        const notes = typeof a.notes === 'string' ? a.notes : null;
+        return {
+          activity_id: activityId,
+          name: a.name,
+          quantity,
+          unit,
+          notes,
+        };
+      });
     if (rows.length) {
       const { error: aerr } = await supabase.from('activities_soil_amendments').insert(rows);
       if (aerr) console.error('Insert amendments error:', aerr);

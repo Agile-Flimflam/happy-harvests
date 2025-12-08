@@ -296,16 +296,12 @@ export function CropVarietyForm({
   }, []);
 
   const onSubmit = async (values: CropVarietyFormValues) => {
-    if (
-      typeof values.crop_id !== 'number' ||
-      !Number.isFinite(values.crop_id) ||
-      values.crop_id <= 0
-    ) {
+    const cropId = Number(values.crop_id);
+    if (!Number.isFinite(cropId) || cropId <= 0) {
       form.setError('crop_id', { message: 'Please select a crop' });
       toast.error('Please select a crop');
       return;
     }
-    const cropId = values.crop_id;
     const sanitizedName = sanitizePlainText(values.name);
     const sanitizedLatinName = sanitizePlainText(values.latin_name);
     const sanitizedNotes = sanitizePlainText(values.notes ?? '');

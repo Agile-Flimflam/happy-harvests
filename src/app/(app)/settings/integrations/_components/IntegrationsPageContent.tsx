@@ -5,7 +5,13 @@ import PageContent from '@/components/page-content';
 import { getIntegrationsPageData } from '../actions';
 
 export async function IntegrationsPageContent() {
-  const { openWeather, googleCalendar, error } = await getIntegrationsPageData();
+  const data = (await getIntegrationsPageData()) ?? {
+    openWeather: { enabled: false, hasKey: false },
+    googleCalendar: { enabled: false, calendarId: null, hasServiceAccount: false },
+    error: 'Unable to load integrations',
+  };
+
+  const { openWeather, googleCalendar, error } = data;
   const safeOpenWeather = openWeather ?? { enabled: false, hasKey: false };
   const safeGoogleCalendar = googleCalendar ?? {
     enabled: false,

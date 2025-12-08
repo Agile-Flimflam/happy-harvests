@@ -38,7 +38,7 @@ export async function createPlot(
   }
 
   const plotData: PlotInsert = {
-    name: validatedFields.data.name as string,
+    name: validatedFields.data.name,
     location_id: validatedFields.data.location_id,
   };
 
@@ -61,8 +61,9 @@ export async function updatePlot(
   formData: FormData
 ): Promise<PlotFormState> {
   const supabase = await createSupabaseServerClient();
-  const idRaw = formData.get('plot_id') as string;
-  const id = idRaw ? parseInt(idRaw, 10) : NaN;
+  const plotIdValue = formData.get('plot_id');
+  const id =
+    typeof plotIdValue === 'string' && plotIdValue.trim() !== '' ? parseInt(plotIdValue, 10) : NaN;
   if (!id || Number.isNaN(id)) {
     return { message: 'Error: Missing Plot ID for update.' };
   }
@@ -107,7 +108,7 @@ export async function getLocationsList(): Promise<{ locations?: Location[]; erro
     if (error) {
       return { error: `Database Error: ${error.message}` };
     }
-    return { locations: (data as Location[]) || [] };
+    return { locations: data ?? [] };
   } catch (e) {
     console.error('Unexpected Error fetching locations:', e);
     return { error: 'An unexpected error occurred while fetching locations.' };
@@ -162,7 +163,7 @@ export async function getPlotsWithBeds(): Promise<{ plots?: PlotWithBeds[]; erro
       console.error('Supabase Error fetching plots/beds:', error);
       return { error: `Database Error: ${error.message}` };
     }
-    const plotsData = data as PlotDataWithMaybeBeds[] | null;
+    const plotsData = data;
     const plotsWithEnsuredBeds: PlotWithBeds[] =
       plotsData?.map((plot: PlotDataWithMaybeBeds) => ({
         ...plot,
@@ -205,11 +206,13 @@ export async function createBed(
       errors: validatedFields.error.flatten().fieldErrors,
     };
   }
+  const bedNameValue = formData.get('name');
+  const bedName = typeof bedNameValue === 'string' ? bedNameValue : null;
   const bedData: BedInsert = {
     plot_id: validatedFields.data.plot_id,
     length_inches: validatedFields.data.length_inches ?? null,
     width_inches: validatedFields.data.width_inches ?? null,
-    name: (formData.get('name') as string | null) ?? null,
+    name: bedName,
   };
   try {
     const { error } = await supabase.from('beds').insert(bedData);
@@ -233,8 +236,8 @@ export async function updateBed(
   formData: FormData
 ): Promise<BedFormState> {
   const supabase = await createSupabaseServerClient();
-  const idRaw = formData.get('id') as string;
-  const id = idRaw ? parseInt(idRaw, 10) : NaN;
+  const idValue = formData.get('id');
+  const id = typeof idValue === 'string' && idValue.trim() !== '' ? parseInt(idValue, 10) : NaN;
   if (!id || Number.isNaN(id)) {
     return { message: 'Error: Missing Bed ID for update.' };
   }
@@ -252,11 +255,18 @@ export async function updateBed(
       bed: prevState.bed,
     };
   }
+  const updateNameValue = formData.get('name');
+  const updateName =
+    typeof updateNameValue === 'string'
+      ? updateNameValue
+      : updateNameValue === null
+        ? null
+        : undefined;
   const bedDataToUpdate: BedUpdate = {
     plot_id: validatedFields.data.plot_id,
     length_inches: validatedFields.data.length_inches ?? null,
     width_inches: validatedFields.data.width_inches ?? null,
-    name: (formData.get('name') as string | null) ?? undefined,
+    name: updateName,
   };
   try {
     const { error } = await supabase.from('beds').update(bedDataToUpdate).eq('id', id);

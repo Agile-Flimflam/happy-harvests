@@ -322,8 +322,16 @@ export async function updateUserProfileAction(formData: FormData): Promise<{
     if (displayName) updatePayload.display_name = displayName;
     if (avatarUrl !== null) updatePayload.avatar_url = avatarUrl;
 
-    const { error: updErr } = await admin.from('profiles').update(updatePayload).eq('id', userId);
+    const { data: updatedRows, error: updErr } = await admin
+      .from('profiles')
+      .update(updatePayload)
+      .eq('id', userId)
+      .select('id')
+      .maybeSingle();
     if (updErr) return { ok: false, error: updErr.message };
+    if (!updatedRows?.id) {
+      return { ok: false, error: 'Profile not found for update' };
+    }
 
     return { ok: true, user: { id: userId, displayName, role, avatarUrl } };
   } catch (e: unknown) {

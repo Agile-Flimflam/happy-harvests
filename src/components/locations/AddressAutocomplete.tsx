@@ -77,7 +77,8 @@ function isValidRetrieveResponse(res: unknown): res is AddressAutofillRetrieveRe
   const features = record.features;
   const hasValidFeatureArray =
     Array.isArray(features) &&
-    (features as unknown[]).some((item): item is AddressAutofillRetrieveFeature =>
+    features.length > 0 &&
+    (features as unknown[]).every((item): item is AddressAutofillRetrieveFeature =>
       isValidRetrieveFeature(item)
     );
 
@@ -89,14 +90,13 @@ function isValidRetrieveResponse(res: unknown): res is AddressAutofillRetrieveRe
 function getRetrieveFeature(
   res: AddressAutofillRetrieveResponse
 ): AddressAutofillRetrieveFeature | null {
-  const validArrayFeature =
-    Array.isArray(res.features) &&
-    (res.features as unknown[]).find((item): item is AddressAutofillRetrieveFeature =>
-      isValidRetrieveFeature(item)
+  if (Array.isArray(res.features)) {
+    const validFeatures = (res.features as unknown[]).filter(
+      (item): item is AddressAutofillRetrieveFeature => isValidRetrieveFeature(item)
     );
-
-  if (validArrayFeature) {
-    return validArrayFeature;
+    if (validFeatures.length > 0) {
+      return validFeatures[0];
+    }
   }
 
   if (isValidRetrieveFeature(res.feature)) {
