@@ -31,8 +31,9 @@ type SearchParams = Record<string, string | string[] | undefined>;
 function normalizeActivityRows(
   rows: (Tables<'activities'> & { locations?: unknown })[] | undefined
 ): ActivityRow[] {
-  if (!rows?.length) return [];
-  return rows.map((row) => {
+  const safeRows = rows ?? [];
+  if (!safeRows.length) return [];
+  return safeRows.map((row) => {
     const loc = row.locations;
     if (loc === undefined) return row as ActivityRow;
     if (loc === null) return { ...row, locations: null };

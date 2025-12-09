@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { fetchWeatherByCoords } from '@/lib/openweather.server';
+import type { Tables } from '@/lib/database.types';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,14 +25,11 @@ export async function GET(req: Request) {
       .from('locations')
       .select('id, latitude, longitude')
       .eq('id', id)
-      .single();
+      .single<Pick<Tables<'locations'>, 'id' | 'latitude' | 'longitude'>>();
     if (error || !location)
       return NextResponse.json({ error: 'Location not found' }, { status: 404 });
 
-    const { latitude, longitude } = location as {
-      latitude: number | null;
-      longitude: number | null;
-    };
+    const { latitude, longitude } = location;
     if (latitude == null || longitude == null) {
       return NextResponse.json({ error: 'Location coordinates are missing' }, { status: 400 });
     }

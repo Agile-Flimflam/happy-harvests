@@ -7,12 +7,14 @@ import { sanitizeErrorMessage } from '@/lib/sanitize';
 export default async function EditActivityPage({
   params,
 }: Readonly<{ params: Promise<{ id: string }> }>) {
-  const resolvedParams = await params;
+  const resolvedParams = params ? await params : undefined;
   const id = Number(resolvedParams?.id);
   if (!Number.isFinite(id)) return notFound();
   const { activity, locations, error } = await getActivityEditData(id);
   const updateActivityAction = async (formData: FormData): Promise<void> => {
     'use server';
+    // Enforce server-side ID trust: override any client-provided value with the URL param
+    formData.set('id', String(id));
     const result = await updateActivity(formData);
     const message = result?.message ?? '';
     const hasFieldErrors =
@@ -42,7 +44,6 @@ export default async function EditActivityPage({
         </CardHeader>
         <CardContent>
           <form action={updateActivityAction}>
-            <input type="hidden" name="id" value={id} />
             <EditActivityContent activity={activity} locations={locations || []} />
           </form>
         </CardContent>

@@ -137,13 +137,14 @@ export async function inviteUserWithRoleAction(input: { email: string; role: 'ad
     const { data, error } = await admin.auth.admin.inviteUserByEmail(input.email, { redirectTo });
     if (error) return { ok: false, error: error.message };
     const userId = data.user?.id;
-    if (userId) {
-      const { error: roleErr } = await admin
-        .from('profiles')
-        .update({ role: input.role })
-        .eq('id', userId);
-      if (roleErr) return { ok: false, error: roleErr.message };
+    if (!userId) {
+      return { ok: false, error: 'Invitation succeeded but user id was not returned.' };
     }
+    const { error: roleErr } = await admin
+      .from('profiles')
+      .update({ role: input.role })
+      .eq('id', userId);
+    if (roleErr) return { ok: false, error: roleErr.message };
     return { ok: true, userId };
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';

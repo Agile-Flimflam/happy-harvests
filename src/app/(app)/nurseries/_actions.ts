@@ -7,6 +7,15 @@ import { revalidatePath } from 'next/cache';
 type Nursery = Tables<'nurseries'>;
 type Location = Tables<'locations'>;
 
+function getStringField(value: FormDataEntryValue | null): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+const isUuid = (value: string): boolean =>
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(
+    value
+  );
+
 export async function getNurseries(): Promise<{ nurseries?: Nursery[]; error?: string }> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
@@ -73,19 +82,23 @@ export async function actionCreateNursery(
     return { message: 'Unauthorized' };
   }
   const supabase = await createSupabaseServerClient();
-  const name = String(formData.get('name') || '');
-  const location_id = String(formData.get('location_id') || '');
-  const notesValue = formData.get('notes');
-  const notes = typeof notesValue === 'string' ? notesValue : undefined;
-  if (!name.trim())
+  const nameValue = getStringField(formData.get('name'));
+  const locationValue = getStringField(formData.get('location_id'));
+  const notesValue = getStringField(formData.get('notes'));
+  const name = nameValue?.trim() ?? '';
+  const location_id = locationValue?.trim() ?? '';
+  const notes = notesValue ?? undefined;
+  if (!name)
     return {
       message: 'Please fix the highlighted fields.',
       errors: { name: ['Name is required'] },
     };
-  if (!location_id)
+  if (!location_id || !isUuid(location_id))
     return {
       message: 'Please fix the highlighted fields.',
-      errors: { location_id: ['Location is required'] },
+      errors: {
+        location_id: [location_id ? 'Location is invalid' : 'Location is required'],
+      },
     };
   const { error } = await supabase
     .from('nurseries')
@@ -104,21 +117,33 @@ export async function actionUpdateNursery(
     return { message: 'Unauthorized' };
   }
   const supabase = await createSupabaseServerClient();
-  const id = String(formData.get('id') || '');
-  const name = String(formData.get('name') || '');
-  const location_id = String(formData.get('location_id') || '');
-  const notesValue = formData.get('notes');
-  const notes = typeof notesValue === 'string' ? notesValue : undefined;
-  if (!id) return { message: 'Something went wrong. Please close and try again.' };
+  const idValue = getStringField(formData.get('id'));
+  const nameValue = getStringField(formData.get('name'));
+  const locationValue = getStringField(formData.get('location_id'));
+  const notesValue = getStringField(formData.get('notes'));
+  const id = idValue?.trim() ?? '';
+  const name = nameValue?.trim() ?? '';
+  const location_id = locationValue?.trim() ?? '';
+  const notes = notesValue ?? undefined;
+  if (!id || !isUuid(id)) {
+    return {
+      message: 'Please fix the highlighted fields.',
+      errors: {
+        id: [id ? 'Invalid id' : 'Something went wrong. Please close and try again.'],
+      },
+    };
+  }
   if (!name.trim())
     return {
       message: 'Please fix the highlighted fields.',
       errors: { name: ['Name is required'] },
     };
-  if (!location_id)
+  if (!location_id || !isUuid(location_id))
     return {
       message: 'Please fix the highlighted fields.',
-      errors: { location_id: ['Location is required'] },
+      errors: {
+        location_id: [location_id ? 'Location is invalid' : 'Location is required'],
+      },
     };
   const { error } = await supabase
     .from('nurseries')
