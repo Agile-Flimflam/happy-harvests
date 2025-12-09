@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { ActivityListItem } from './ActivityListItem';
 import '@testing-library/jest-dom';
-import type { Tables } from '@/lib/database.types';
+import type { Tables, Database } from '@/lib/database.types';
 
 // Mock dependencies
 jest.mock('@/app/(app)/activities/_actions', () => ({
@@ -33,10 +33,11 @@ type ActivityRow = Tables<'activities'> & { locations?: { name?: string | null }
 
 describe('ActivityListItem', () => {
   const mockActivity: Partial<ActivityRow> = {
-    id: '123',
-    activity_type: 'planting',
+    id: 123,
+    activity_type: 'irrigation' as Database['public']['Enums']['activity_type'],
     started_at: '2023-10-27T10:00:00Z',
     labor_hours: 2.5,
+    location_id: null,
     notes: 'Test notes',
     crop: 'Tomato',
     asset_name: 'Field A',
@@ -50,12 +51,6 @@ describe('ActivityListItem', () => {
         },
       },
     },
-    created_at: '2023-10-27T10:00:00Z',
-    updated_at: '2023-10-27T10:00:00Z',
-    user_id: 'user-1',
-    organization_id: 'org-1',
-    completed_at: null,
-    status: 'pending',
   };
 
   // We need to cast mockActivity to ActivityRow because Partial<ActivityRow> might miss required fields
@@ -94,8 +89,8 @@ describe('ActivityListItem', () => {
   it('renders type badge when showTypeBadge is true', () => {
     render(<ActivityListItem activity={activity} showTypeBadge={true} />);
 
-    // Should show "planting" badge
-    expect(screen.getByText('planting')).toBeInTheDocument();
+    // Should show the activity type badge
+    expect(screen.getByText('irrigation')).toBeInTheDocument();
 
     // Should NOT show the "2.5h" badge in the header (it moves to the details line)
     expect(screen.getByText(/Hours: 2.5/)).toBeInTheDocument();

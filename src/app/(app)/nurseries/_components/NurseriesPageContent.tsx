@@ -81,7 +81,7 @@ export default function NurseriesPageContent({
   // Global safety for aggressive browser extensions
   useEffect(() => {
     setupGlobalFormControlListener();
-  }, []);
+  }, []); // run once on mount to avoid duplicate listeners
 
   // Initialize/reset form state when opening dialog
   useEffect(() => {

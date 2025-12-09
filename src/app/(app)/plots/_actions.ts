@@ -11,12 +11,36 @@ type Bed = Tables<'beds'>;
 type Location = Tables<'locations'>;
 type PlotInsert = Database['public']['Tables']['plots']['Insert'];
 type PlotUpdate = Database['public']['Tables']['plots']['Update'];
+type BedWithPlotLocation = Bed & {
+  plots: { name: string | null; location_id: string | null } | null;
+};
 
 export type PlotFormState = {
   message: string;
   errors?: Record<string, string | string[] | undefined>;
   plot?: Plot | null;
 };
+
+function numberFromFormValue(v: FormDataEntryValue | null): number | undefined {
+  if (typeof v !== 'string') return undefined;
+  const n = Number(v.trim());
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function stringFromFormValue(v: FormDataEntryValue | null): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const trimmed = v.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function numberOrNullFromFormValue(v: FormDataEntryValue | null): number | null | undefined {
+  if (v === null) return null;
+  if (typeof v !== 'string') return undefined;
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : undefined;
+}
 
 export async function createPlot(
   prevState: PlotFormState,
@@ -26,7 +50,7 @@ export async function createPlot(
 
   const validatedFields = PlotSchema.safeParse({
     name: formData.get('name'),
-    location_id: String(formData.get('location_id') ?? ''),
+    location_id: stringFromFormValue(formData.get('location_id')),
   });
 
   if (!validatedFields.success) {
@@ -70,7 +94,7 @@ export async function updatePlot(
   const validatedFields = PlotSchema.safeParse({
     plot_id: id,
     name: formData.get('name'),
-    location_id: String(formData.get('location_id') ?? ''),
+    location_id: stringFromFormValue(formData.get('location_id')),
   });
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -195,9 +219,9 @@ export async function createBed(
 ): Promise<BedFormState> {
   const supabase = await createSupabaseServerClient();
   const validatedFields = BedSchema.safeParse({
-    plot_id: formData.get('plot_id'),
-    length_inches: formData.get('length_inches') || null,
-    width_inches: formData.get('width_inches') || null,
+    plot_id: numberFromFormValue(formData.get('plot_id')),
+    length_inches: numberOrNullFromFormValue(formData.get('length_inches')),
+    width_inches: numberOrNullFromFormValue(formData.get('width_inches')),
   });
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -243,9 +267,9 @@ export async function updateBed(
   }
   const validatedFields = BedSchema.safeParse({
     id: id,
-    plot_id: formData.get('plot_id'),
-    length_inches: formData.get('length_inches') || null,
-    width_inches: formData.get('width_inches') || null,
+    plot_id: numberFromFormValue(formData.get('plot_id')),
+    length_inches: numberOrNullFromFormValue(formData.get('length_inches')),
+    width_inches: numberOrNullFromFormValue(formData.get('width_inches')),
   });
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -311,18 +335,19 @@ export async function deleteBed(id: string | number): Promise<{ message: string 
   }
 }
 
-export async function getBeds(): Promise<{ beds?: Bed[]; error?: string }> {
+export async function getBeds(): Promise<{ beds?: BedWithPlotLocation[]; error?: string }> {
   const supabase = await createSupabaseServerClient();
   try {
     const { data, error } = await supabase
       .from('beds')
-      .select('*, plots(location)')
+      .select('*, plots(name,location_id)')
       .order('id', { ascending: true });
     if (error) {
       console.error('Supabase Error fetching beds:', error);
       return { error: `Database Error: ${error.message}` };
     }
-    return { beds: data || [] };
+    const beds: BedWithPlotLocation[] = (data ?? []) as BedWithPlotLocation[];
+    return { beds };
   } catch (e) {
     console.error('Unexpected Error fetching beds:', e);
     return { error: 'An unexpected error occurred while fetching beds.' };

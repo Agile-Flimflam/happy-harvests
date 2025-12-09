@@ -30,8 +30,6 @@ export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps
   const [confirmOpen, setConfirmOpen] = React.useState(false);
 
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'started_at', desc: true }]);
-  const selectedRef = React.useRef<Record<string, boolean>>({});
-  selectedRef.current = selected;
 
   const toggleAll = React.useCallback(
     (checked: boolean) => {
@@ -56,7 +54,7 @@ export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps
         cell: ({ row }) => (
           <input
             type="checkbox"
-            checked={!!selectedRef.current[String(row.original.id)]}
+            checked={!!selected[String(row.original.id)]}
             onChange={(e) => toggleOne(String(row.original.id), e.currentTarget.checked)}
           />
         ),
@@ -126,7 +124,7 @@ export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps
         enableSorting: false,
       },
     ],
-    [toggleAll, toggleOne]
+    [toggleAll, toggleOne, selected]
   );
 
   const table = useReactTable({

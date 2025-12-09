@@ -486,7 +486,11 @@ describe('Activities Actions', () => {
 
       const result = await updateActivity(formData);
 
-      expect(result).toEqual({ message: 'Activity updated successfully', errors: {} });
+      expect(result).toEqual({
+        success: true,
+        message: 'Activity updated successfully',
+        errors: {},
+      });
       expect(revalidatePath).toHaveBeenCalledWith('/activities');
     });
 
@@ -496,6 +500,7 @@ describe('Activities Actions', () => {
 
       const result = await updateActivity(formData);
 
+      expect(result.success).toBe(false);
       expect(result.message).toBe('Invalid activity id');
       expect(result.errors?.id).toBeDefined();
       expect(mockSupabaseClient.from).not.toHaveBeenCalled();
@@ -509,6 +514,7 @@ describe('Activities Actions', () => {
 
       const result = await updateActivity(formData);
 
+      expect(result.success).toBe(false);
       expect(result.message).toBe('Validation failed');
       expect(result.errors).toBeDefined();
       expect(mockSupabaseClient.from).not.toHaveBeenCalled();
@@ -527,6 +533,7 @@ describe('Activities Actions', () => {
 
       const result = await updateActivity(formData);
 
+      expect(result.success).toBe(false);
       expect(result.message).toBe('Database Error: Update failed');
       expect(revalidatePath).not.toHaveBeenCalled();
     });
@@ -558,6 +565,7 @@ describe('Activities Actions', () => {
       const result = await updateActivity(formData);
 
       expect(fetchWeatherByCoords).toHaveBeenCalled();
+      expect(result.success).toBe(true);
       expect(result.message).toBe('Activity updated successfully');
       expect(revalidatePath).toHaveBeenCalledWith('/activities');
     });
@@ -574,6 +582,7 @@ describe('Activities Actions', () => {
       const result = await updateActivity(formData);
 
       expect(fetchWeatherByCoords).not.toHaveBeenCalled();
+      expect(result.success).toBe(true);
       expect(result.message).toBe('Activity updated successfully');
     });
   });
@@ -590,7 +599,11 @@ describe('Activities Actions', () => {
 
       expect(mockSupabaseClient.from).toHaveBeenCalledWith('activities');
       expect(revalidatePath).toHaveBeenCalledWith('/activities');
-      expect(result).toEqual({ message: 'Activity deleted successfully', errors: {} });
+      expect(result).toEqual({
+        success: true,
+        message: 'Activity deleted successfully',
+        errors: {},
+      });
     });
 
     it('should return early for invalid ID', async () => {
@@ -809,7 +822,11 @@ describe('Activities Actions', () => {
 
       expect(queryChain.in).toHaveBeenCalledWith('id', [1, 2, 3]);
       expect(revalidatePath).toHaveBeenCalledWith('/activities');
-      expect(result).toEqual({ message: 'Activities deleted successfully', errors: {} });
+      expect(result).toEqual({
+        success: true,
+        message: 'Activities deleted successfully',
+        errors: {},
+      });
     });
 
     it('should return early for empty IDs string', async () => {
@@ -839,6 +856,7 @@ describe('Activities Actions', () => {
       const result = await deleteActivitiesBulk(formData);
 
       expect(queryChain.in).toHaveBeenCalledWith('id', [1, 2, 3]);
+      expect(result.success).toBe(true);
       expect(result.message).toBe('Activities deleted successfully');
     });
 
@@ -853,6 +871,7 @@ describe('Activities Actions', () => {
       const result = await deleteActivitiesBulk(formData);
 
       expect(queryChain.in).toHaveBeenCalledWith('id', [1, 2, 3]);
+      expect(result.success).toBe(true);
       expect(result.message).toBe('Activities deleted successfully');
     });
   });

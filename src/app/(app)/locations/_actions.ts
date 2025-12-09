@@ -19,6 +19,7 @@ export type LocationFormState = {
 
 function valueOrNull(v: FormDataEntryValue | null): string | null {
   if (v === null) return null;
+  if (v instanceof File) return null;
   const s = String(v);
   return s.trim() === '' ? null : s;
 }
@@ -40,7 +41,7 @@ export async function createLocation(
 ): Promise<LocationFormState> {
   const supabase = await createSupabaseServerClient();
   const validated = LocationSchema.safeParse({
-    name: formData.get('name'),
+    name: valueOrNull(formData.get('name')),
     street: valueOrNull(formData.get('street')),
     city: valueOrNull(formData.get('city')),
     state: valueOrNull(formData.get('state')),
@@ -101,7 +102,7 @@ export async function updateLocation(
     return { message: 'Error: Invalid Location ID format.' };
   }
   const validated = LocationSchema.safeParse({
-    name: formData.get('name'),
+    name: valueOrNull(formData.get('name')),
     street: valueOrNull(formData.get('street')),
     city: valueOrNull(formData.get('city')),
     state: valueOrNull(formData.get('state')),

@@ -53,12 +53,7 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
     defaultValues: {
       plot_id: plotId,
       name: plot?.name ?? '',
-      location_id:
-        typeof plot?.location_id === 'string'
-          ? plot.location_id
-          : plot?.location_id != null
-            ? String(plot.location_id)
-            : '',
+      location_id: typeof plot?.location_id === 'string' ? plot.location_id : '',
     },
   });
 

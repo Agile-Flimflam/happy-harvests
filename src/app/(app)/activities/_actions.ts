@@ -9,6 +9,7 @@ import { ActivitySchema, type ActivityFormValues } from '@/lib/validation/activi
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type ActivityFormState = {
+  success: boolean;
   message: string;
   errors?: Record<string, string[] | undefined>;
 };
@@ -260,7 +261,7 @@ export async function getActivityEditData(idInput: number): Promise<{
 }
 
 export async function createActivity(
-  prev: ActivityFormState,
+  prev: Partial<ActivityFormState>,
   formData: FormData
 ): Promise<ActivityFormState> {
   const supabase = await createSupabaseServerClient();
@@ -268,6 +269,7 @@ export async function createActivity(
 
   if (!validated.success) {
     return {
+      success: false,
       message: 'Validation failed',
       errors: validated.error.flatten().fieldErrors,
     };
@@ -301,19 +303,19 @@ export async function createActivity(
 
   if (error) {
     console.error('Activities insert error:', error);
-    return { message: `Database Error: ${errorToMessage(error)}` };
+    return { success: false, message: `Database Error: ${errorToMessage(error)}` };
   }
 
   const activityId = inserted?.id;
   if (!Number.isInteger(activityId)) {
     console.error('Activities insert missing id:', inserted);
-    return { message: 'Database Error: Missing activity id after insert' };
+    return { success: false, message: 'Database Error: Missing activity id after insert' };
   }
 
   await insertSoilAmendments(supabase, validated.data, activityId);
 
   revalidatePath('/activities');
-  return { message: 'Activity created successfully', errors: {} };
+  return { success: true, message: 'Activity created successfully', errors: {} };
 }
 
 async function fetchActivityWeather(
@@ -368,12 +370,17 @@ async function insertSoilAmendments(
 export async function updateActivity(formData: FormData): Promise<ActivityFormState> {
   const id = Number(formData.get('id'));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: 'Invalid activity id', errors: { id: ['Invalid activity id'] } };
+    return {
+      success: false,
+      message: 'Invalid activity id',
+      errors: { id: ['Invalid activity id'] },
+    };
   }
 
   const validated = ActivitySchema.safeParse(extractActivityFormData(formData));
   if (!validated.success) {
     return {
+      success: false,
       message: 'Validation failed',
       errors: validated.error.flatten().fieldErrors,
     };
@@ -412,16 +419,20 @@ export async function updateActivity(formData: FormData): Promise<ActivityFormSt
     .eq('id', id);
   if (error) {
     console.error('Activities update error:', error);
-    return { message: `Database Error: ${errorToMessage(error)}`, errors: {} };
+    return { success: false, message: `Database Error: ${errorToMessage(error)}`, errors: {} };
   }
   revalidatePath('/activities');
-  return { message: 'Activity updated successfully', errors: {} };
+  return { success: true, message: 'Activity updated successfully', errors: {} };
 }
 
 export async function deleteActivity(formData: FormData): Promise<ActivityFormState> {
   const id = Number(formData.get('id'));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: 'Invalid activity id', errors: { id: ['Invalid activity id'] } };
+    return {
+      success: false,
+      message: 'Invalid activity id',
+      errors: { id: ['Invalid activity id'] },
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -429,10 +440,10 @@ export async function deleteActivity(formData: FormData): Promise<ActivityFormSt
   if (error) {
     console.error('Activities delete error:', error);
     const message = `Database Error: ${errorToMessage(error)}`;
-    return { message, errors: { id: [message] } };
+    return { success: false, message, errors: { id: [message] } };
   }
   revalidatePath('/activities');
-  return { message: 'Activity deleted successfully', errors: {} };
+  return { success: true, message: 'Activity deleted successfully', errors: {} };
 }
 
 export async function getActivitiesGrouped(filters?: {
@@ -486,7 +497,11 @@ export async function deleteActivitiesBulk(formData: FormData): Promise<Activity
     .filter((n) => Number.isInteger(n) && n > 0);
 
   if (!ids.length) {
-    return { message: 'No valid activity ids provided', errors: { ids: ['No valid ids'] } };
+    return {
+      success: false,
+      message: 'No valid activity ids provided',
+      errors: { ids: ['No valid ids'] },
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -494,10 +509,10 @@ export async function deleteActivitiesBulk(formData: FormData): Promise<Activity
   if (error) {
     console.error('Activities bulk delete error:', error);
     const message = `Database Error: ${errorToMessage(error)}`;
-    return { message, errors: { ids: [message] } };
+    return { success: false, message, errors: { ids: [message] } };
   }
   revalidatePath('/activities');
-  return { message: 'Activities deleted successfully', errors: {} };
+  return { success: true, message: 'Activities deleted successfully', errors: {} };
 }
 
 export async function renameBed(formData: FormData): Promise<{ message: string }> {

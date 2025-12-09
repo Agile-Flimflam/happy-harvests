@@ -137,6 +137,41 @@ const isValidTimeHM = (value: string): boolean => {
 
 const pad2 = (value: number): string => value.toString().padStart(2, '0');
 
+function addMinutesLocalWallTime(
+  dateYMD: string,
+  timeHM: string,
+  minutesToAdd: number
+): { date: string; time: string } | null {
+  const [yearStr, monthStr, dayStr] = dateYMD.split('-');
+  const [hourStr, minuteStr] = timeHM.split(':');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  const hour = Number(hourStr);
+  const minute = Number(minuteStr);
+  const inputsAreValid =
+    Number.isInteger(year) &&
+    Number.isInteger(month) &&
+    Number.isInteger(day) &&
+    Number.isInteger(hour) &&
+    Number.isInteger(minute);
+  if (!inputsAreValid) return null;
+
+  // Perform arithmetic in UTC to avoid coupling to the server's local timezone.
+  // This preserves wall-clock math for the provided timezone and avoids DST surprises
+  // from the server environment.
+  const baseMs = Date.UTC(year, month - 1, day, 0, 0, 0, 0);
+  if (!Number.isFinite(baseMs)) return null;
+  const totalMinutes = hour * 60 + minute + minutesToAdd;
+  const result = new Date(baseMs + totalMinutes * 60 * 1000);
+  if (!Number.isFinite(result.getTime())) return null;
+
+  return {
+    date: `${result.getUTCFullYear()}-${pad2(result.getUTCMonth() + 1)}-${pad2(result.getUTCDate())}`,
+    time: `${pad2(result.getUTCHours())}:${pad2(result.getUTCMinutes())}`,
+  };
+}
+
 async function getFormDataText(
   formData: FormData,
   key: string,
@@ -396,18 +431,11 @@ export async function createTestEventAction(
       }
       endDateTime = `${endDate}T${endTime}:00`;
     } else {
-      // Advance by 1h using local time math to better respect DST transitions for the parsed time.
-      // For full TZ awareness, use a library like luxon/temporal.
-      const endDateObj = new Date(startDateObj);
-      endDateObj.setHours(endDateObj.getHours() + 1);
-      if (!Number.isFinite(endDateObj.getTime())) {
+      const computed = addMinutesLocalWallTime(date, startTime, 60);
+      if (!computed) {
         return { ok: false, message: 'Invalid end date/time' };
       }
-      const computedDate = `${endDateObj.getFullYear()}-${pad2(endDateObj.getMonth() + 1)}-${pad2(
-        endDateObj.getDate()
-      )}`;
-      const computedTime = `${pad2(endDateObj.getHours())}:${pad2(endDateObj.getMinutes())}`;
-      endDateTime = `${computedDate}T${computedTime}:00`;
+      endDateTime = `${computed.date}T${computed.time}:00`;
     }
 
     const startDateTime = `${date}T${startTime}:00`;

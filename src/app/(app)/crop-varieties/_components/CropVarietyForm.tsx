@@ -293,7 +293,7 @@ export function CropVarietyForm({
   // Global safety for aggressive browser extensions
   useEffect(() => {
     setupGlobalFormControlListener();
-  }, []);
+  }, []); // run once on mount to avoid duplicate listeners
 
   const onSubmit = async (values: CropVarietyFormValues) => {
     const cropId = Number(values.crop_id);

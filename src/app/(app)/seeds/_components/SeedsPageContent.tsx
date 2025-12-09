@@ -57,9 +57,8 @@ export function SeedsPageContent({ seeds, varieties }: { seeds: Seed[]; varietie
 
   // Avoid browser extension crashes by ensuring form.control exists
   useLayoutEffect(() => {
-    if (!open) return;
     setupFormControlProperty(formRef.current);
-  }, [open]);
+  }, []);
 
   return (
     <div>

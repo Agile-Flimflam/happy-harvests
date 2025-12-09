@@ -392,6 +392,7 @@ export function AddressAutocomplete({
   const { setValue, watch } = formContext;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formValidationError, setFormValidationError] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -430,8 +431,10 @@ export function AddressAutocomplete({
     if (!formEl || formEl.tagName !== 'FORM') {
       const message = 'Form not found for the provided formId.';
       console.warn('[AddressAutocomplete] ' + message, { formId });
-      setError(message);
+      setFormValidationError(message);
+      return;
     }
+    setFormValidationError(null);
   }, [formId, isMounted]);
 
   // Workaround for browser extensions that try to access form.control
@@ -746,6 +749,17 @@ export function AddressAutocomplete({
       mapboxResourceManager.unregisterInstance(instanceId);
     };
   }, []);
+
+  if (formValidationError) {
+    return (
+      <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          <span>{formValidationError}</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!mapboxToken) {
     return (
