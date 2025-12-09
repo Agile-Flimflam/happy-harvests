@@ -204,10 +204,14 @@ export async function getLocationWithPlots(
   id: string
 ): Promise<{ location?: LocationWithPlots; error?: string }> {
   const supabase = await createSupabaseServerClient();
+  if (!id || !UUID_REGEX.test(id.trim())) {
+    return { error: 'Invalid location id.' };
+  }
+  const trimmedId = id.trim();
   const { data, error } = await supabase
     .from('locations')
     .select('*, plots(*)')
-    .eq('id', id)
+    .eq('id', trimmedId)
     .single();
   if (error) return { error: `Database Error: ${error.message}` };
   if (!data) return { error: 'Location not found.' };

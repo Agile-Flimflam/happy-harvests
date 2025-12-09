@@ -7,7 +7,7 @@ import { sanitizeErrorMessage } from '@/lib/sanitize';
 export default async function EditActivityPage({
   params,
 }: Readonly<{ params: Promise<{ id: string }> }>) {
-  const resolvedParams = params ? await params : undefined;
+  const resolvedParams = await params;
   const id = Number(resolvedParams?.id);
   if (!Number.isFinite(id)) return notFound();
   const { activity, locations, error } = await getActivityEditData(id);

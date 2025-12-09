@@ -159,8 +159,15 @@ export async function actionDeleteNursery(id: string): Promise<NurseryFormState>
   if (!user || !isAdmin(profile)) {
     return { message: 'Unauthorized' };
   }
+  const trimmedId = typeof id === 'string' ? id.trim() : '';
+  if (!trimmedId || !isUuid(trimmedId)) {
+    return {
+      message: 'Please fix the highlighted fields.',
+      errors: { id: ['Invalid id'] },
+    };
+  }
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from('nurseries').delete().eq('id', id);
+  const { error } = await supabase.from('nurseries').delete().eq('id', trimmedId);
   if (error) {
     return { message: 'Failed to delete nursery. Please try again.' };
   }

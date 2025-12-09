@@ -92,7 +92,6 @@ export async function updatePlot(
     return { message: 'Error: Missing Plot ID for update.' };
   }
   const validatedFields = PlotSchema.safeParse({
-    plot_id: id,
     name: formData.get('name'),
     location_id: stringFromFormValue(formData.get('location_id')),
   });
@@ -266,7 +265,6 @@ export async function updateBed(
     return { message: 'Error: Missing Bed ID for update.' };
   }
   const validatedFields = BedSchema.safeParse({
-    id: id,
     plot_id: numberFromFormValue(formData.get('plot_id')),
     length_inches: numberOrNullFromFormValue(formData.get('length_inches')),
     width_inches: numberOrNullFromFormValue(formData.get('width_inches')),
