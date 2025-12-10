@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, startTransition } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, startTransition } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useActionState } from 'react';
 import Image from 'next/image';
@@ -25,6 +25,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogClose,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Constants } from '@/lib/database.types';
@@ -48,6 +49,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { setupFormControlProperty, setupGlobalFormControlListener } from '@/lib/form-utils';
 
 type CropVariety = Tables<'crop_varieties'> & {
   crops?: { name: string } | null;
@@ -72,20 +74,24 @@ function isValidBlobUrl(url: string): boolean {
     return false;
   }
   try {
-    const parsedUrl = new URL(url);
-    // Blob URLs should have protocol 'blob:' and a pathname (the UUID part)
-    if (parsedUrl.protocol !== 'blob:' || !parsedUrl.pathname || parsedUrl.pathname.length === 0) {
-      return false;
-    }
-    // Validate the origin (part after `blob:`) - reject dangerous protocols
     const withoutScheme = url.slice('blob:'.length);
     const slashIndex = withoutScheme.indexOf('/');
-    const originPart = slashIndex === -1 ? withoutScheme : withoutScheme.slice(0, slashIndex);
-    if (!originPart) return false;
-    if (originPart === 'null') return true;
-    const originProtocol = new URL(originPart).protocol.toLowerCase();
-    const allowedOriginProtocols = new Set<string>(['http:', 'https:']);
-    return allowedOriginProtocols.has(originProtocol);
+    if (slashIndex <= 0) return false;
+    const originPart = withoutScheme.slice(0, slashIndex).trim();
+    const pathPart = withoutScheme.slice(slashIndex + 1);
+
+    // Ensure there is a UUID/path portion after the origin
+    if (!originPart || !pathPart) return false;
+
+    // blob:null/<uuid> is valid for opaque origins; do not attempt to parse "null" as a URL
+    if (originPart.toLowerCase() === 'null') return true;
+
+    // Require an explicit allowed protocol (http/https) before parsing to URL
+    const hasAllowedProtocolPrefix = /^https?:/i.test(originPart);
+    if (!hasAllowedProtocolPrefix) return false;
+
+    const originUrl = new URL(originPart);
+    return originUrl.protocol === 'http:' || originUrl.protocol === 'https:';
   } catch {
     // Invalid URL format - reject (this catches blob:javascript:alert(1) type attacks)
     return false;
@@ -150,6 +156,8 @@ export function CropVarietyForm({
   const [newCropType, setNewCropType] = useState<string>('');
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [removeExistingImage, setRemoveExistingImage] = useState(false);
+  const mainFormRef = useRef<HTMLFormElement>(null);
+  const inlineCropFormRef = useRef<HTMLFormElement>(null);
 
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -269,57 +277,65 @@ export function CropVarietyForm({
     }
   }, [cropCreateState, form]);
 
+  // Ensure form.control exists for browser extensions on both forms
+  useLayoutEffect(() => {
+    if (mainFormRef.current) {
+      setupFormControlProperty(mainFormRef.current);
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    if (isCropDialogOpen && inlineCropFormRef.current) {
+      setupFormControlProperty(inlineCropFormRef.current);
+    }
+  }, [isCropDialogOpen]);
+
+  // Global safety for aggressive browser extensions
+  useEffect(() => {
+    setupGlobalFormControlListener();
+  }, []); // run once on mount to avoid duplicate listeners
+
   const onSubmit = async (values: CropVarietyFormValues) => {
+    const cropId = Number(values.crop_id);
+    if (!Number.isFinite(cropId) || cropId <= 0) {
+      form.setError('crop_id', { message: 'Please select a crop' });
+      toast.error('Please select a crop');
+      return;
+    }
     const sanitizedName = sanitizePlainText(values.name);
     const sanitizedLatinName = sanitizePlainText(values.latin_name);
     const sanitizedNotes = sanitizePlainText(values.notes ?? '');
     const fd = new FormData();
     if (isEditing && cropVariety?.id) fd.append('id', String(cropVariety.id));
-    fd.append('crop_id', String(values.crop_id));
+    fd.append('crop_id', String(cropId));
     fd.append('name', sanitizedName);
     fd.append('latin_name', sanitizedLatinName);
     fd.append('is_organic', values.is_organic ? 'on' : 'off');
     fd.append('notes', sanitizedNotes);
-    fd.append(
-      'dtm_direct_seed_min',
-      values.dtm_direct_seed_min !== undefined && values.dtm_direct_seed_min !== null
-        ? String(values.dtm_direct_seed_min)
-        : ''
-    );
-    fd.append(
-      'dtm_direct_seed_max',
-      values.dtm_direct_seed_max !== undefined && values.dtm_direct_seed_max !== null
-        ? String(values.dtm_direct_seed_max)
-        : ''
-    );
-    fd.append(
-      'dtm_transplant_min',
-      values.dtm_transplant_min !== undefined && values.dtm_transplant_min !== null
-        ? String(values.dtm_transplant_min)
-        : ''
-    );
-    fd.append(
-      'dtm_transplant_max',
-      values.dtm_transplant_max !== undefined && values.dtm_transplant_max !== null
-        ? String(values.dtm_transplant_max)
-        : ''
-    );
-    fd.append(
-      'plant_spacing_min',
-      values.plant_spacing_min != null ? String(values.plant_spacing_min) : ''
-    );
-    fd.append(
-      'plant_spacing_max',
-      values.plant_spacing_max != null ? String(values.plant_spacing_max) : ''
-    );
-    fd.append(
-      'row_spacing_min',
-      values.row_spacing_min != null ? String(values.row_spacing_min) : ''
-    );
-    fd.append(
-      'row_spacing_max',
-      values.row_spacing_max != null ? String(values.row_spacing_max) : ''
-    );
+    if (values.dtm_direct_seed_min != null) {
+      fd.append('dtm_direct_seed_min', String(values.dtm_direct_seed_min));
+    }
+    if (values.dtm_direct_seed_max != null) {
+      fd.append('dtm_direct_seed_max', String(values.dtm_direct_seed_max));
+    }
+    if (values.dtm_transplant_min != null) {
+      fd.append('dtm_transplant_min', String(values.dtm_transplant_min));
+    }
+    if (values.dtm_transplant_max != null) {
+      fd.append('dtm_transplant_max', String(values.dtm_transplant_max));
+    }
+    if (values.plant_spacing_min != null) {
+      fd.append('plant_spacing_min', String(values.plant_spacing_min));
+    }
+    if (values.plant_spacing_max != null) {
+      fd.append('plant_spacing_max', String(values.plant_spacing_max));
+    }
+    if (values.row_spacing_min != null) {
+      fd.append('row_spacing_min', String(values.row_spacing_min));
+    }
+    if (values.row_spacing_max != null) {
+      fd.append('row_spacing_max', String(values.row_spacing_max));
+    }
     const inputEl = document.getElementById('image') as HTMLInputElement | null;
     if (inputEl && inputEl.files && inputEl.files[0]) {
       fd.append('image', inputEl.files[0]);
@@ -344,7 +360,12 @@ export function CropVarietyForm({
   return (
     <TooltipProvider>
       <Form {...form}>
-        <form id={formId} onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form
+          id={formId}
+          ref={mainFormRef}
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="space-y-4"
+        >
           {/* Hidden input for ID if editing */}
           {isEditing && <input type="hidden" name="id" value={cropVariety?.id} />}
 
@@ -733,8 +754,14 @@ export function CropVarietyForm({
         <DialogContent className="sm:max-w-[425px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Crop</DialogTitle>
+            <DialogDescription>Enter the crop name and type to add it.</DialogDescription>
           </DialogHeader>
-          <form action={createCropAction} className="space-y-4" onSubmit={sanitizeInlineCropForm}>
+          <form
+            ref={inlineCropFormRef}
+            action={createCropAction}
+            className="space-y-4"
+            onSubmit={sanitizeInlineCropForm}
+          >
             <div>
               <Label htmlFor="new_crop_name">Name</Label>
               <Input

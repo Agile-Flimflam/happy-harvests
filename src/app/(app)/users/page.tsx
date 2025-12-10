@@ -1,23 +1,25 @@
-import { notFound } from 'next/navigation'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { listUsersWithRolesAction, inviteUserWithRoleAction } from './_actions'
-import InviteUserDialog from './ui/InviteUserDialog'
-import UsersTable from './ui/UsersTable'
-import PageHeader from '@/components/page-header'
-import PageContent from '@/components/page-content'
+import { notFound } from 'next/navigation';
+import { listUsersWithRolesAction, inviteUserWithRoleAction, ensureAdminUser } from './actions';
+import { sanitizeErrorMessage } from '@/lib/sanitize';
+import InviteUserDialog from './ui/InviteUserDialog';
+import UsersTable from './ui/UsersTable';
+import PageHeader from '@/components/page-header';
+import PageContent from '@/components/page-content';
 
 export default async function UsersPage() {
-  const supabase = await createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    notFound()
-  }
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (!profile || profile.role !== 'admin') {
-    notFound()
-  }
+  const { ok } = await ensureAdminUser();
+  if (!ok) notFound();
 
-  const { users = [] } = await listUsersWithRolesAction()
+  let users: Awaited<ReturnType<typeof listUsersWithRolesAction>>['users'] = [];
+  let safeError: string | null = null;
+  try {
+    const result = await listUsersWithRolesAction();
+    users = result.users ?? [];
+    safeError = result.error ? sanitizeErrorMessage(result.error) : null;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    safeError = sanitizeErrorMessage(msg);
+  }
 
   return (
     <div className="space-y-8">
@@ -26,8 +28,13 @@ export default async function UsersPage() {
         action={<InviteUserDialog onInvite={inviteUserWithRoleAction} />}
       />
       <PageContent>
+        {safeError ? (
+          <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {safeError}
+          </div>
+        ) : null}
         <UsersTable initialUsers={users} />
       </PageContent>
     </div>
-  )
+  );
 }

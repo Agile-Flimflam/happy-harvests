@@ -347,6 +347,20 @@ describe('Activities Actions', () => {
       expect(Object.keys(result.errors || {}).length).toBeGreaterThan(0);
     });
 
+    it('should surface validation errors for non-finite numeric inputs', async () => {
+      const formData = new FormData();
+      formData.set('activity_type', 'irrigation');
+      formData.set('started_at', '2023-10-27T10:00:00');
+      formData.set('duration_minutes', 'Infinity');
+      formData.set('cost', '-Infinity');
+
+      const result = await createActivity({ message: '' }, formData);
+
+      expect(result.message).toBe('Validation failed');
+      expect(result.errors?.duration_minutes?.length).toBeGreaterThan(0);
+      expect(result.errors?.cost?.length).toBeGreaterThan(0);
+    });
+
     it('should handle database insert error', async () => {
       const formData = new FormData();
       formData.set('activity_type', 'irrigation');
@@ -470,8 +484,13 @@ describe('Activities Actions', () => {
       updateChain.update.mockReturnValueOnce(updateChain);
       updateChain.eq.mockResolvedValueOnce({ data: null, error: null });
 
-      await updateActivity(formData);
+      const result = await updateActivity(formData);
 
+      expect(result).toEqual({
+        success: true,
+        message: 'Activity updated successfully',
+        errors: {},
+      });
       expect(revalidatePath).toHaveBeenCalledWith('/activities');
     });
 
@@ -479,8 +498,11 @@ describe('Activities Actions', () => {
       const formData = new FormData();
       formData.set('id', 'invalid');
 
-      await updateActivity(formData);
+      const result = await updateActivity(formData);
 
+      expect(result.success).toBe(false);
+      expect(result.message).toBe('Invalid activity id');
+      expect(result.errors?.id).toBeDefined();
       expect(mockSupabaseClient.from).not.toHaveBeenCalled();
       expect(revalidatePath).not.toHaveBeenCalled();
     });
@@ -490,8 +512,11 @@ describe('Activities Actions', () => {
       formData.set('id', '1');
       // Missing required fields
 
-      await updateActivity(formData);
+      const result = await updateActivity(formData);
 
+      expect(result.success).toBe(false);
+      expect(result.message).toBe('Validation failed');
+      expect(result.errors).toBeDefined();
       expect(mockSupabaseClient.from).not.toHaveBeenCalled();
       expect(revalidatePath).not.toHaveBeenCalled();
     });
@@ -506,8 +531,10 @@ describe('Activities Actions', () => {
       updateChain.update.mockReturnValueOnce(updateChain);
       updateChain.eq.mockResolvedValueOnce({ data: null, error: { message: 'Update failed' } });
 
-      await updateActivity(formData);
+      const result = await updateActivity(formData);
 
+      expect(result.success).toBe(false);
+      expect(result.message).toBe('Database Error: Update failed');
       expect(revalidatePath).not.toHaveBeenCalled();
     });
 
@@ -535,9 +562,11 @@ describe('Activities Actions', () => {
       updateChain.update.mockReturnValueOnce(updateChain);
       updateChain.eq.mockResolvedValueOnce({ data: null, error: null });
 
-      await updateActivity(formData);
+      const result = await updateActivity(formData);
 
       expect(fetchWeatherByCoords).toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      expect(result.message).toBe('Activity updated successfully');
       expect(revalidatePath).toHaveBeenCalledWith('/activities');
     });
 
@@ -550,9 +579,11 @@ describe('Activities Actions', () => {
       const queryChain = createMockQueryBuilder();
       queryChain.eq.mockResolvedValueOnce({ data: null, error: null });
 
-      await updateActivity(formData);
+      const result = await updateActivity(formData);
 
       expect(fetchWeatherByCoords).not.toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      expect(result.message).toBe('Activity updated successfully');
     });
   });
 
@@ -564,18 +595,25 @@ describe('Activities Actions', () => {
       const queryChain = createMockQueryBuilder();
       queryChain.eq.mockResolvedValueOnce({ data: null, error: null });
 
-      await deleteActivity(formData);
+      const result = await deleteActivity(formData);
 
       expect(mockSupabaseClient.from).toHaveBeenCalledWith('activities');
       expect(revalidatePath).toHaveBeenCalledWith('/activities');
+      expect(result).toEqual({
+        success: true,
+        message: 'Activity deleted successfully',
+        errors: {},
+      });
     });
 
     it('should return early for invalid ID', async () => {
       const formData = new FormData();
       formData.set('id', 'invalid');
 
-      await deleteActivity(formData);
+      const result = await deleteActivity(formData);
 
+      expect(result.message).toBe('Invalid activity id');
+      expect(result.errors?.id).toBeDefined();
       expect(mockSupabaseClient.from).not.toHaveBeenCalled();
       expect(revalidatePath).not.toHaveBeenCalled();
     });
@@ -587,9 +625,11 @@ describe('Activities Actions', () => {
       const queryChain = createMockQueryBuilder();
       queryChain.eq.mockResolvedValueOnce({ data: null, error: { message: 'Delete failed' } });
 
-      await deleteActivity(formData);
+      const result = await deleteActivity(formData);
 
-      expect(revalidatePath).toHaveBeenCalledWith('/activities');
+      expect(result.message).toBe('Database Error: Delete failed');
+      expect(result.errors?.id?.[0]).toContain('Delete failed');
+      expect(revalidatePath).not.toHaveBeenCalled();
     });
   });
 
@@ -778,10 +818,15 @@ describe('Activities Actions', () => {
       queryChain.eq.mockReturnValueOnce(queryChain);
       queryChain.in.mockResolvedValueOnce({ data: null, error: null });
 
-      await deleteActivitiesBulk(formData);
+      const result = await deleteActivitiesBulk(formData);
 
       expect(queryChain.in).toHaveBeenCalledWith('id', [1, 2, 3]);
       expect(revalidatePath).toHaveBeenCalledWith('/activities');
+      expect(result).toEqual({
+        success: true,
+        message: 'Activities deleted successfully',
+        errors: {},
+      });
     });
 
     it('should return early for empty IDs string', async () => {
@@ -791,11 +836,13 @@ describe('Activities Actions', () => {
       // Clear any previous calls
       jest.clearAllMocks();
 
-      await deleteActivitiesBulk(formData);
+      const result = await deleteActivitiesBulk(formData);
 
       // Empty string results in empty array after filtering, so function returns early
       expect(mockSupabaseClient.from).not.toHaveBeenCalled();
       expect(revalidatePath).not.toHaveBeenCalled();
+      expect(result.message).toBe('No valid activity ids provided');
+      expect(result.errors?.ids).toBeDefined();
     });
 
     it('should filter out invalid IDs', async () => {
@@ -806,9 +853,11 @@ describe('Activities Actions', () => {
       queryChain.eq.mockReturnValueOnce(queryChain);
       queryChain.in.mockResolvedValueOnce({ data: null, error: null });
 
-      await deleteActivitiesBulk(formData);
+      const result = await deleteActivitiesBulk(formData);
 
       expect(queryChain.in).toHaveBeenCalledWith('id', [1, 2, 3]);
+      expect(result.success).toBe(true);
+      expect(result.message).toBe('Activities deleted successfully');
     });
 
     it('should handle whitespace in IDs', async () => {
@@ -819,9 +868,11 @@ describe('Activities Actions', () => {
       queryChain.eq.mockReturnValueOnce(queryChain);
       queryChain.in.mockResolvedValueOnce({ data: null, error: null });
 
-      await deleteActivitiesBulk(formData);
+      const result = await deleteActivitiesBulk(formData);
 
       expect(queryChain.in).toHaveBeenCalledWith('id', [1, 2, 3]);
+      expect(result.success).toBe(true);
+      expect(result.message).toBe('Activities deleted successfully');
     });
   });
 

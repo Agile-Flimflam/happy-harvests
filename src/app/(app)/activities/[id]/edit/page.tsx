@@ -1,21 +1,40 @@
-import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { updateActivity } from '../../_actions';
+import { updateActivity, getActivityEditData, type ActivityFormState } from '../../actions';
 import { EditActivityContent } from '@/components/activities/EditActivityContent';
 import { notFound } from 'next/navigation';
+import { sanitizeErrorMessage } from '@/lib/sanitize';
 
 export default async function EditActivityPage({
   params,
 }: Readonly<{ params: Promise<{ id: string }> }>) {
-  const supabase = await createSupabaseServerClient();
-  const { id: idParam } = await params;
-  const id = Number(idParam);
-  const { data: activity } = await supabase.from('activities').select('*').eq('id', id).single();
+  const resolvedParams = await params;
+  const id = Number(resolvedParams?.id);
+  if (!Number.isFinite(id)) return notFound();
+  const { activity, locations, error } = await getActivityEditData(id);
+  const updateActivityAction = async (formData: FormData): Promise<void> => {
+    'use server';
+    // Enforce server-side ID trust: override any client-provided value with the URL param
+    formData.set('id', String(id));
+    const result: ActivityFormState = await updateActivity(formData);
+    const message = result?.message ?? '';
+    const hasFieldErrors =
+      result?.errors &&
+      Object.values(result.errors).some((errs) => Array.isArray(errs) && errs.length > 0);
+    const isSuccessful = result?.success === true && !hasFieldErrors;
+
+    if (!isSuccessful) {
+      throw new Error(message || 'Activity update failed');
+    }
+  };
+  if (error) {
+    const safeError = sanitizeErrorMessage(error);
+    return (
+      <div className="text-red-500 text-sm" role="alert">
+        {safeError}
+      </div>
+    );
+  }
   if (!activity) return notFound();
-  const { data: locations } = await supabase
-    .from('locations')
-    .select('id,name')
-    .order('name', { ascending: true });
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Edit Activity</h1>
@@ -24,8 +43,7 @@ export default async function EditActivityPage({
           <CardTitle>Activity #{id}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={updateActivity}>
-            <input type="hidden" name="id" value={id} />
+          <form action={updateActivityAction}>
             <EditActivityContent activity={activity} locations={locations || []} />
           </form>
         </CardContent>

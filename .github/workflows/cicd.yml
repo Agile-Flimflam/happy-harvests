@@ -424,7 +424,7 @@ jobs:
           CI: true
           PLAYWRIGHT_BASE_URL: http://localhost:4000
           PLAYWRIGHT_WORKERS: ${{ env.PLAYWRIGHT_WORKERS }}
-        run: pnpm test:e2e -- --workers ${PLAYWRIGHT_WORKERS:-2} --trace retain-on-failure
+        run: pnpm exec playwright test --workers ${PLAYWRIGHT_WORKERS:-2} --trace retain-on-failure
 
       - name: Upload Playwright traces
         if: failure()
@@ -436,7 +436,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Save Next.js cache after E2E
-        if: success() && github.actor != 'dependabot[bot]' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork)
+        if: success() && github.actor != 'dependabot[bot]' && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) && steps.e2e-next-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |

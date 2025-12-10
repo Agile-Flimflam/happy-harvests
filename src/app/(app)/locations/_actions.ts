@@ -19,6 +19,7 @@ export type LocationFormState = {
 
 function valueOrNull(v: FormDataEntryValue | null): string | null {
   if (v === null) return null;
+  if (v instanceof File) return null;
   const s = String(v);
   return s.trim() === '' ? null : s;
 }
@@ -40,7 +41,7 @@ export async function createLocation(
 ): Promise<LocationFormState> {
   const supabase = await createSupabaseServerClient();
   const validated = LocationSchema.safeParse({
-    name: formData.get('name'),
+    name: valueOrNull(formData.get('name')),
     street: valueOrNull(formData.get('street')),
     city: valueOrNull(formData.get('city')),
     state: valueOrNull(formData.get('state')),
@@ -101,7 +102,7 @@ export async function updateLocation(
     return { message: 'Error: Invalid Location ID format.' };
   }
   const validated = LocationSchema.safeParse({
-    name: formData.get('name'),
+    name: valueOrNull(formData.get('name')),
     street: valueOrNull(formData.get('street')),
     city: valueOrNull(formData.get('city')),
     state: valueOrNull(formData.get('state')),
@@ -187,16 +188,15 @@ export async function deleteLocation(id: string): Promise<DeleteLocationResult> 
   return { message: 'Location deleted successfully.' };
 }
 
-type LocationWithMaybePlots = Location & { plots: Tables<'plots'>[] | null };
 type LocationWithPlots = Location & { plots: Tables<'plots'>[] };
 
-export async function getLocations(): Promise<{ locations?: Location[]; error?: string }> {
+export async function getLocations(): Promise<{ locations: Location[]; error?: string }> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('locations')
     .select('*')
     .order('name', { ascending: true });
-  if (error) return { error: `Database Error: ${error.message}` };
+  if (error) return { locations: [], error: `Database Error: ${error.message}` };
   return { locations: data ?? [] };
 }
 
@@ -204,13 +204,17 @@ export async function getLocationWithPlots(
   id: string
 ): Promise<{ location?: LocationWithPlots; error?: string }> {
   const supabase = await createSupabaseServerClient();
+  if (!id || !UUID_REGEX.test(id.trim())) {
+    return { error: 'Invalid location id.' };
+  }
+  const trimmedId = id.trim();
   const { data, error } = await supabase
     .from('locations')
     .select('*, plots(*)')
-    .eq('id', id)
+    .eq('id', trimmedId)
     .single();
   if (error) return { error: `Database Error: ${error.message}` };
   if (!data) return { error: 'Location not found.' };
-  const loc = data as LocationWithMaybePlots;
-  return { location: { ...loc, plots: loc.plots || [] } };
+  const location: LocationWithPlots = { ...data, plots: data.plots ?? [] };
+  return { location };
 }

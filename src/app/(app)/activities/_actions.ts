@@ -4,11 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import type { ActivityType } from '@/lib/activities/types';
 import { fetchWeatherByCoords } from '@/lib/openweather.server';
-import type { Json, Tables, Database } from '@/lib/database.types';
+import type { Tables, Database } from '@/lib/database.types';
 import { ActivitySchema, type ActivityFormValues } from '@/lib/validation/activities';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type ActivityFormState = {
+  success: boolean;
   message: string;
   errors?: Record<string, string[] | undefined>;
 };
@@ -63,23 +64,30 @@ function getString(data: FormDataEntryValue | null): string {
   return typeof data === 'string' ? data : '';
 }
 
+function getNumber(data: FormDataEntryValue | null): number | null {
+  if (typeof data !== 'string') return null;
+  const trimmed = data.trim();
+  if (!trimmed) return null;
+  return Number(trimmed);
+}
+
 function extractActivityFormData(formData: FormData) {
   return {
-    activity_type: formData.get('activity_type'),
+    activity_type: getString(formData.get('activity_type')),
     started_at: getString(formData.get('started_at')),
     ended_at: getString(formData.get('ended_at')) || null,
-    duration_minutes: formData.get('duration_minutes') || null,
-    labor_hours: formData.get('labor_hours') || null,
+    duration_minutes: getNumber(formData.get('duration_minutes')),
+    labor_hours: getNumber(formData.get('labor_hours')),
     location_id: getString(formData.get('location_id')) || null,
-    plot_id: formData.get('plot_id') || null,
-    bed_id: formData.get('bed_id') || null,
-    nursery_id: formData.get('nursery_id') || null,
+    plot_id: getNumber(formData.get('plot_id')),
+    bed_id: getNumber(formData.get('bed_id')),
+    nursery_id: getString(formData.get('nursery_id')) || null,
     crop: getString(formData.get('crop')) || null,
     asset_id: getString(formData.get('asset_id')) || null,
     asset_name: getString(formData.get('asset_name')) || null,
-    quantity: formData.get('quantity') || null,
+    quantity: getNumber(formData.get('quantity')),
     unit: getString(formData.get('unit')) || null,
-    cost: formData.get('cost') || null,
+    cost: getNumber(formData.get('cost')),
     notes: getString(formData.get('notes')) || null,
     amendments: parseAmendmentsJson(formData.get('amendments_json')),
   };
@@ -111,8 +119,149 @@ function buildActivitiesQuery(
   return query;
 }
 
+export type LocationOption = Pick<Tables<'locations'>, 'id' | 'name'>;
+export type PlotOption = { plot_id: number; name: string; location_id: string };
+export type BedOption = { id: number; plot_id: number; name: string | null };
+export type NurseryOption = { id: string; name: string; location_id: string };
+
+type WeatherJson = {
+  timezone: string;
+  current: {
+    dt: number;
+    sunrise: number | null;
+    sunset: number | null;
+    temp: number;
+    humidity: number;
+    weather: {
+      id: number | null;
+      main: string | null;
+      description: string | null;
+      icon: string | null;
+    } | null;
+  };
+  moonPhase: number | null;
+  moonPhaseLabel: string | null;
+};
+
+function serializeWeatherToJson(w: Awaited<ReturnType<typeof fetchWeatherByCoords>>): WeatherJson {
+  return {
+    timezone: w.timezone,
+    current: {
+      dt: w.current.dt,
+      sunrise: w.current.sunrise ?? null,
+      sunset: w.current.sunset ?? null,
+      temp: w.current.temp,
+      humidity: w.current.humidity,
+      weather: w.current.weather
+        ? {
+            id: w.current.weather.id ?? null,
+            main: w.current.weather.main ?? null,
+            description: w.current.weather.description ?? null,
+            icon: w.current.weather.icon ?? null,
+          }
+        : null,
+    },
+    moonPhase: w.moonPhase ?? null,
+    moonPhaseLabel: w.moonPhaseLabel ?? null,
+  };
+}
+
+export async function getActivityLocations(): Promise<{
+  locations: LocationOption[];
+  error?: string;
+}> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('locations')
+    .select('id,name')
+    .order('name', { ascending: true });
+  if (error) {
+    return { locations: [], error: `Database Error: ${error.message}` };
+  }
+  const locations = (data ?? []).map(({ id, name }) => ({ id, name }));
+  return { locations };
+}
+
+export async function getActivityFormOptions(): Promise<{
+  locations: LocationOption[];
+  plots: PlotOption[];
+  beds: BedOption[];
+  nurseries: NurseryOption[];
+  error?: string;
+}> {
+  const supabase = await createSupabaseServerClient();
+  const [locationsRes, plotsRes, bedsRes, nurseriesRes] = await Promise.all([
+    supabase.from('locations').select('id,name').order('name', { ascending: true }),
+    supabase.from('plots').select('plot_id,name,location_id').order('name', { ascending: true }),
+    supabase.from('beds').select('id,plot_id,name').order('id', { ascending: true }),
+    supabase.from('nurseries').select('id,name,location_id').order('name', { ascending: true }),
+  ]);
+
+  const errors = [locationsRes.error, plotsRes.error, bedsRes.error, nurseriesRes.error].filter(
+    Boolean
+  );
+  if (errors.length) {
+    return {
+      locations: [],
+      plots: [],
+      beds: [],
+      nurseries: [],
+      error: `Database Error: ${errors[0]?.message}`,
+    };
+  }
+
+  const locations = (locationsRes.data ?? []).map(({ id, name }) => ({ id, name }));
+  const plots = (plotsRes.data ?? []).map(({ plot_id, name, location_id }) => ({
+    plot_id,
+    name,
+    location_id,
+  }));
+  const beds = (bedsRes.data ?? []).map(({ id, plot_id, name }) => ({ id, plot_id, name }));
+  const nurseries = (nurseriesRes.data ?? []).map(({ id, name, location_id }) => ({
+    id,
+    name,
+    location_id,
+  }));
+
+  return {
+    locations,
+    plots,
+    beds,
+    nurseries,
+  };
+}
+
+export async function getActivityEditData(idInput: number): Promise<{
+  activity: Tables<'activities'> | null;
+  locations: LocationOption[];
+  error?: string;
+}> {
+  const id = Number(idInput);
+  if (!Number.isFinite(id)) return { activity: null, locations: [], error: 'Invalid activity id' };
+  const supabase = await createSupabaseServerClient();
+  const { data: activity, error: activityError } = await supabase
+    .from('activities')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (activityError) {
+    return { activity: null, locations: [], error: `Database Error: ${activityError.message}` };
+  }
+  const { data: locations, error: locationsError } = await supabase
+    .from('locations')
+    .select('id,name')
+    .order('name', { ascending: true });
+  if (locationsError) {
+    return { activity, locations: [], error: `Database Error: ${locationsError.message}` };
+  }
+  return {
+    activity,
+    locations: (locations ?? []).map(({ id, name }) => ({ id, name })),
+  };
+}
+
 export async function createActivity(
-  prev: ActivityFormState,
+  prev: Partial<ActivityFormState>,
   formData: FormData
 ): Promise<ActivityFormState> {
   const supabase = await createSupabaseServerClient();
@@ -120,6 +269,7 @@ export async function createActivity(
 
   if (!validated.success) {
     return {
+      success: false,
       message: 'Validation failed',
       errors: validated.error.flatten().fieldErrors,
     };
@@ -146,26 +296,33 @@ export async function createActivity(
       unit: validated.data.unit,
       cost: validated.data.cost,
       notes: validated.data.notes,
-      weather,
+      // Only persist when available; avoid inserting null if column is NOT NULL
+      weather: weather ?? undefined,
     })
     .select('id')
     .single();
 
   if (error) {
     console.error('Activities insert error:', error);
-    return { message: `Database Error: ${errorToMessage(error)}` };
+    return { success: false, message: `Database Error: ${errorToMessage(error)}` };
   }
 
-  await insertSoilAmendments(supabase, validated.data, inserted.id);
+  const activityId = inserted?.id;
+  if (!Number.isInteger(activityId)) {
+    console.error('Activities insert missing id:', inserted);
+    return { success: false, message: 'Database Error: Missing activity id after insert' };
+  }
+
+  await insertSoilAmendments(supabase, validated.data, activityId);
 
   revalidatePath('/activities');
-  return { message: 'Activity created successfully', errors: {} };
+  return { success: true, message: 'Activity created successfully', errors: {} };
 }
 
 async function fetchActivityWeather(
   supabase: SupabaseClient<Database>,
   locationId: string | null
-): Promise<Json | null> {
+): Promise<WeatherJson | null> {
   if (!locationId) return null;
   const { data: loc, error: locErr } = await supabase
     .from('locations')
@@ -175,7 +332,7 @@ async function fetchActivityWeather(
   if (!locErr && loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number') {
     try {
       const w = await fetchWeatherByCoords(loc.latitude, loc.longitude, { units: 'imperial' });
-      return w as unknown as Json;
+      return serializeWeatherToJson(w);
     } catch (e) {
       console.error('Weather fetch failed:', e);
     }
@@ -191,13 +348,19 @@ async function insertSoilAmendments(
   if (data.activity_type === 'soil_amendment' && Array.isArray(data.amendments) && activityId) {
     const rows = data.amendments
       .filter((a) => a && typeof a.name === 'string' && a.name.trim().length > 0)
-      .map((a) => ({
-        activity_id: activityId,
-        name: a.name,
-        quantity: a.quantity ?? null,
-        unit: a.unit ?? null,
-        notes: a.notes ?? null,
-      }));
+      .map((a) => {
+        const quantity =
+          typeof a.quantity === 'number' && Number.isFinite(a.quantity) ? a.quantity : null;
+        const unit = typeof a.unit === 'string' ? a.unit : null;
+        const notes = typeof a.notes === 'string' ? a.notes : null;
+        return {
+          activity_id: activityId,
+          name: a.name,
+          quantity,
+          unit,
+          notes,
+        };
+      });
     if (rows.length) {
       const { error: aerr } = await supabase.from('activities_soil_amendments').insert(rows);
       if (aerr) console.error('Insert amendments error:', aerr);
@@ -205,16 +368,29 @@ async function insertSoilAmendments(
   }
 }
 
-export async function updateActivity(formData: FormData): Promise<void> {
-  const supabase = await createSupabaseServerClient();
+export async function updateActivity(formData: FormData): Promise<ActivityFormState> {
   const id = Number(formData.get('id'));
-  if (!Number.isFinite(id)) return;
+  if (!Number.isInteger(id) || id <= 0) {
+    return {
+      success: false,
+      message: 'Invalid activity id',
+      errors: { id: ['Invalid activity id'] },
+    };
+  }
 
   const validated = ActivitySchema.safeParse(extractActivityFormData(formData));
-  if (!validated.success) return;
+  if (!validated.success) {
+    return {
+      success: false,
+      message: 'Validation failed',
+      errors: validated.error.flatten().fieldErrors,
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
 
   // Weather recompute if location changed
-  let weather: Json | null = null;
+  let weather: WeatherJson | null = null;
   const locId = validated.data.location_id;
   if (locId) {
     weather = await fetchActivityWeather(supabase, locId);
@@ -239,19 +415,37 @@ export async function updateActivity(formData: FormData): Promise<void> {
       unit: validated.data.unit,
       cost: validated.data.cost,
       notes: validated.data.notes,
-      weather,
+      // Only persist when available; avoid updating with null if column is NOT NULL
+      weather: weather ?? undefined,
     })
     .eq('id', id);
-  if (error) return;
+  if (error) {
+    console.error('Activities update error:', error);
+    return { success: false, message: `Database Error: ${errorToMessage(error)}`, errors: {} };
+  }
   revalidatePath('/activities');
+  return { success: true, message: 'Activity updated successfully', errors: {} };
 }
 
-export async function deleteActivity(formData: FormData): Promise<void> {
-  const supabase = await createSupabaseServerClient();
+export async function deleteActivity(formData: FormData): Promise<ActivityFormState> {
   const id = Number(formData.get('id'));
-  if (!Number.isFinite(id)) return;
-  await supabase.from('activities').delete().eq('id', id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return {
+      success: false,
+      message: 'Invalid activity id',
+      errors: { id: ['Invalid activity id'] },
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from('activities').delete().eq('id', id);
+  if (error) {
+    console.error('Activities delete error:', error);
+    const message = `Database Error: ${errorToMessage(error)}`;
+    return { success: false, message, errors: { id: [message] } };
+  }
   revalidatePath('/activities');
+  return { success: true, message: 'Activity deleted successfully', errors: {} };
 }
 
 export async function getActivitiesGrouped(filters?: {
@@ -267,9 +461,12 @@ export async function getActivitiesGrouped(filters?: {
   if (error) return { error: `Database Error: ${error.message}` };
   const grouped: Record<string, Tables<'activities'>[]> = {};
   for (const row of data || []) {
-    const k = row.activity_type as string;
-    grouped[k] ||= [];
-    grouped[k].push(row);
+    const key =
+      typeof row.activity_type === 'string' && row.activity_type.trim().length > 0
+        ? row.activity_type
+        : 'unknown';
+    grouped[key] ||= [];
+    grouped[key].push(row);
   }
   return { grouped };
 }
@@ -294,23 +491,39 @@ export async function getActivitiesFlat(params?: {
   return { rows: data || [] };
 }
 
-export async function deleteActivitiesBulk(formData: FormData): Promise<void> {
-  const supabase = await createSupabaseServerClient();
+export async function deleteActivitiesBulk(formData: FormData): Promise<ActivityFormState> {
   const csv = getString(formData.get('ids'));
   const ids = csv
     .split(',')
     .map((s) => Number(s.trim()))
     .filter((n) => Number.isInteger(n) && n > 0);
-  if (!ids.length) return;
-  await supabase.from('activities').delete().in('id', ids);
+
+  if (!ids.length) {
+    return {
+      success: false,
+      message: 'No valid activity ids provided',
+      errors: { ids: ['No valid ids'] },
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from('activities').delete().in('id', ids);
+  if (error) {
+    console.error('Activities bulk delete error:', error);
+    const message = `Database Error: ${errorToMessage(error)}`;
+    return { success: false, message, errors: { ids: [message] } };
+  }
   revalidatePath('/activities');
+  return { success: true, message: 'Activities deleted successfully', errors: {} };
 }
 
 export async function renameBed(formData: FormData): Promise<{ message: string }> {
   const supabase = await createSupabaseServerClient();
   const id = Number(formData.get('bed_id'));
   const name = getString(formData.get('name')).trim();
-  if (!Number.isFinite(id) || !name) return { message: 'Missing bed id or name' };
+  if (!Number.isInteger(id) || id <= 0 || !name) {
+    return { message: 'Missing bed id or name' };
+  }
   const { error } = await supabase.from('beds').update({ name }).eq('id', id);
   if (error) return { message: `Database Error: ${errorToMessage(error)}` };
   return { message: 'Bed renamed' };

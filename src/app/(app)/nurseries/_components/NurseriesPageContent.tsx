@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useActionState } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -41,6 +41,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty';
+import { setupFormControlProperty, setupGlobalFormControlListener } from '@/lib/form-utils';
 
 type Nursery = Tables<'nurseries'>;
 type Location = Tables<'locations'>;
@@ -71,7 +72,16 @@ export default function NurseriesPageContent({
   );
   const [deleteTarget, setDeleteTarget] = useState<Nursery | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const hasNurseries = nurseries.length > 0;
+  const dialogDescription = editing
+    ? 'Update nursery name, location, and optional notes.'
+    : 'Add a nursery by providing name, location, and optional notes.';
+
+  // Global safety for aggressive browser extensions
+  useEffect(() => {
+    setupGlobalFormControlListener();
+  }, []); // run once on mount to avoid duplicate listeners
 
   // Initialize/reset form state when opening dialog
   useEffect(() => {
@@ -87,6 +97,14 @@ export default function NurseriesPageContent({
       setFieldErrors({});
     }
   }, [open, editing]);
+
+  // Ensure browser extensions see a form.control property to avoid runtime errors
+  useLayoutEffect(() => {
+    if (!open) return;
+    const formEl = formRef.current;
+    if (!formEl) return;
+    setupFormControlProperty(formEl);
+  }, [open]);
 
   useEffect(() => {
     const state = editing ? updateState : createState;
@@ -114,10 +132,11 @@ export default function NurseriesPageContent({
     try {
       setDeleting(true);
       const result = await actionDeleteNursery(deleteTarget.id);
-      if ('error' in result && result.error) {
-        toast.error(result.error);
+      const success = result.message === 'Nursery deleted.';
+      if (!success) {
+        toast.error(result.message || 'Failed to delete nursery.');
       } else {
-        toast.success('Nursery deleted.');
+        toast.success(result.message);
       }
     } finally {
       setDeleting(false);
@@ -243,12 +262,13 @@ export default function NurseriesPageContent({
         open={open}
         onOpenChange={setOpen}
         title={editing ? 'Edit Nursery' : 'Add Nursery'}
-        description={editing ? 'Update nursery details' : 'Create a new nursery'}
+        description={dialogDescription}
         submitLabel={editing ? 'Save changes' : 'Create nursery'}
         formId="nurseryForm"
       >
         <form
           id="nurseryForm"
+          ref={formRef}
           action={editing ? updateAction : createAction}
           className="space-y-4"
           noValidate

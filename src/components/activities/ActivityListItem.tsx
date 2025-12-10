@@ -34,6 +34,11 @@ interface ActivityListItemProps {
   readonly showTypeBadge?: boolean;
 }
 
+const deleteActivityAction = async (formData: FormData): Promise<void> => {
+  'use server';
+  await deleteActivity(formData);
+};
+
 export function ActivityListItem({ activity: a, showTypeBadge = false }: ActivityListItemProps) {
   return (
     <li className="py-3">
@@ -65,7 +70,7 @@ export function ActivityListItem({ activity: a, showTypeBadge = false }: Activit
             <Button asChild size="sm" variant="outline">
               <Link href={`/activities/${a.id}/edit`}>Edit</Link>
             </Button>
-            <form id={`delete-activity-${a.id}`} action={deleteActivity} className="hidden">
+            <form id={`delete-activity-${a.id}`} action={deleteActivityAction} className="hidden">
               <input type="hidden" name="id" value={a.id} />
             </form>
             <DeleteActivityDialog formId={`delete-activity-${a.id}`} />

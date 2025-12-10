@@ -20,25 +20,27 @@ type Row = Tables<'activities'> & { locations?: { name?: string | null } | null 
 
 type ActivitiesTableProps = {
   rows: Row[];
-  bulkDeleteAction: (formData: FormData) => Promise<void>;
+  bulkDeleteAction: (
+    formData: FormData
+  ) => Promise<{ message: string; errors?: Record<string, string[] | undefined> }>;
 };
 
 export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps) {
-  const [selected, setSelected] = React.useState<Record<number, boolean>>({});
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [confirmOpen, setConfirmOpen] = React.useState(false);
 
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'started_at', desc: true }]);
 
   const toggleAll = React.useCallback(
     (checked: boolean) => {
-      const next: Record<number, boolean> = {};
-      if (checked) for (const r of rows) next[r.id] = true;
+      const next: Record<string, boolean> = {};
+      if (checked) for (const r of rows) next[String(r.id)] = true;
       setSelected(next);
     },
     [rows]
   );
 
-  const toggleOne = React.useCallback((id: number, checked: boolean) => {
+  const toggleOne = React.useCallback((id: string, checked: boolean) => {
     setSelected((prev) => ({ ...prev, [id]: checked }));
   }, []);
 
@@ -52,8 +54,8 @@ export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps
         cell: ({ row }) => (
           <input
             type="checkbox"
-            checked={!!selected[row.original.id]}
-            onChange={(e) => toggleOne(row.original.id, e.currentTarget.checked)}
+            checked={!!selected[String(row.original.id)]}
+            onChange={(e) => toggleOne(String(row.original.id), e.currentTarget.checked)}
           />
         ),
         enableSorting: false,
@@ -122,7 +124,7 @@ export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps
         enableSorting: false,
       },
     ],
-    [selected, toggleAll, toggleOne]
+    [toggleAll, toggleOne, selected]
   );
 
   const table = useReactTable({
@@ -140,6 +142,13 @@ export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps
     .filter(([, v]) => v)
     .map(([k]) => k)
     .join(',');
+
+  const handleBulkDelete = React.useCallback(
+    async (formData: FormData): Promise<void> => {
+      await bulkDeleteAction(formData);
+    },
+    [bulkDeleteAction]
+  );
 
   return (
     <div className="border rounded-md overflow-auto">
@@ -191,7 +200,7 @@ export function ActivitiesTable({ rows, bulkDeleteAction }: ActivitiesTableProps
         <div className="text-xs text-muted-foreground">
           {Object.values(selected).filter(Boolean).length} selected
         </div>
-        <form id="bulk-delete-form" action={bulkDeleteAction}>
+        <form id="bulk-delete-form" action={handleBulkDelete}>
           <input type="hidden" name="ids" value={idsCsv} />
           <Button
             type="button"

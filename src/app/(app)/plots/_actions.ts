@@ -11,11 +11,50 @@ type Bed = Tables<'beds'>;
 type Location = Tables<'locations'>;
 type PlotInsert = Database['public']['Tables']['plots']['Insert'];
 type PlotUpdate = Database['public']['Tables']['plots']['Update'];
+type BedWithPlotLocation = Bed & {
+  plots: { name: string | null; location_id: string | null } | null;
+};
+
+function toPlotLocation(
+  value: unknown
+): { name: string | null; location_id: string | null } | null {
+  if (!value || typeof value !== 'object') return null;
+  const maybe = value as { name?: unknown; location_id?: unknown };
+  const name = typeof maybe.name === 'string' ? maybe.name : null;
+  const location_id = typeof maybe.location_id === 'string' ? maybe.location_id : null;
+  return { name, location_id };
+}
+
+function dbErrorMessage(context: string, error: unknown): string {
+  console.error(`[Plots] ${context}`, error);
+  return 'Database error. Please try again.';
+}
 
 export type PlotFormState = {
   message: string;
-  errors?: Record<string, string[] | undefined>;
+  errors?: Record<string, string | string[] | undefined>;
   plot?: Plot | null;
+};
+
+function numberFromFormValue(v: FormDataEntryValue | null): number | undefined {
+  if (typeof v !== 'string') return undefined;
+  const n = Number(v.trim());
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function stringFromFormValue(v: FormDataEntryValue | null): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const trimmed = v.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function numberOrNullFromFormValue(v: FormDataEntryValue | null): number | null | undefined {
+  if (v === null) return null;
+  if (typeof v !== 'string') return undefined;
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 export async function createPlot(
@@ -26,7 +65,7 @@ export async function createPlot(
 
   const validatedFields = PlotSchema.safeParse({
     name: formData.get('name'),
-    location_id: String(formData.get('location_id') ?? ''),
+    location_id: stringFromFormValue(formData.get('location_id')),
   });
 
   if (!validatedFields.success) {
@@ -38,21 +77,19 @@ export async function createPlot(
   }
 
   const plotData: PlotInsert = {
-    name: validatedFields.data.name as string,
+    name: validatedFields.data.name,
     location_id: validatedFields.data.location_id,
   };
 
   try {
     const { error } = await supabase.from('plots').insert(plotData);
     if (error) {
-      console.error('Supabase Error:', error);
-      return { message: `Database Error: ${error.message}` };
+      return { message: dbErrorMessage('createPlot', error) };
     }
     revalidatePath('/plots');
     return { message: 'Plot created successfully.', plot: null, errors: {} };
   } catch (e) {
-    console.error('Unexpected Error:', e);
-    return { message: 'An unexpected error occurred.' };
+    return { message: dbErrorMessage('createPlot unexpected', e) };
   }
 }
 
@@ -61,15 +98,15 @@ export async function updatePlot(
   formData: FormData
 ): Promise<PlotFormState> {
   const supabase = await createSupabaseServerClient();
-  const idRaw = formData.get('plot_id') as string;
-  const id = idRaw ? parseInt(idRaw, 10) : NaN;
+  const plotIdValue = formData.get('plot_id');
+  const id =
+    typeof plotIdValue === 'string' && plotIdValue.trim() !== '' ? parseInt(plotIdValue, 10) : NaN;
   if (!id || Number.isNaN(id)) {
     return { message: 'Error: Missing Plot ID for update.' };
   }
   const validatedFields = PlotSchema.safeParse({
-    plot_id: id,
     name: formData.get('name'),
-    location_id: String(formData.get('location_id') ?? ''),
+    location_id: stringFromFormValue(formData.get('location_id')),
   });
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -84,19 +121,14 @@ export async function updatePlot(
     location_id: validatedFields.data.location_id,
   };
   try {
-    const { error } = await supabase
-      .from('plots')
-      .update(plotDataToUpdate)
-      .eq('plot_id', id);
+    const { error } = await supabase.from('plots').update(plotDataToUpdate).eq('plot_id', id);
     if (error) {
-      console.error('Supabase Error:', error);
-      return { message: `Database Error: ${error.message}`, plot: prevState.plot };
+      return { message: dbErrorMessage('updatePlot', error), plot: prevState.plot };
     }
     revalidatePath('/plots');
     return { message: 'Plot updated successfully.', plot: null, errors: {} };
   } catch (e) {
-    console.error('Unexpected Error:', e);
-    return { message: 'An unexpected error occurred.', plot: prevState.plot };
+    return { message: dbErrorMessage('updatePlot unexpected', e), plot: prevState.plot };
   }
 }
 
@@ -108,12 +140,11 @@ export async function getLocationsList(): Promise<{ locations?: Location[]; erro
       .select('*')
       .order('name', { ascending: true });
     if (error) {
-      return { error: `Database Error: ${error.message}` };
+      return { error: dbErrorMessage('getLocationsList', error) };
     }
-    return { locations: (data as Location[]) || [] };
+    return { locations: data ?? [] };
   } catch (e) {
-    console.error('Unexpected Error fetching locations:', e);
-    return { error: 'An unexpected error occurred while fetching locations.' };
+    return { error: dbErrorMessage('getLocationsList unexpected', e) };
   }
 }
 
@@ -126,14 +157,12 @@ export async function deletePlot(id: string | number): Promise<{ message: string
   try {
     const { error } = await supabase.from('plots').delete().eq('plot_id', numericId);
     if (error) {
-      console.error('Supabase Error:', error);
-      return { message: `Database Error: ${error.message}` };
+      return { message: dbErrorMessage('deletePlot', error) };
     }
     revalidatePath('/plots');
     return { message: 'Plot deleted successfully.' };
   } catch (e) {
-    console.error('Unexpected Error:', e);
-    return { message: 'An unexpected error occurred.' };
+    return { message: dbErrorMessage('deletePlot unexpected', e) };
   }
 }
 
@@ -165,13 +194,13 @@ export async function getPlotsWithBeds(): Promise<{ plots?: PlotWithBeds[]; erro
       console.error('Supabase Error fetching plots/beds:', error);
       return { error: `Database Error: ${error.message}` };
     }
-    const plotsData = data as PlotDataWithMaybeBeds[] | null;
-    const plotsWithEnsuredBeds: PlotWithBeds[] = plotsData?.map((plot: PlotDataWithMaybeBeds) => ({
+    const plotsData: PlotDataWithMaybeBeds[] = data ?? [];
+    const plotsWithEnsuredBeds: PlotWithBeds[] = plotsData.map((plot) => ({
       ...plot,
       beds: plot.beds || [],
       locations: plot.locations || null,
       totalAcreage: calculatePlotAcreage(plot.beds || []),
-    })) || [];
+    }));
     return { plots: plotsWithEnsuredBeds };
   } catch (e) {
     console.error('Unexpected Error fetching plots/beds:', e);
@@ -188,7 +217,7 @@ export type BedFormState = {
   message: string;
   errors?: Record<string, string[] | undefined>;
   bed?: Bed | null;
-}
+};
 
 export async function createBed(
   prevState: BedFormState,
@@ -196,9 +225,9 @@ export async function createBed(
 ): Promise<BedFormState> {
   const supabase = await createSupabaseServerClient();
   const validatedFields = BedSchema.safeParse({
-    plot_id: formData.get('plot_id'),
-    length_inches: formData.get('length_inches') || null,
-    width_inches: formData.get('width_inches') || null,
+    plot_id: numberFromFormValue(formData.get('plot_id')),
+    length_inches: numberOrNullFromFormValue(formData.get('length_inches')),
+    width_inches: numberOrNullFromFormValue(formData.get('width_inches')),
   });
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -207,26 +236,26 @@ export async function createBed(
       errors: validatedFields.error.flatten().fieldErrors,
     };
   }
+  const bedNameValue = formData.get('name');
+  const bedName = typeof bedNameValue === 'string' ? bedNameValue : null;
   const bedData: BedInsert = {
     plot_id: validatedFields.data.plot_id,
     length_inches: validatedFields.data.length_inches ?? null,
     width_inches: validatedFields.data.width_inches ?? null,
-    name: (formData.get('name') as string | null) ?? null,
+    name: bedName,
   };
   try {
     const { error } = await supabase.from('beds').insert(bedData);
     if (error) {
-      console.error('Supabase Error:', error);
       if (error.code === '23503') {
         return { message: 'Database Error: The selected plot does not exist.' };
       }
-      return { message: `Database Error: ${error.message}` };
+      return { message: dbErrorMessage('createBed', error) };
     }
     revalidatePath('/plots');
     return { message: 'Bed created successfully.', bed: null, errors: {} };
   } catch (e) {
-    console.error('Unexpected Error:', e);
-    return { message: 'An unexpected error occurred.' };
+    return { message: dbErrorMessage('createBed unexpected', e) };
   }
 }
 
@@ -235,16 +264,15 @@ export async function updateBed(
   formData: FormData
 ): Promise<BedFormState> {
   const supabase = await createSupabaseServerClient();
-  const idRaw = formData.get('id') as string;
-  const id = idRaw ? parseInt(idRaw, 10) : NaN;
+  const idValue = formData.get('id');
+  const id = typeof idValue === 'string' && idValue.trim() !== '' ? parseInt(idValue, 10) : NaN;
   if (!id || Number.isNaN(id)) {
     return { message: 'Error: Missing Bed ID for update.' };
   }
   const validatedFields = BedSchema.safeParse({
-    id: id,
-    plot_id: formData.get('plot_id'),
-    length_inches: formData.get('length_inches') || null,
-    width_inches: formData.get('width_inches') || null,
+    plot_id: numberFromFormValue(formData.get('plot_id')),
+    length_inches: numberOrNullFromFormValue(formData.get('length_inches')),
+    width_inches: numberOrNullFromFormValue(formData.get('width_inches')),
   });
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -254,29 +282,31 @@ export async function updateBed(
       bed: prevState.bed,
     };
   }
+  const updateNameValue = formData.get('name');
+  const updateName =
+    typeof updateNameValue === 'string'
+      ? updateNameValue
+      : updateNameValue === null
+        ? null
+        : undefined;
   const bedDataToUpdate: BedUpdate = {
     plot_id: validatedFields.data.plot_id,
     length_inches: validatedFields.data.length_inches ?? null,
     width_inches: validatedFields.data.width_inches ?? null,
-    name: (formData.get('name') as string | null) ?? undefined,
+    name: updateName,
   };
   try {
-    const { error } = await supabase
-      .from('beds')
-      .update(bedDataToUpdate)
-      .eq('id', id);
+    const { error } = await supabase.from('beds').update(bedDataToUpdate).eq('id', id);
     if (error) {
-      console.error('Supabase Error:', error);
       if (error.code === '23503') {
         return { message: 'Database Error: The selected plot does not exist.', bed: prevState.bed };
       }
-      return { message: `Database Error: ${error.message}`, bed: prevState.bed };
+      return { message: dbErrorMessage('updateBed', error), bed: prevState.bed };
     }
     revalidatePath('/plots');
     return { message: 'Bed updated successfully.', bed: null, errors: {} };
   } catch (e) {
-    console.error('Unexpected Error:', e);
-    return { message: 'An unexpected error occurred.', bed: prevState.bed };
+    return { message: dbErrorMessage('updateBed unexpected', e), bed: prevState.bed };
   }
 }
 
@@ -289,32 +319,38 @@ export async function deleteBed(id: string | number): Promise<{ message: string 
   try {
     const { error } = await supabase.from('beds').delete().eq('id', numericId);
     if (error) {
-      console.error('Supabase Error:', error);
       if (error.code === '23503') {
-        return { message: 'Database Error: Cannot delete bed because it is currently associated with one or more crops.' };
+        return {
+          message:
+            'Database Error: Cannot delete bed because it is currently associated with one or more crops.',
+        };
       }
-      return { message: `Database Error: ${error.message}` };
+      return { message: dbErrorMessage('deleteBed', error) };
     }
     revalidatePath('/plots');
     return { message: 'Bed deleted successfully.' };
   } catch (e) {
-    console.error('Unexpected Error:', e);
-    return { message: 'An unexpected error occurred.' };
+    return { message: dbErrorMessage('deleteBed unexpected', e) };
   }
 }
 
-export async function getBeds(): Promise<{ beds?: Bed[]; error?: string }> {
+export async function getBeds(): Promise<{ beds?: BedWithPlotLocation[]; error?: string }> {
   const supabase = await createSupabaseServerClient();
   try {
     const { data, error } = await supabase
       .from('beds')
-      .select('*, plots(location)')
-      .order('id', { ascending: true });
+      .select('*, plots(name,location_id)')
+      .order('id', { ascending: true })
+      .returns<BedWithPlotLocation[]>();
     if (error) {
-      console.error('Supabase Error fetching beds:', error);
-      return { error: `Database Error: ${error.message}` };
+      return { error: dbErrorMessage('getBeds', error) };
     }
-    return { beds: data || [] };
+    const rawRows: BedWithPlotLocation[] = data ?? [];
+    const beds: BedWithPlotLocation[] = rawRows.map((row) => {
+      const plots = toPlotLocation(row?.plots);
+      return { ...row, plots };
+    });
+    return { beds };
   } catch (e) {
     console.error('Unexpected Error fetching beds:', e);
     return { error: 'An unexpected error occurred while fetching beds.' };

@@ -1,8 +1,32 @@
----
 description: General Guidelines for Typescript development
 globs:
 alwaysApply: true
+
 ---
 
+### Senior posture
+
+- Act as a senior engineer: reason before coding, spot risks early, and favor small, reviewable diffs.
+- Communicate intent and tradeoffs; document non-obvious choices with concise comments only where needed.
+
+### UI/UX defaults
+
 - UI: You are a senior level frontend developer and UX expert. Always use shadcn. Always style using Tailwind. Always consider mobile-first options.
-- Database: Always ensure API routes do not perform database queries directly. Always ensure frontend files do not perform database queries directly.
+- Aim for accessibility (labels, aria, focus, contrast) and avoid disruptive UX; prefer progressive enhancement.
+
+### TypeScript rigor
+
+- Never use `any`; prefer explicit types and narrow the shapes you pass around.
+- Handle null/undefined explicitly; avoid optional chaining that hides errors.
+- Keep async code safe: catch/handle errors, avoid fire-and-forget unless documented, and keep server/client boundaries clear.
+- Run `pnpm lint` and `pnpm typecheck` (or project equivalents) before delivery; do not ignore type errors.
+
+### Data-layer boundaries
+
+- Code must never make database queries in API routes or frontend files.
+- Route all data access through server actions/services with validation and error handling; prefer typed data adapters to isolate persistence.
+
+### Delivery checklist
+
+- Verify lint/type/tests (or state why skipped); highlight remaining risks/testing gaps.
+- Provide concise change notes and call out any behavioral impacts or migration needs.
