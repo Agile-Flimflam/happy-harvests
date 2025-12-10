@@ -13,7 +13,12 @@ import {
   getBeds,
   type PlotFormState,
   type BedFormState,
+  bulkCreateBeds,
+  bulkCreatePlots,
+  type BulkBedFormState,
+  type BulkPlotFormState,
 } from './_actions';
+import { getQuickCreatePrefs, type QuickCreatePrefs } from '@/lib/quick-create-prefs';
 
 export type PlotDTO = Tables<'plots'>;
 export type BedDTO = Tables<'beds'>;
@@ -28,13 +33,15 @@ export type PlotsPageData = {
   plotsWithBeds: PlotWithBedsDTO[];
   locations: LocationDTO[];
   weatherByLocation: Record<string, WeatherSnapshot>;
+  quickCreatePrefs: QuickCreatePrefs | null;
 };
 
 export async function getPlotsPageData(): Promise<ActionResult<PlotsPageData>> {
-  const [plotsRes, locationsWeatherRes, locationsListRes] = await Promise.all([
+  const [plotsRes, locationsWeatherRes, locationsListRes, prefs] = await Promise.all([
     getPlotsWithBeds(),
     getLocationsWithWeather(),
     getLocationsList(),
+    getQuickCreatePrefs(),
   ]);
 
   if (plotsRes.error) {
@@ -51,6 +58,7 @@ export async function getPlotsPageData(): Promise<ActionResult<PlotsPageData>> {
       plotsWithBeds: plotsRes.plots ?? [],
       locations: locationsFromList,
       weatherByLocation: locationsWeatherRes.data.weatherByLocation,
+      quickCreatePrefs: prefs,
     },
   };
 }
@@ -67,4 +75,8 @@ export {
   getBeds,
   type PlotFormState,
   type BedFormState,
+  bulkCreateBeds,
+  bulkCreatePlots,
+  type BulkBedFormState,
+  type BulkPlotFormState,
 };

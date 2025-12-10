@@ -1,4 +1,4 @@
-import 'server-only';
+'use server';
 
 import { revalidateTag } from 'next/cache';
 import { createSupabaseAdminClient } from './supabase-admin';

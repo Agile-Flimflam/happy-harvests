@@ -93,18 +93,18 @@ export function InlineCreateSheet({
               {title}
             </SheetTitle>
           ) : (
-            <VisuallyHidden>
-              <SheetTitle id={titleId}>{resolvedTitle}</SheetTitle>
-            </VisuallyHidden>
+            <SheetTitle id={titleId} className="sr-only">
+              {resolvedTitle}
+            </SheetTitle>
           )}
           {description ? (
             <SheetDescription id={descriptionId} className="text-sm text-muted-foreground">
               {description}
             </SheetDescription>
           ) : (
-            <VisuallyHidden>
-              <SheetDescription id={descriptionId}>{resolvedDescription}</SheetDescription>
-            </VisuallyHidden>
+            <SheetDescription id={descriptionId} className="sr-only">
+              {resolvedDescription}
+            </SheetDescription>
           )}
         </SheetHeader>
 

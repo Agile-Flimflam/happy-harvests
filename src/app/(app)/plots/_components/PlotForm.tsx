@@ -35,11 +35,18 @@ interface PlotFormProps {
   locations: Location[];
   closeDialog: () => void;
   formId?: string;
+  defaultLocationId?: string | null;
 }
 
 // Submit button is owned by parent dialog footer
 
-export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps) {
+export function PlotForm({
+  plot,
+  locations,
+  closeDialog,
+  formId,
+  defaultLocationId,
+}: PlotFormProps) {
   const plotId = typeof plot?.plot_id === 'number' ? plot.plot_id : undefined;
   const isEditing = Boolean(plotId);
   const action = isEditing ? updatePlot : createPlot;
@@ -53,7 +60,12 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
     defaultValues: {
       plot_id: plotId,
       name: plot?.name ?? '',
-      location_id: plot?.location_id != null ? plot.location_id.toString() : '',
+      location_id:
+        plot?.location_id != null
+          ? plot.location_id.toString()
+          : defaultLocationId != null
+            ? defaultLocationId
+            : '',
     },
   });
 
@@ -87,6 +99,14 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
   useLayoutEffect(() => {
     setupFormControlProperty(formRef.current);
   }, []);
+
+  useEffect(() => {
+    if (isEditing) return;
+    if (!defaultLocationId) return;
+    const exists = locations.some((loc) => String(loc.id) === defaultLocationId);
+    if (!exists) return;
+    form.setValue('location_id', defaultLocationId);
+  }, [defaultLocationId, form, isEditing, locations]);
 
   const onSubmit: SubmitHandler<PlotFormValues> = async (values) => {
     const fd = new FormData();

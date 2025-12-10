@@ -1,9 +1,11 @@
 'use server';
 
-import { createSupabaseServerClient, type Database, type Tables } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
+import type { Database, Tables } from '@/lib/database.types';
 import { revalidatePath } from 'next/cache';
 import { fetchWeatherByCoords } from '@/lib/openweather';
 import { LocationSchema, type LocationFormValues } from '@/lib/validation/locations';
+import { rememberLastLocation } from '@/lib/quick-create-prefs';
 
 // Schema now centralized in src/lib/validation/locations
 
@@ -80,9 +82,12 @@ export async function createLocation(
       console.error('OpenWeather timezone fetch failed on create:', e);
     }
   }
-  const { error } = await supabase.from('locations').insert(payload);
+  const { data, error } = await supabase.from('locations').insert(payload).select('id').single();
   if (error) {
     return { message: `Database Error: ${error.message}` };
+  }
+  if (data?.id) {
+    await rememberLastLocation(data.id);
   }
   revalidatePath('/locations');
   return { message: 'Location created successfully.', location: null, errors: {} };
@@ -198,6 +203,11 @@ export async function getLocations(): Promise<{ locations: Location[]; error?: s
     .order('name', { ascending: true });
   if (error) return { locations: [], error: `Database Error: ${error.message}` };
   return { locations: data ?? [] };
+}
+
+export async function rememberLocationSelection(locationId: string): Promise<void> {
+  if (!locationId) return;
+  await rememberLastLocation(locationId);
 }
 
 export async function getLocationWithPlots(

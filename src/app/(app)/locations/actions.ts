@@ -1,6 +1,7 @@
 import type { Tables } from '@/lib/supabase-server';
 import { fetchWeatherByCoords } from '@/lib/openweather';
 import { asActionError, type ActionResult } from '@/lib/action-result';
+import { getQuickCreatePrefs, type QuickCreatePrefs } from '@/lib/quick-create-prefs';
 import {
   createLocation,
   updateLocation,
@@ -9,6 +10,7 @@ import {
   getLocationWithPlots,
   type LocationFormState,
   type DeleteLocationResult,
+  rememberLocationSelection,
 } from './_actions';
 
 export type LocationDTO = Tables<'locations'>;
@@ -30,6 +32,7 @@ export type WeatherSnapshot = {
 export type LocationsWithWeather = {
   locations: LocationDTO[];
   weatherByLocation: Record<string, WeatherSnapshot>;
+  quickCreatePrefs: QuickCreatePrefs | null;
 };
 
 export async function getLocationsWithWeather(): Promise<ActionResult<LocationsWithWeather>> {
@@ -57,7 +60,9 @@ export async function getLocationsWithWeather(): Promise<ActionResult<LocationsW
     })
   );
 
-  return { ok: true, data: { locations, weatherByLocation } };
+  const quickCreatePrefs = await getQuickCreatePrefs();
+
+  return { ok: true, data: { locations, weatherByLocation, quickCreatePrefs } };
 }
 
 export {
@@ -68,4 +73,5 @@ export {
   getLocationWithPlots,
   type LocationFormState,
   type DeleteLocationResult,
+  rememberLocationSelection,
 };

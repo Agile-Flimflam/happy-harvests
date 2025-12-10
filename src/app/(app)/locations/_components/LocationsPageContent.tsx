@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Pencil, Trash2, Sunrise, Sunset, Droplet, MapPin, Plus, Building2 } from 'lucide-react';
 
@@ -37,43 +38,79 @@ import { cn } from '@/lib/utils';
 
 import type { Tables } from '@/lib/supabase-server';
 import { LocationForm } from './LocationForm';
-import { deleteLocation, type DeleteLocationResult } from '../_actions';
+import { deleteLocation, type DeleteLocationResult, rememberLocationSelection } from '../_actions';
 import type { WeatherSnapshot } from '../actions';
+import type { QuickCreatePrefs } from '@/lib/quick-create-prefs';
 
 type Location = Tables<'locations'>;
 
 interface LocationsPageContentProps {
   locations: Location[];
   weatherByLocation?: Record<string, WeatherSnapshot>;
+  quickCreatePrefs?: QuickCreatePrefs | null;
 }
 
 export function LocationsPageContent({
   locations,
   weatherByLocation = {},
+  quickCreatePrefs = null,
 }: LocationsPageContentProps) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
+    quickCreatePrefs?.lastLocationId ?? null
+  );
+  const [persistingLocation, startPersistLocation] = useTransition();
   const hasLocations = locations.length > 0;
   const safeLocations = useMemo(
     () =>
       selectedLocationId ? locations.filter((loc) => loc.id === selectedLocationId) : locations,
     [locations, selectedLocationId]
   );
-  const recentChips = useMemo(
-    () =>
-      locations.slice(0, 6).map((loc) => ({
-        label: loc.name ?? 'Unnamed location',
-        value: loc.id,
-      })),
-    [locations]
-  );
+  const recentChips = useMemo(() => {
+    const candidates = locations.slice(0, 6).map((loc) => ({
+      label: loc.name ?? 'Unnamed location',
+      value: loc.id,
+    }));
+    const lastLocation =
+      quickCreatePrefs?.lastLocationId != null
+        ? locations.find((loc) => loc.id === quickCreatePrefs.lastLocationId)
+        : null;
+    if (lastLocation) {
+      const existingIndex = candidates.findIndex((chip) => chip.value === lastLocation.id);
+      if (existingIndex > 0) {
+        candidates.splice(existingIndex, 1);
+      }
+      if (existingIndex !== 0) {
+        candidates.unshift({
+          label: lastLocation.name ?? 'Recent location',
+          value: lastLocation.id,
+        });
+      }
+    }
+    return candidates;
+  }, [locations, quickCreatePrefs?.lastLocationId]);
+
+  useEffect(() => {
+    if (!selectedLocationId) return;
+    const exists = locations.some((loc) => loc.id === selectedLocationId);
+    if (!exists) {
+      setSelectedLocationId(null);
+    }
+  }, [locations, selectedLocationId]);
 
   const handleAdd = () => {
     setEditingLocation(null);
     setIsSheetOpen(true);
+  };
+
+  const handleSelectLocation = (value: string | null) => {
+    setSelectedLocationId(value);
+    if (value) {
+      startPersistLocation(() => rememberLocationSelection(value));
+    }
   };
 
   const handleEdit = (loc: Location) => {
@@ -146,7 +183,7 @@ export function LocationsPageContent({
             <RecentChips
               items={recentChips}
               activeValue={selectedLocationId}
-              onSelect={setSelectedLocationId}
+              onSelect={handleSelectLocation}
               ariaLabel="Filter locations"
               clearLabel="Clear filter"
             />
@@ -269,10 +306,17 @@ export function LocationsPageContent({
 
       {hasLocations ? (
         <StickyActionBar aria-label="Quick add location" align="end" position="fixed">
-          <Button onClick={handleAdd} className="w-full sm:w-auto">
-            <Plus className="h-4 w-4 mr-2" aria-hidden />
-            Add Location
-          </Button>
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            {selectedLocationId ? (
+              <Button asChild variant="outline" className="w-full sm:w-auto">
+                <Link href={`/plots?locationId=${selectedLocationId}`}>View plots & beds</Link>
+              </Button>
+            ) : null}
+            <Button onClick={handleAdd} className="w-full sm:w-auto" disabled={persistingLocation}>
+              <Plus className="h-4 w-4 mr-2" aria-hidden />
+              Add Location
+            </Button>
+          </div>
         </StickyActionBar>
       ) : null}
     </>

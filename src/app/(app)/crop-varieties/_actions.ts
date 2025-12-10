@@ -1,6 +1,7 @@
 'use server';
 
-import { createSupabaseServerClient, type Database } from '@/lib/supabase-server';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
+import type { Database } from '@/lib/database.types';
 // Refactored to new schema: remove DaysToMaturity JSON
 import { revalidatePath } from 'next/cache';
 import { CropVarietySchema, SimpleCropSchema } from '@/lib/validation/crop-varieties';

@@ -10,6 +10,7 @@ export default async function LocationsPage() {
     <LocationsPageContent
       locations={result.data.locations}
       weatherByLocation={result.data.weatherByLocation}
+      quickCreatePrefs={result.data.quickCreatePrefs}
     />
   );
 }
