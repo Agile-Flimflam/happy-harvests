@@ -296,7 +296,8 @@ export async function createActivity(
       unit: validated.data.unit,
       cost: validated.data.cost,
       notes: validated.data.notes,
-      weather,
+      // Only persist when available; avoid inserting null if column is NOT NULL
+      weather: weather ?? undefined,
     })
     .select('id')
     .single();
@@ -414,7 +415,8 @@ export async function updateActivity(formData: FormData): Promise<ActivityFormSt
       unit: validated.data.unit,
       cost: validated.data.cost,
       notes: validated.data.notes,
-      weather,
+      // Only persist when available; avoid updating with null if column is NOT NULL
+      weather: weather ?? undefined,
     })
     .eq('id', id);
   if (error) {

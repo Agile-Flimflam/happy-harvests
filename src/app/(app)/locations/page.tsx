@@ -4,7 +4,9 @@ import { getLocations } from './_actions';
 export default async function LocationsPage() {
   const { locations, error } = await getLocations();
   if (error) {
-    return <div className="text-red-500">Error loading locations: {error}</div>;
+    const message =
+      typeof error === 'string' ? error : (error as Error)?.message || 'Unknown error';
+    return <div className="text-red-500">Error loading locations: {message}</div>;
   }
   return <LocationsPageContent locations={locations ?? []} />;
 }

@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { updateActivity, getActivityEditData } from '../../actions';
+import { updateActivity, getActivityEditData, type ActivityFormState } from '../../actions';
 import { EditActivityContent } from '@/components/activities/EditActivityContent';
 import { notFound } from 'next/navigation';
 import { sanitizeErrorMessage } from '@/lib/sanitize';
@@ -15,7 +15,7 @@ export default async function EditActivityPage({
     'use server';
     // Enforce server-side ID trust: override any client-provided value with the URL param
     formData.set('id', String(id));
-    const result = await updateActivity(formData);
+    const result: ActivityFormState = await updateActivity(formData);
     const message = result?.message ?? '';
     const hasFieldErrors =
       result?.errors &&

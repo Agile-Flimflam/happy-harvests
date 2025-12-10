@@ -23,7 +23,7 @@ export async function getNurseries(): Promise<{ nurseries?: Nursery[]; error?: s
     .select('*')
     .order('name', { ascending: true });
   if (error) return { error: error.message };
-  return { nurseries: (data as Nursery[]) || [] };
+  return { nurseries: data ?? [] };
 }
 
 export async function getLocationsForSelect(): Promise<{
@@ -36,7 +36,7 @@ export async function getLocationsForSelect(): Promise<{
     .select('id, name')
     .order('name', { ascending: true });
   if (error) return { error: error.message };
-  return { locations: (data as Pick<Location, 'id' | 'name'>[]) || [] };
+  return { locations: data ?? [] };
 }
 
 export async function createNursery(input: { name: string; location_id: string; notes?: string }) {

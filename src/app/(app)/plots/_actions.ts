@@ -344,7 +344,17 @@ export async function getBeds(): Promise<{ beds?: BedWithPlotLocation[]; error?:
       console.error('Supabase Error fetching beds:', error);
       return { error: `Database Error: ${error.message}` };
     }
-    const beds: BedWithPlotLocation[] = (data ?? []) as BedWithPlotLocation[];
+    const rawRows = Array.isArray(data) ? data : [];
+    const beds: BedWithPlotLocation[] = rawRows.map((row) => {
+      const plots = (() => {
+        const p = row?.plots as Record<string, unknown> | null | undefined;
+        if (!p || typeof p !== 'object') return null;
+        const name = typeof p.name === 'string' ? p.name : null;
+        const location_id = typeof p.location_id === 'string' ? p.location_id : null;
+        return { name, location_id };
+      })();
+      return { ...row, plots };
+    });
     return { beds };
   } catch (e) {
     console.error('Unexpected Error fetching beds:', e);

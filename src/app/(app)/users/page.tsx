@@ -10,8 +10,16 @@ export default async function UsersPage() {
   const { ok } = await ensureAdminUser();
   if (!ok) notFound();
 
-  const { users = [], error: rawError } = await listUsersWithRolesAction();
-  const safeError = rawError ? sanitizeErrorMessage(rawError) : null;
+  let users: Awaited<ReturnType<typeof listUsersWithRolesAction>>['users'] = [];
+  let safeError: string | null = null;
+  try {
+    const result = await listUsersWithRolesAction();
+    users = result.users ?? [];
+    safeError = result.error ? sanitizeErrorMessage(result.error) : null;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    safeError = sanitizeErrorMessage(msg);
+  }
 
   return (
     <div className="space-y-8">
