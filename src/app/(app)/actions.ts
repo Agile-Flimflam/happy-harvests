@@ -1,6 +1,7 @@
 'use server';
 
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import type { ActionResult } from '@/lib/action-result';
 
 type RawDashboardLocation = {
   id: string;
@@ -61,7 +62,9 @@ function redactDbError(context: string, err: unknown): string {
   return 'Unable to load data right now.';
 }
 
-export async function getDashboardOverview(): Promise<DashboardOverview> {
+export type DashboardOverviewResult = ActionResult<DashboardOverview>;
+
+export async function getDashboardOverview(): Promise<DashboardOverviewResult> {
   const supabase = await createSupabaseServerClient();
 
   const [cropVarietyRes, plotRes, plantingRes, locationsRes] = await Promise.all([
@@ -93,7 +96,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     (loc): loc is DashboardLocation => isLatitude(loc.latitude) && isLongitude(loc.longitude)
   );
 
-  return {
+  const overview: DashboardOverview = {
     cropVarietyCount: cropVarietyRes.count ?? null,
     plotCount: plotRes.count ?? null,
     plantingCount: plantingRes.count ?? null,
@@ -103,4 +106,14 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     plantingError,
     error: errors.length ? 'Unable to load dashboard data.' : undefined,
   };
+
+  if (errors.length) {
+    return {
+      ok: false,
+      code: 'server',
+      message: overview.error ?? 'Unable to load dashboard data.',
+    };
+  }
+
+  return { ok: true, data: overview };
 }

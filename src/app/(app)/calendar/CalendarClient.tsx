@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CalendarEvent, CalendarFilter, CalendarLocation } from './types';
+import type { WeatherSnapshot } from '../locations/actions';
 import { Dialog } from '@/components/ui/dialog';
 import { DayCell } from './_components/DayCell';
 import { DayDetailDialog } from './_components/DayDetailDialog';
@@ -117,9 +118,11 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 export default function CalendarClient({
   events,
   locations = [],
+  weatherByLocation = {},
 }: {
   events: CalendarEvent[];
   locations?: Array<CalendarLocation>;
+  weatherByLocation?: Record<string, WeatherSnapshot>;
 }) {
   // Today in UTC ISO (kept fresh by periodic checks that detect UTC day rollover)
   const [todayISO, setTodayISO] = React.useState<string>(() => {
@@ -369,9 +372,7 @@ export default function CalendarClient({
         {/* Mobile weather display */}
         <div className="w-full">
           <CalendarHeaderWeather
-            id={primaryLocation?.id ?? null}
-            latitude={primaryLocation?.latitude ?? null}
-            longitude={primaryLocation?.longitude ?? null}
+            weather={primaryLocation ? weatherByLocation[primaryLocation.id] : null}
           />
         </div>
         {/* Mobile compact filter menu */}
@@ -538,9 +539,7 @@ export default function CalendarClient({
           {/* Right Group: Weather and Legend */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <CalendarHeaderWeather
-              id={primaryLocation?.id ?? null}
-              latitude={primaryLocation?.latitude ?? null}
-              longitude={primaryLocation?.longitude ?? null}
+              weather={primaryLocation ? weatherByLocation[primaryLocation.id] : null}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

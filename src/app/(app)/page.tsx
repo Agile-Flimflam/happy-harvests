@@ -3,10 +3,23 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Leaf, Sprout, Tractor } from 'lucide-react';
 import CalendarHeaderWeather from './calendar/CalendarHeaderWeather';
-import { getDashboardOverview } from './actions';
+import { getDashboardOverview, type DashboardOverview } from './actions';
 import { sanitizeErrorMessage } from '@/lib/sanitize';
 
 export default async function DashboardPage() {
+  const overviewResult = await getDashboardOverview();
+
+  if (!overviewResult.ok) {
+    const safeMessage = sanitizeErrorMessage(overviewResult.message);
+    return (
+      <div>
+        <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+        <p className="text-sm text-red-500">{safeMessage}</p>
+      </div>
+    );
+  }
+
+  const overview = overviewResult.data as DashboardOverview;
   const {
     cropVarietyCount,
     plotCount,
@@ -15,7 +28,7 @@ export default async function DashboardPage() {
     cropVarietyError,
     plotError,
     plantingError,
-  } = await getDashboardOverview();
+  } = overview;
   const safeCropVarietyError = cropVarietyError ? sanitizeErrorMessage(cropVarietyError) : null;
   const safePlotError = plotError ? sanitizeErrorMessage(plotError) : null;
   const safePlantingError = plantingError ? sanitizeErrorMessage(plantingError) : null;
@@ -25,11 +38,7 @@ export default async function DashboardPage() {
       <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
       {primaryLocation ? (
         <div className="mb-4">
-          <CalendarHeaderWeather
-            id={primaryLocation.id}
-            latitude={primaryLocation.latitude}
-            longitude={primaryLocation.longitude}
-          />
+          <CalendarHeaderWeather />
         </div>
       ) : null}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

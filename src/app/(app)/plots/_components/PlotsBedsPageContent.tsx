@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { WeatherBadge } from '@/components/weather/WeatherBadge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatSquareFeet, formatAcres, squareFeetToAcres } from '@/lib/utils';
 import type { Tables } from '@/lib/supabase-server';
+import type { WeatherSnapshot } from '../../locations/actions';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -49,6 +50,7 @@ type PlotWithBeds = Plot & { beds: Bed[]; locations: Location | null; totalAcrea
 export interface PlotsBedsPageContentProps {
   plotsWithBeds: PlotWithBeds[];
   locations: Location[];
+  weatherByLocation?: Record<string, WeatherSnapshot>;
 }
 
 // Helper function to group plots by location
@@ -72,7 +74,11 @@ const groupPlotsByLocation = (plots: PlotWithBeds[]) => {
   );
 };
 
-export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPageContentProps) {
+export function PlotsBedsPageContent({
+  plotsWithBeds,
+  locations,
+  weatherByLocation = {},
+}: PlotsBedsPageContentProps) {
   const [isPlotDialogOpen, setIsPlotDialogOpen] = useState(false);
   const [isBedDialogOpen, setIsBedDialogOpen] = useState(false);
   const [editingPlot, setEditingPlot] = useState<Plot | null>(null);
@@ -287,7 +293,8 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
       location,
       locationName,
       plots,
-    }: { location: Location | null; locationName: string; plots: PlotWithBeds[] }
+    }: { location: Location | null; locationName: string; plots: PlotWithBeds[] },
+    weatherForLocation?: WeatherSnapshot
   ) => {
     return (
       <div key={locationKey} className="space-y-6">
@@ -305,13 +312,7 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3 sm:gap-6 justify-start sm:justify-end">
-            {location ? (
-              <LocationWeather
-                id={location.id}
-                latitude={location.latitude}
-                longitude={location.longitude}
-              />
-            ) : null}
+            {location ? <LocationWeather weather={weatherForLocation} /> : null}
             <span className="text-sm text-muted-foreground">
               {plots.length} plot{plots.length !== 1 ? 's' : ''}
             </span>
@@ -460,7 +461,11 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
         ) : (
           <div className="space-y-8">
             {Object.entries(plotsByLocation).map(([locationKey, locationData]) =>
-              renderLocationSection(locationKey, locationData)
+              renderLocationSection(
+                locationKey,
+                locationData,
+                locationData.location ? weatherByLocation[locationData.location.id] : undefined
+              )
             )}
           </div>
         )}
@@ -469,73 +474,12 @@ export function PlotsBedsPageContent({ plotsWithBeds, locations }: PlotsBedsPage
   );
 }
 
-function LocationWeather({
-  id,
-  latitude,
-  longitude,
-}: {
-  id: string;
-  latitude: number | null;
-  longitude: number | null;
-}) {
-  const [state, setState] = useState<
-    | { status: 'idle' }
-    | { status: 'loading' }
-    | { status: 'error'; message: string }
-    | {
-        status: 'ready';
-        data: {
-          timezone: string;
-          current: {
-            dt: number;
-            sunrise?: number;
-            sunset?: number;
-            temp: number;
-            humidity: number;
-            weather: { id: number; main: string; description: string; icon: string } | null;
-          };
-          moonPhase?: number;
-          moonPhaseLabel?: string;
-        };
-      }
-  >({ status: 'idle' });
-
-  useEffect(() => {
-    if (latitude == null || longitude == null) return;
-    let cancelled = false;
-    setState({ status: 'loading' });
-    fetch(`/api/locations/${id}/weather`, { cache: 'no-store' })
-      .then(async (res) => {
-        if (!res.ok) throw new Error((await res.json()).error || res.statusText);
-        return res.json();
-      })
-      .then((data) => {
-        if (cancelled) return;
-        setState({ status: 'ready', data });
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setState({
-          status: 'error',
-          message: e instanceof Error ? e.message : 'Failed to load weather',
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, latitude, longitude]);
-
-  if (latitude == null || longitude == null) {
+function LocationWeather({ weather }: { weather?: WeatherSnapshot }) {
+  if (!weather) {
     return <span className="text-muted-foreground text-sm">Set coordinates to enable weather</span>;
   }
-  if (state.status === 'loading' || state.status === 'idle') {
-    return <span className="text-muted-foreground text-sm">Loading weather…</span>;
-  }
-  if (state.status === 'error') {
-    return <span className="text-red-500 text-sm">{state.message}</span>;
-  }
 
-  const { current } = state.data;
+  const { current } = weather;
   const tempF = current.temp;
 
   return (
@@ -545,9 +489,7 @@ function LocationWeather({
         tempF={tempF}
         description={current.weather?.description || null}
         inlineDescription={false}
-        hawaiianMoon={
-          state.status === 'ready' ? (state.data.moonPhaseLabel ?? undefined) : undefined
-        }
+        hawaiianMoon={weather.moonPhaseLabel ?? undefined}
         size="sm"
       />
       {typeof current.sunrise === 'number' && (

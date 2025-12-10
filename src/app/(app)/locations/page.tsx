@@ -1,11 +1,15 @@
 import { LocationsPageContent } from './_components/LocationsPageContent';
-import { getLocations } from './_actions';
+import { getLocationsWithWeather } from './actions';
 
 export default async function LocationsPage() {
-  const { locations, error } = await getLocations();
-  if (error) {
-    const message = typeof error === 'string' ? error : 'Unknown error';
-    return <div className="text-red-500">Error loading locations: {message}</div>;
+  const result = await getLocationsWithWeather();
+  if (!result.ok) {
+    return <div className="text-red-500">Error loading locations: {result.message}</div>;
   }
-  return <LocationsPageContent locations={locations ?? []} />;
+  return (
+    <LocationsPageContent
+      locations={result.data.locations}
+      weatherByLocation={result.data.weatherByLocation}
+    />
+  );
 }

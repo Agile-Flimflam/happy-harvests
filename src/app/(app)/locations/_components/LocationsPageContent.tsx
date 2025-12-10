@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { Pencil, Trash2, Sunrise, Sunset, Droplet, MapPin, Plus } from 'lucide-react';
 
@@ -35,14 +35,19 @@ import { cn } from '@/lib/utils';
 import type { Tables } from '@/lib/supabase-server';
 import { LocationForm } from './LocationForm';
 import { deleteLocation, type DeleteLocationResult } from '../_actions';
+import type { WeatherSnapshot } from '../actions';
 
 type Location = Tables<'locations'>;
 
 interface LocationsPageContentProps {
   locations: Location[];
+  weatherByLocation?: Record<string, WeatherSnapshot>;
 }
 
-export function LocationsPageContent({ locations }: LocationsPageContentProps) {
+export function LocationsPageContent({
+  locations,
+  weatherByLocation = {},
+}: LocationsPageContentProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -147,6 +152,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
               const cityStateZip = [cityState, loc.zip ?? ''].filter(Boolean).join(' ');
               const addressInline = [street, cityStateZip].filter(Boolean).join(', ');
               const locationName = loc.name ?? 'Unnamed Location';
+              const weather = weatherByLocation[loc.id];
               return (
                 <Card key={loc.id} className="flex flex-col h-full overflow-hidden">
                   <CardHeader className="flex w-full flex-row items-start justify-between gap-3 overflow-hidden">
@@ -190,12 +196,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
                   </CardHeader>
                   <CardFooter className="mt-auto">
                     <div className="w-full">
-                      <WeatherCell
-                        id={loc.id}
-                        locationName={locationName}
-                        latitude={loc.latitude}
-                        longitude={loc.longitude}
-                      />
+                      <WeatherCell locationName={locationName} weather={weather} />
                     </div>
                   </CardFooter>
                 </Card>
@@ -233,148 +234,19 @@ function HumidityDisplay({ value, className }: { value: number; className?: stri
   );
 }
 
-type WeatherStateData = {
-  timezone: string;
-  current: {
-    dt: number;
-    sunrise?: number;
-    sunset?: number;
-    temp: number;
-    humidity: number;
-    weather: { id: number; main: string; description: string; icon: string } | null;
-  };
-  moonPhase?: number;
-  moonPhaseLabel?: string;
-};
-
-function parseWeatherData(value: unknown): WeatherStateData | null {
-  if (!value || typeof value !== 'object') return null;
-  const data = value as Record<string, unknown>;
-  if (typeof data.timezone !== 'string') return null;
-  const current = data.current;
-  if (!current || typeof current !== 'object') return null;
-  const curr = current as Record<string, unknown>;
-  if (
-    typeof curr.dt !== 'number' ||
-    typeof curr.temp !== 'number' ||
-    typeof curr.humidity !== 'number'
-  ) {
-    return null;
-  }
-  const weather = curr.weather;
-  let parsedWeather: { id: number; main: string; description: string; icon: string } | null = null;
-  if (weather != null) {
-    if (typeof weather !== 'object') return null;
-    const w = weather as Record<string, unknown>;
-    if (
-      typeof w.id !== 'number' ||
-      typeof w.main !== 'string' ||
-      typeof w.description !== 'string' ||
-      typeof w.icon !== 'string'
-    ) {
-      return null;
-    }
-    parsedWeather = {
-      id: w.id,
-      main: w.main,
-      description: w.description,
-      icon: w.icon,
-    };
-  }
-  return {
-    timezone: data.timezone,
-    current: {
-      dt: curr.dt,
-      sunrise: typeof curr.sunrise === 'number' ? curr.sunrise : undefined,
-      sunset: typeof curr.sunset === 'number' ? curr.sunset : undefined,
-      temp: curr.temp,
-      humidity: curr.humidity,
-      weather: parsedWeather,
-    },
-    moonPhase: typeof data.moonPhase === 'number' ? data.moonPhase : undefined,
-    moonPhaseLabel: typeof data.moonPhaseLabel === 'string' ? data.moonPhaseLabel : undefined,
-  };
-}
-
 function WeatherCell({
-  id,
   locationName,
-  latitude,
-  longitude,
+  weather,
 }: {
-  id: string;
   locationName: string;
-  latitude: number | null;
-  longitude: number | null;
+  weather?: WeatherSnapshot;
 }) {
-  const [state, setState] = useState<
-    | { status: 'idle' }
-    | { status: 'loading' }
-    | { status: 'error'; message: string }
-    | {
-        status: 'ready';
-        data: {
-          timezone: string;
-          current: {
-            dt: number;
-            sunrise?: number;
-            sunset?: number;
-            temp: number;
-            humidity: number;
-            weather: { id: number; main: string; description: string; icon: string } | null;
-          };
-          moonPhase?: number;
-          moonPhaseLabel?: string;
-        };
-      }
-  >({ status: 'idle' });
   const [detailsOpen, setDetailsOpen] = useState(false);
-
-  useEffect(() => {
-    if (latitude == null || longitude == null) return;
-    let cancelled = false;
-    setState({ status: 'loading' });
-    fetch(`/api/locations/${id}/weather`, { cache: 'no-store' })
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err?.error || res.statusText);
-        }
-        const raw = await res.json();
-        const parsed = parseWeatherData(raw);
-        if (!parsed) {
-          throw new Error('Invalid weather response shape');
-        }
-        return parsed;
-      })
-      .then((data) => {
-        if (cancelled) return;
-        setState({ status: 'ready', data });
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setState({
-          status: 'error',
-          message: e instanceof Error ? e.message : 'Failed to load weather',
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, latitude, longitude]);
-
-  if (latitude == null || longitude == null) {
+  if (!weather) {
     return <span className="text-muted-foreground text-sm">Set coordinates to enable weather</span>;
   }
 
-  if (state.status === 'loading' || state.status === 'idle') {
-    return <span className="text-muted-foreground text-sm">Loading…</span>;
-  }
-  if (state.status === 'error') {
-    return <span className="text-red-500 text-sm">{state.message}</span>;
-  }
-
-  const { current } = state.data;
+  const { current } = weather;
   const tempF = current.temp;
 
   return (
@@ -387,7 +259,7 @@ function WeatherCell({
             description={current.weather?.description || null}
             inlineDescription={false}
             size="sm"
-            hawaiianMoon={state.data.moonPhaseLabel}
+            hawaiianMoon={weather.moonPhaseLabel}
             withTooltipProvider={false}
             showWeatherTooltip
           />
@@ -420,7 +292,7 @@ function WeatherCell({
                 description={current.weather?.description || null}
                 inlineDescription
                 size="md"
-                hawaiianMoon={state.data.moonPhaseLabel}
+                hawaiianMoon={weather.moonPhaseLabel}
                 withTooltipProvider={false}
               />
               <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">

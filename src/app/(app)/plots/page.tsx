@@ -1,17 +1,22 @@
-import { PlotsBedsPageContent, type PlotsBedsPageContentProps } from './_components/PlotsBedsPageContent';
-import { getPlotsWithBeds, getLocationsList } from './_actions';
+import {
+  PlotsBedsPageContent,
+  type PlotsBedsPageContentProps,
+} from './_components/PlotsBedsPageContent';
+import { getPlotsPageData } from './actions';
 
 export default async function PlotsBedsPage() {
-  const [{ plots: plotsWithBedsData, error }, { locations = [] }] = await Promise.all([
-    getPlotsWithBeds(),
-    getLocationsList(),
-  ]);
-
-  if (error) {
-    return <div className="text-red-500">Error loading plots and beds: {error}</div>;
+  const result = await getPlotsPageData();
+  if (!result.ok) {
+    return <div className="text-red-500">Error loading plots and beds: {result.message}</div>;
   }
 
-  return <PlotsBedsPageContent plotsWithBeds={plotsWithBedsData || []} locations={locations as PlotsBedsPageContentProps['locations']} />;
+  const { plotsWithBeds, locations, weatherByLocation } = result.data;
+
+  return (
+    <PlotsBedsPageContent
+      plotsWithBeds={plotsWithBeds || []}
+      locations={locations as PlotsBedsPageContentProps['locations']}
+      weatherByLocation={weatherByLocation}
+    />
+  );
 }
-
-

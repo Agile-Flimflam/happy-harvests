@@ -1,15 +1,22 @@
-import CalendarClient from './CalendarClient'
-import type { CalendarEvent } from './types'
-export const revalidate = 0
-export const dynamic = 'force-dynamic'
-import Link from 'next/link'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { CalendarPlus, Sprout } from 'lucide-react'
-import { getCalendarEvents, getCalendarLocations } from './_actions'
+import CalendarClient from './CalendarClient';
+import type { CalendarEvent } from './types';
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
+import Link from 'next/link';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { CalendarPlus, Sprout } from 'lucide-react';
+import { getCalendarEvents, getCalendarLocations } from './_actions';
+import { getLocationsWithWeather } from '../locations/actions';
 
 export default async function CalendarPage() {
-  const [{ events }, { locations }] = await Promise.all([getCalendarEvents(), getCalendarLocations()])
+  const [{ events }, { locations }, weatherRes] = await Promise.all([
+    getCalendarEvents(),
+    getCalendarLocations(),
+    getLocationsWithWeather(),
+  ]);
+
+  const weatherByLocation = weatherRes.ok ? weatherRes.data.weatherByLocation : {};
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -30,12 +37,14 @@ export default async function CalendarPage() {
       <Card>
         <CardContent className="p-0">
           <div className="rounded-xl bg-gradient-to-b from-muted/20 via-muted/10 to-transparent p-3 sm:p-4">
-            <CalendarClient events={events as CalendarEvent[]} locations={locations} />
+            <CalendarClient
+              events={events as CalendarEvent[]}
+              locations={locations}
+              weatherByLocation={weatherByLocation}
+            />
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
-
-
