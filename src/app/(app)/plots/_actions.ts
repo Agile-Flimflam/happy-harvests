@@ -194,14 +194,13 @@ export async function getPlotsWithBeds(): Promise<{ plots?: PlotWithBeds[]; erro
       console.error('Supabase Error fetching plots/beds:', error);
       return { error: `Database Error: ${error.message}` };
     }
-    const plotsData = data;
-    const plotsWithEnsuredBeds: PlotWithBeds[] =
-      plotsData?.map((plot: PlotDataWithMaybeBeds) => ({
-        ...plot,
-        beds: plot.beds || [],
-        locations: plot.locations || null,
-        totalAcreage: calculatePlotAcreage(plot.beds || []),
-      })) || [];
+    const plotsData: PlotDataWithMaybeBeds[] = data ?? [];
+    const plotsWithEnsuredBeds: PlotWithBeds[] = plotsData.map((plot) => ({
+      ...plot,
+      beds: plot.beds || [],
+      locations: plot.locations || null,
+      totalAcreage: calculatePlotAcreage(plot.beds || []),
+    }));
     return { plots: plotsWithEnsuredBeds };
   } catch (e) {
     console.error('Unexpected Error fetching plots/beds:', e);
@@ -341,11 +340,12 @@ export async function getBeds(): Promise<{ beds?: BedWithPlotLocation[]; error?:
     const { data, error } = await supabase
       .from('beds')
       .select('*, plots(name,location_id)')
-      .order('id', { ascending: true });
+      .order('id', { ascending: true })
+      .returns<BedWithPlotLocation[]>();
     if (error) {
       return { error: dbErrorMessage('getBeds', error) };
     }
-    const rawRows = Array.isArray(data) ? data : [];
+    const rawRows: BedWithPlotLocation[] = data ?? [];
     const beds: BedWithPlotLocation[] = rawRows.map((row) => {
       const plots = toPlotLocation(row?.plots);
       return { ...row, plots };

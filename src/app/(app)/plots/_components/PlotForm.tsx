@@ -7,7 +7,7 @@ import type { Tables } from '@/lib/supabase-server';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 // (Dialog footer handled by parent FormDialog)
-import { useForm, type Resolver, type SubmitHandler } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PlotSchema, type PlotFormValues } from '@/lib/validation/plots';
 import {
@@ -48,7 +48,7 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
   const formRef = useRef<HTMLFormElement>(null);
 
   const form = useForm<PlotFormValues>({
-    resolver: zodResolver(PlotSchema) as Resolver<PlotFormValues>,
+    resolver: zodResolver(PlotSchema),
     mode: 'onSubmit',
     defaultValues: {
       plot_id: plotId,

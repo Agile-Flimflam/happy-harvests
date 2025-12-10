@@ -271,7 +271,11 @@ export async function updateUserProfileAction(formData: FormData): Promise<{
   }
 
   const admin = createSupabaseAdminClient();
-  const userId = String(formData.get('userId') || '');
+  const userIdEntry = formData.get('userId');
+  if (typeof userIdEntry !== 'string') {
+    return { ok: false, error: 'Invalid userId' };
+  }
+  const userId = userIdEntry.trim();
   const roleRaw = formData.get('role');
   const roleInput = typeof roleRaw === 'string' ? roleRaw.toLowerCase() : '';
   if (!isUserRole(roleInput)) {

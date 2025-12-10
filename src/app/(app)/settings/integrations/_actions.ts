@@ -172,6 +172,25 @@ function addMinutesLocalWallTime(
   };
 }
 
+function buildUtcDate(dateYMD: string, timeHM: string): Date | null {
+  const [yearStr, monthStr, dayStr] = dateYMD.split('-');
+  const [hourStr, minuteStr] = timeHM.split(':');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  const hour = Number(hourStr);
+  const minute = Number(minuteStr);
+  const inputsAreValid =
+    Number.isInteger(year) &&
+    Number.isInteger(month) &&
+    Number.isInteger(day) &&
+    Number.isInteger(hour) &&
+    Number.isInteger(minute);
+  if (!inputsAreValid) return null;
+  const ms = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  return Number.isFinite(ms) ? new Date(ms) : null;
+}
+
 async function getFormDataText(
   formData: FormData,
   key: string,
@@ -418,15 +437,15 @@ export async function createTestEventAction(
       return { ok: false, message: 'End time must be in HH:MM (24h) format' };
     }
 
-    const startDateObj = new Date(`${date}T${startTime}:00`);
-    if (!Number.isFinite(startDateObj.getTime())) {
+    const startDateObj = buildUtcDate(date, startTime);
+    if (!startDateObj) {
       return { ok: false, message: 'Invalid start date/time' };
     }
 
     let endDateTime: string;
     if (endTime) {
-      const endDateObj = new Date(`${endDate}T${endTime}:00`);
-      if (!Number.isFinite(endDateObj.getTime())) {
+      const endDateObj = buildUtcDate(endDate, endTime);
+      if (!endDateObj) {
         return { ok: false, message: 'Invalid end date/time' };
       }
       endDateTime = `${endDate}T${endTime}:00`;
