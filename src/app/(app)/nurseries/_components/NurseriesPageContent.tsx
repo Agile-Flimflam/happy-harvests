@@ -1,8 +1,5 @@
 'use client';
 
-import PageHeader from '@/components/page-header';
-import PageContent from '@/components/page-content';
-import FormDialog from '@/components/dialogs/FormDialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Table,
@@ -42,6 +39,10 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 import { setupFormControlProperty, setupGlobalFormControlListener } from '@/lib/form-utils';
+import { FlowShell } from '@/components/ui/flow-shell';
+import { InlineCreateSheet } from '@/components/ui/inline-create-sheet';
+import { StickyActionBar } from '@/components/ui/sticky-action-bar';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 type Nursery = Tables<'nurseries'>;
 type Location = Tables<'locations'>;
@@ -144,12 +145,16 @@ export default function NurseriesPageContent({
     }
   };
 
+  const isMobile = useIsMobile();
+
   return (
     <div>
-      <PageHeader
+      <FlowShell
         title="Nurseries"
-        action={
-          hasNurseries ? (
+        description="Manage seedling starts and their locations."
+        icon={<FlaskConical className="h-5 w-5" aria-hidden />}
+        actions={
+          hasNurseries && !isMobile ? (
             <Button
               size="sm"
               onClick={() => {
@@ -161,8 +166,7 @@ export default function NurseriesPageContent({
             </Button>
           ) : undefined
         }
-      />
-      <PageContent>
+      >
         {error ? (
           <div className="text-red-500">Error loading nurseries: {error}</div>
         ) : !hasNurseries ? (
@@ -233,7 +237,7 @@ export default function NurseriesPageContent({
             </Table>
           </div>
         )}
-      </PageContent>
+      </FlowShell>
 
       {/* Single confirm dialog instance to avoid stacked overlays and include deterministic copy */}
       <ConfirmDialog
@@ -258,13 +262,18 @@ export default function NurseriesPageContent({
         onConfirm={confirmDelete}
       />
 
-      <FormDialog
+      <InlineCreateSheet
         open={open}
         onOpenChange={setOpen}
         title={editing ? 'Edit Nursery' : 'Add Nursery'}
         description={dialogDescription}
-        submitLabel={editing ? 'Save changes' : 'Create nursery'}
-        formId="nurseryForm"
+        primaryAction={{
+          label: editing ? 'Save changes' : 'Create nursery',
+          formId: 'nurseryForm',
+        }}
+        secondaryAction={{ label: 'Cancel', onClick: () => setOpen(false) }}
+        footerContent="Actions stay reachable with safe-area padding on mobile."
+        side="bottom"
       >
         <form
           id="nurseryForm"
@@ -332,7 +341,22 @@ export default function NurseriesPageContent({
             />
           </div>
         </form>
-      </FormDialog>
+      </InlineCreateSheet>
+
+      {hasNurseries && isMobile ? (
+        <StickyActionBar align="end" aria-label="Quick add nursery" position="fixed">
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setOpen(true);
+            }}
+            className="w-full sm:w-auto"
+          >
+            <Plus className="h-4 w-4 mr-2" aria-hidden />
+            Add Nursery
+          </Button>
+        </StickyActionBar>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { WeatherBadge } from '@/components/weather/WeatherBadge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatSquareFeet, formatAcres, squareFeetToAcres } from '@/lib/utils';
@@ -29,10 +29,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlotForm } from '../_components/PlotForm';
 import { BedForm } from '../_components/BedForm';
 import { deletePlot, deleteBed } from '../_actions';
-import { Pencil, Trash2, Plus, MapPin, Sunrise, Sunset, Droplet } from 'lucide-react';
+import { Pencil, Trash2, Plus, MapPin, Sunrise, Sunset, Droplet, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
-import PageHeader from '@/components/page-header';
-import PageContent from '@/components/page-content';
 import {
   Empty,
   EmptyContent,
@@ -41,6 +39,10 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty';
+import { FlowShell } from '@/components/ui/flow-shell';
+import { RecentChips } from '@/components/ui/recent-chips';
+import { StickyActionBar } from '@/components/ui/sticky-action-bar';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 type Plot = Tables<'plots'>;
 type Bed = Tables<'beds'>;
@@ -88,9 +90,19 @@ export function PlotsBedsPageContent({
   const [deleteBedId, setDeleteBedId] = useState<number | null>(null);
   const [isDeletingPlot, setIsDeletingPlot] = useState(false);
   const [isDeletingBed, setIsDeletingBed] = useState(false);
+  const [locationFilter, setLocationFilter] = useState<string | null>(null);
 
   const plotsByLocation = groupPlotsByLocation(plotsWithBeds);
   const hasPlots = plotsWithBeds.length > 0;
+  const isMobile = useIsMobile();
+  const locationChips = useMemo(
+    () =>
+      Object.entries(plotsByLocation).map(([key, data]) => ({
+        label: data.locationName,
+        value: key,
+      })),
+    [plotsByLocation]
+  );
 
   const handleEditPlot = (plot: Plot) => {
     setEditingPlot(plot);
@@ -327,119 +339,129 @@ export function PlotsBedsPageContent({
 
   return (
     <div>
-      <PageHeader
+      <FlowShell
         title="Plots & Beds"
-        action={
-          hasPlots ? (
+        description="Grid-aligned layout with mobile-friendly actions."
+        icon={<LayoutGrid className="h-5 w-5" aria-hidden />}
+        actions={
+          hasPlots && !isMobile ? (
             <Button onClick={handleAddPlot} size="sm" className="w-full sm:w-auto">
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-4 w-4 mr-2" aria-hidden />
               Add Plot
             </Button>
           ) : undefined
         }
-      />
-
-      <FormDialog
-        open={isPlotDialogOpen}
-        onOpenChange={setIsPlotDialogOpen}
-        title={editingPlot ? 'Edit Plot' : 'Add New Plot'}
-        description={
-          editingPlot ? 'Update the details of the plot.' : 'Enter the details for the new plot.'
-        }
-        submitLabel={editingPlot ? 'Update Plot' : 'Create Plot'}
-        formId="plotFormSubmit"
-        className="sm:max-w-[425px]"
       >
-        <PlotForm
-          plot={editingPlot}
-          locations={locations}
-          closeDialog={closePlotDialog}
+        <FormDialog
+          open={isPlotDialogOpen}
+          onOpenChange={setIsPlotDialogOpen}
+          title={editingPlot ? 'Edit Plot' : 'Add New Plot'}
+          description={
+            editingPlot ? 'Update the details of the plot.' : 'Enter the details for the new plot.'
+          }
+          submitLabel={editingPlot ? 'Update Plot' : 'Create Plot'}
           formId="plotFormSubmit"
-        />
-      </FormDialog>
+          className="sm:max-w-[425px]"
+        >
+          <PlotForm
+            plot={editingPlot}
+            locations={locations}
+            closeDialog={closePlotDialog}
+            formId="plotFormSubmit"
+          />
+        </FormDialog>
 
-      {/* Delete Plot Confirmation */}
-      <Dialog
-        open={deletePlotId != null}
-        onOpenChange={(open) => {
-          if (!open) setDeletePlotId(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete plot?</DialogTitle>
-            <DialogDescription>
-              This will permanently delete the plot and all associated beds. This action cannot be
-              undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button
-              variant="destructive"
-              onClick={confirmDeletePlot}
-              disabled={isDeletingPlot}
-              aria-disabled={isDeletingPlot}
-            >
-              {isDeletingPlot ? 'Deleting…' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {/* Delete Plot Confirmation */}
+        <Dialog
+          open={deletePlotId != null}
+          onOpenChange={(open) => {
+            if (!open) setDeletePlotId(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Delete plot?</DialogTitle>
+              <DialogDescription>
+                This will permanently delete the plot and all associated beds. This action cannot be
+                undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DialogClose>
+              <Button
+                variant="destructive"
+                onClick={confirmDeletePlot}
+                disabled={isDeletingPlot}
+                aria-disabled={isDeletingPlot}
+              >
+                {isDeletingPlot ? 'Deleting…' : 'Delete'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-      <FormDialog
-        open={isBedDialogOpen}
-        onOpenChange={setIsBedDialogOpen}
-        title={editingBed ? 'Edit Bed' : `Add New Bed to ${currentPlotForBed?.name ?? 'Plot'}`}
-        description={
-          editingBed ? 'Update the details of the bed.' : 'Enter the details for the new bed.'
-        }
-        submitLabel={editingBed ? 'Update Bed' : 'Create Bed'}
-        formId="bedFormSubmit"
-        className="sm:max-w-[425px]"
-      >
-        <BedForm
-          bed={editingBed}
-          plots={allPlots}
-          closeDialog={closeBedDialog}
+        <FormDialog
+          open={isBedDialogOpen}
+          onOpenChange={setIsBedDialogOpen}
+          title={editingBed ? 'Edit Bed' : `Add New Bed to ${currentPlotForBed?.name ?? 'Plot'}`}
+          description={
+            editingBed ? 'Update the details of the bed.' : 'Enter the details for the new bed.'
+          }
+          submitLabel={editingBed ? 'Update Bed' : 'Create Bed'}
           formId="bedFormSubmit"
-          initialPlotId={currentPlotForBed?.plot_id ?? null}
-        />
-      </FormDialog>
+          className="sm:max-w-[425px]"
+        >
+          <BedForm
+            bed={editingBed}
+            plots={allPlots}
+            closeDialog={closeBedDialog}
+            formId="bedFormSubmit"
+            initialPlotId={currentPlotForBed?.plot_id ?? null}
+          />
+        </FormDialog>
 
-      {/* Delete Bed Confirmation */}
-      <Dialog
-        open={deleteBedId != null}
-        onOpenChange={(open) => {
-          if (!open) setDeleteBedId(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete bed?</DialogTitle>
-            <DialogDescription>
-              This will permanently delete the bed. This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button
-              variant="destructive"
-              onClick={confirmDeleteBed}
-              disabled={isDeletingBed}
-              aria-disabled={isDeletingBed}
-            >
-              {isDeletingBed ? 'Deleting…' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {/* Delete Bed Confirmation */}
+        <Dialog
+          open={deleteBedId != null}
+          onOpenChange={(open) => {
+            if (!open) setDeleteBedId(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Delete bed?</DialogTitle>
+              <DialogDescription>
+                This will permanently delete the bed. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DialogClose>
+              <Button
+                variant="destructive"
+                onClick={confirmDeleteBed}
+                disabled={isDeletingBed}
+                aria-disabled={isDeletingBed}
+              >
+                {isDeletingBed ? 'Deleting…' : 'Delete'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-      <PageContent>
+        {locationChips.length > 1 ? (
+          <RecentChips
+            items={locationChips}
+            activeValue={locationFilter}
+            onSelect={setLocationFilter}
+            ariaLabel="Filter plots by location"
+            clearLabel="Show all"
+          />
+        ) : null}
+
         {!hasPlots ? (
           <Empty>
             <EmptyHeader>
@@ -460,16 +482,27 @@ export function PlotsBedsPageContent({
           </Empty>
         ) : (
           <div className="space-y-8">
-            {Object.entries(plotsByLocation).map(([locationKey, locationData]) =>
-              renderLocationSection(
-                locationKey,
-                locationData,
-                locationData.location ? weatherByLocation[locationData.location.id] : undefined
-              )
-            )}
+            {Object.entries(plotsByLocation)
+              .filter(([key]) => !locationFilter || locationFilter === key)
+              .map(([locationKey, locationData]) =>
+                renderLocationSection(
+                  locationKey,
+                  locationData,
+                  locationData.location ? weatherByLocation[locationData.location.id] : undefined
+                )
+              )}
           </div>
         )}
-      </PageContent>
+      </FlowShell>
+
+      {hasPlots && isMobile ? (
+        <StickyActionBar align="end" aria-label="Quick plot actions" position="fixed">
+          <Button onClick={handleAddPlot} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4 mr-2" aria-hidden />
+            Add Plot
+          </Button>
+        </StickyActionBar>
+      ) : null}
     </div>
   );
 }

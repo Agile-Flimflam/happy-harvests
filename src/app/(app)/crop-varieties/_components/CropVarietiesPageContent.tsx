@@ -12,7 +12,6 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 import { Badge } from '@/components/ui/badge';
-import FormDialog from '@/components/dialogs/FormDialog';
 import {
   Table,
   TableBody,
@@ -27,8 +26,10 @@ import { Pencil, Trash2, Plus, Leaf } from 'lucide-react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import PageHeader from '@/components/page-header';
-import PageContent from '@/components/page-content';
+import { FlowShell } from '@/components/ui/flow-shell';
+import { InlineCreateSheet } from '@/components/ui/inline-create-sheet';
+import { StickyActionBar } from '@/components/ui/sticky-action-bar';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null } & {
   image_url: string | null;
@@ -50,6 +51,7 @@ export function CropVarietiesPageContent({
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const hasVarieties = cropVarieties.length > 0;
+  const isMobile = useIsMobile();
 
   const handleEdit = (cropVariety: CropVariety) => {
     setEditingCropVariety(cropVariety);
@@ -90,39 +92,19 @@ export function CropVarietiesPageContent({
 
   return (
     <div>
-      <PageHeader
+      <FlowShell
         title="Crop Varieties"
-        action={
-          hasVarieties ? (
+        description="Manage varieties with images, DTM, and organic status."
+        icon={<Leaf className="h-5 w-5" aria-hidden />}
+        actions={
+          hasVarieties && !isMobile ? (
             <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Add Crop Variety
             </Button>
           ) : undefined
         }
-      />
-      <FormDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        title={editingCropVariety ? 'Edit Crop Variety' : 'Add New Crop Variety'}
-        description={
-          editingCropVariety
-            ? 'Make changes to the crop variety details.'
-            : 'Enter the details for the new crop variety.'
-        }
-        submitLabel={editingCropVariety ? 'Update Crop Variety' : 'Create Crop Variety'}
-        formId={formId}
-        className="sm:max-w-[425px]"
       >
-        <CropVarietyForm
-          formId={formId}
-          cropVariety={editingCropVariety}
-          crops={crops}
-          closeDialog={closeDialog}
-        />
-      </FormDialog>
-
-      <PageContent>
         {!hasVarieties ? (
           <Empty>
             <EmptyHeader>
@@ -234,7 +216,41 @@ export function CropVarietiesPageContent({
             />
           </div>
         )}
-      </PageContent>
+      </FlowShell>
+
+      <InlineCreateSheet
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        title={editingCropVariety ? 'Edit Crop Variety' : 'Add New Crop Variety'}
+        description={
+          editingCropVariety
+            ? 'Make changes to the crop variety details.'
+            : 'Enter the details for the new crop variety.'
+        }
+        primaryAction={{
+          label: editingCropVariety ? 'Update Crop Variety' : 'Create Crop Variety',
+          formId: formId,
+        }}
+        secondaryAction={{ label: 'Cancel', onClick: closeDialog }}
+        footerContent="Sheet actions stay reachable on mobile."
+        side="bottom"
+      >
+        <CropVarietyForm
+          formId={formId}
+          cropVariety={editingCropVariety}
+          crops={crops}
+          closeDialog={closeDialog}
+        />
+      </InlineCreateSheet>
+
+      {hasVarieties && isMobile ? (
+        <StickyActionBar align="end" aria-label="Quick add variety" position="fixed">
+          <Button onClick={handleAdd} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4 mr-2" aria-hidden />
+            Add Crop Variety
+          </Button>
+        </StickyActionBar>
+      ) : null}
     </div>
   );
 }

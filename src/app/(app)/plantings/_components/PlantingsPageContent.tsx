@@ -44,7 +44,6 @@ import {
 import { toast } from 'sonner';
 import { addDaysUtc, formatDateLocal } from '@/lib/date';
 import { positiveOrNull } from '@/lib/utils';
-import PageHeader from '@/components/page-header';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +51,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import PageContent from '@/components/page-content';
+import { FlowShell } from '@/components/ui/flow-shell';
+import { InlineCreateSheet } from '@/components/ui/inline-create-sheet';
+import { StickyActionBar } from '@/components/ui/sticky-action-bar';
+import { useIsMobile } from '@/hooks/use-mobile';
 import TransplantForm from './TransplantForm';
 import MoveForm from './MoveForm';
 import HarvestForm from './HarvestForm';
@@ -647,13 +649,20 @@ export function PlantingsPageContent({
   })();
 
   const hasPlantings = visiblePlantings.length > 0;
+  const isMobile = useIsMobile();
+  const activeCreateMode = createMode ?? 'nursery';
+  const createFormId = activeCreateMode === 'direct' ? 'directSeedForm' : 'nurserySowForm';
+  const createPrimaryLabel =
+    activeCreateMode === 'direct' ? 'Create Direct Seed Planting' : 'Create Nursery Planting';
 
   return (
     <div>
-      <PageHeader
+      <FlowShell
         title="Plantings"
-        action={
-          hasPlantings ? (
+        description="Track nursery starts, direct seeds, and harvest windows."
+        icon={<Sprout className="h-5 w-5" aria-hidden />}
+        actions={
+          hasPlantings && !isMobile ? (
             <Button
               size="sm"
               className="w-full sm:w-auto"
@@ -667,165 +676,169 @@ export function PlantingsPageContent({
             </Button>
           ) : undefined
         }
-      />
-
-      <FormDialog
-        open={isDialogOpen}
-        onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) setCreateMode(null);
-        }}
-        title={createMode === 'direct' ? 'Direct seed' : 'Nursery sow'}
-        description={createMode === 'direct' ? 'Seed directly in field' : 'Start in nursery'}
-        submitLabel={
-          createMode === 'direct' ? 'Create Direct Seed Planting' : 'Create Nursery Planting'
-        }
-        formId={createMode === 'direct' ? 'directSeedForm' : 'nurserySowForm'}
-        className="sm:max-w-md"
       >
-        <Tabs
-          value={createMode ?? 'nursery'}
-          onValueChange={(v) => setCreateMode(v as 'nursery' | 'direct')}
-        >
-          <TabsList>
-            <TabsTrigger value="nursery">Nursery Sow</TabsTrigger>
-            <TabsTrigger value="direct">Direct Seed</TabsTrigger>
-          </TabsList>
-          <TabsContent value="nursery">
-            <NurserySowForm
-              cropVarieties={cropVarieties}
-              nurseries={_nurseries}
-              closeDialog={closeDialog}
-              formId="nurserySowForm"
-              defaultDate={scheduleDate}
-            />
-          </TabsContent>
-          <TabsContent value="direct">
-            <DirectSeedForm
-              cropVarieties={cropVarieties}
-              beds={beds}
-              closeDialog={closeDialog}
-              formId="directSeedForm"
-              defaultDate={scheduleDate}
-            />
-          </TabsContent>
-        </Tabs>
-      </FormDialog>
-
-      {actionDialog && (
-        <FormDialog
-          open={actionDialog != null}
+        <InlineCreateSheet
+          open={isDialogOpen}
           onOpenChange={(open) => {
-            if (!open) closeActionDialog();
+            setIsDialogOpen(open);
+            if (!open) setCreateMode(null);
           }}
-          title={
-            actionDialog.type === 'transplant'
-              ? 'Transplant'
-              : actionDialog.type === 'move'
-                ? 'Move Planting'
-                : actionDialog.type === 'harvest'
-                  ? 'Harvest'
-                  : actionDialog.type === 'history'
-                    ? 'Planting History'
-                    : 'Remove Planting'
-          }
+          title={activeCreateMode === 'direct' ? 'Direct seed' : 'Nursery sow'}
           description={
-            actionDialog.type === 'transplant'
-              ? 'Move from nursery to field bed'
-              : actionDialog.type === 'move'
-                ? 'Move between beds'
-                : actionDialog.type === 'harvest'
-                  ? 'Enter final harvest metrics'
-                  : actionDialog.type === 'history'
-                    ? 'Event timeline and table'
-                    : 'Remove this planting (no harvest)'
+            activeCreateMode === 'direct' ? 'Seed directly in field' : 'Start in nursery'
           }
-          submitLabel={
-            actionDialog.type === 'transplant'
-              ? 'Transplant'
-              : actionDialog.type === 'move'
-                ? 'Move'
-                : actionDialog.type === 'harvest'
-                  ? 'Harvest'
-                  : actionDialog.type === 'history'
-                    ? undefined
-                    : 'Remove Planting'
-          }
-          formId={
-            actionDialog.type === 'transplant'
-              ? 'transplantForm'
-              : actionDialog.type === 'move'
-                ? 'moveForm'
-                : actionDialog.type === 'harvest'
-                  ? 'harvestForm'
-                  : actionDialog.type === 'history'
-                    ? undefined
-                    : 'removeForm'
-          }
-          className={actionDialog.type === 'history' ? 'sm:max-w-2xl' : 'sm:max-w-md'}
+          primaryAction={{
+            label: createPrimaryLabel,
+            formId: createFormId,
+          }}
+          secondaryAction={{
+            label: 'Cancel',
+            onClick: closeDialog,
+          }}
+          side="bottom"
         >
-          {actionDialog.type === 'transplant' && (
-            <TransplantForm
-              plantingId={actionDialog.plantingId}
-              beds={beds}
-              closeDialog={closeActionDialog}
-              formId="transplantForm"
-            />
-          )}
-          {actionDialog.type === 'move' && (
-            <MoveForm
-              plantingId={actionDialog.plantingId}
-              beds={beds}
-              closeDialog={closeActionDialog}
-              formId="moveForm"
-            />
-          )}
-          {actionDialog && actionDialog.type === 'harvest' && (
-            <HarvestForm
-              plantingId={actionDialog.plantingId}
-              closeDialog={closeActionDialog}
-              formId="harvestForm"
-              defaultQty={actionDialog.defaultQty ?? undefined}
-              defaultWeight={actionDialog.defaultWeight ?? undefined}
-            />
-          )}
-          {actionDialog.type === 'history' && (
-            <PlantingHistoryDialog
-              plantingId={actionDialog.plantingId}
-              varietyName={
-                plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.name
-              }
-              cropName={
-                plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.crops
-                  ?.name ?? null
-              }
-              status={plantings.find((x) => x.id === actionDialog.plantingId)?.status ?? null}
-            />
-          )}
-          {actionDialog.type === 'remove' && (
-            <RemovePlantingForm
-              plantingId={actionDialog.plantingId}
-              closeDialog={closeActionDialog}
-              formId="removeForm"
-            />
-          )}
-        </FormDialog>
-      )}
+          <Tabs
+            value={activeCreateMode}
+            onValueChange={(v) => setCreateMode(v as 'nursery' | 'direct')}
+          >
+            <TabsList>
+              <TabsTrigger value="nursery">Nursery Sow</TabsTrigger>
+              <TabsTrigger value="direct">Direct Seed</TabsTrigger>
+            </TabsList>
+            <TabsContent value="nursery">
+              <NurserySowForm
+                cropVarieties={cropVarieties}
+                nurseries={_nurseries}
+                closeDialog={closeDialog}
+                formId="nurserySowForm"
+                defaultDate={scheduleDate}
+              />
+            </TabsContent>
+            <TabsContent value="direct">
+              <DirectSeedForm
+                cropVarieties={cropVarieties}
+                beds={beds}
+                closeDialog={closeDialog}
+                formId="directSeedForm"
+                defaultDate={scheduleDate}
+              />
+            </TabsContent>
+          </Tabs>
+        </InlineCreateSheet>
 
-      <ConfirmDialog
-        open={deleteId != null}
-        onOpenChange={(open) => {
-          if (!open) setDeleteId(null);
-        }}
-        title="Delete planting?"
-        description="This action cannot be undone."
-        confirmText="Delete"
-        confirmVariant="destructive"
-        confirming={deleting}
-        onConfirm={confirmDelete}
-      />
+        {actionDialog && (
+          <FormDialog
+            open={actionDialog != null}
+            onOpenChange={(open) => {
+              if (!open) closeActionDialog();
+            }}
+            title={
+              actionDialog.type === 'transplant'
+                ? 'Transplant'
+                : actionDialog.type === 'move'
+                  ? 'Move Planting'
+                  : actionDialog.type === 'harvest'
+                    ? 'Harvest'
+                    : actionDialog.type === 'history'
+                      ? 'Planting History'
+                      : 'Remove Planting'
+            }
+            description={
+              actionDialog.type === 'transplant'
+                ? 'Move from nursery to field bed'
+                : actionDialog.type === 'move'
+                  ? 'Move between beds'
+                  : actionDialog.type === 'harvest'
+                    ? 'Enter final harvest metrics'
+                    : actionDialog.type === 'history'
+                      ? 'Event timeline and table'
+                      : 'Remove this planting (no harvest)'
+            }
+            submitLabel={
+              actionDialog.type === 'transplant'
+                ? 'Transplant'
+                : actionDialog.type === 'move'
+                  ? 'Move'
+                  : actionDialog.type === 'harvest'
+                    ? 'Harvest'
+                    : actionDialog.type === 'history'
+                      ? undefined
+                      : 'Remove Planting'
+            }
+            formId={
+              actionDialog.type === 'transplant'
+                ? 'transplantForm'
+                : actionDialog.type === 'move'
+                  ? 'moveForm'
+                  : actionDialog.type === 'harvest'
+                    ? 'harvestForm'
+                    : actionDialog.type === 'history'
+                      ? undefined
+                      : 'removeForm'
+            }
+            className={actionDialog.type === 'history' ? 'sm:max-w-2xl' : 'sm:max-w-md'}
+          >
+            {actionDialog.type === 'transplant' && (
+              <TransplantForm
+                plantingId={actionDialog.plantingId}
+                beds={beds}
+                closeDialog={closeActionDialog}
+                formId="transplantForm"
+              />
+            )}
+            {actionDialog.type === 'move' && (
+              <MoveForm
+                plantingId={actionDialog.plantingId}
+                beds={beds}
+                closeDialog={closeActionDialog}
+                formId="moveForm"
+              />
+            )}
+            {actionDialog && actionDialog.type === 'harvest' && (
+              <HarvestForm
+                plantingId={actionDialog.plantingId}
+                closeDialog={closeActionDialog}
+                formId="harvestForm"
+                defaultQty={actionDialog.defaultQty ?? undefined}
+                defaultWeight={actionDialog.defaultWeight ?? undefined}
+              />
+            )}
+            {actionDialog.type === 'history' && (
+              <PlantingHistoryDialog
+                plantingId={actionDialog.plantingId}
+                varietyName={
+                  plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.name
+                }
+                cropName={
+                  plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.crops
+                    ?.name ?? null
+                }
+                status={plantings.find((x) => x.id === actionDialog.plantingId)?.status ?? null}
+              />
+            )}
+            {actionDialog.type === 'remove' && (
+              <RemovePlantingForm
+                plantingId={actionDialog.plantingId}
+                closeDialog={closeActionDialog}
+                formId="removeForm"
+              />
+            )}
+          </FormDialog>
+        )}
 
-      <PageContent>
+        <ConfirmDialog
+          open={deleteId != null}
+          onOpenChange={(open) => {
+            if (!open) setDeleteId(null);
+          }}
+          title="Delete planting?"
+          description="This action cannot be undone."
+          confirmText="Delete"
+          confirmVariant="destructive"
+          confirming={deleting}
+          onConfirm={confirmDelete}
+        />
+
         {!hasPlantings ? (
           <Empty>
             <EmptyHeader>
@@ -838,7 +851,7 @@ export function PlantingsPageContent({
             <EmptyContent>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button size="lg">
+                  <Button size="lg" onClick={() => setIsDialogOpen(true)}>
                     <Plus className="h-5 w-5 mr-2" />
                     Add Your First Planting
                   </Button>
@@ -1044,7 +1057,22 @@ export function PlantingsPageContent({
             </div>
           </div>
         )}
-      </PageContent>
+      </FlowShell>
+
+      {hasPlantings && isMobile ? (
+        <StickyActionBar align="end" aria-label="Quick add planting" position="fixed">
+          <Button
+            onClick={() => {
+              setCreateMode('nursery');
+              setIsDialogOpen(true);
+            }}
+            className="w-full sm:w-auto"
+          >
+            <Plus className="h-4 w-4 mr-2" aria-hidden />
+            Add Planting
+          </Button>
+        </StickyActionBar>
+      ) : null}
     </div>
   );
 }
