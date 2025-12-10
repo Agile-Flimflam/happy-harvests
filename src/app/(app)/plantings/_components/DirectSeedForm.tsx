@@ -6,10 +6,16 @@ import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DirectSeedSchema, type DirectSeedInput } from '@/lib/validation/plantings/direct-seed';
 import { z } from 'zod';
-import { hawaiianMoonForISO, hawaiianMoonInfoForISO } from '@/lib/hawaiian-moon'
+import { hawaiianMoonForISO, hawaiianMoonInfoForISO } from '@/lib/hawaiian-moon';
 import { actionDirectSeed, type PlantingFormState } from '../_actions';
 import { toast } from 'sonner';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -22,7 +28,12 @@ import {
 } from '@/components/ui/form';
 
 type Variety = { id: number; name: string; latin_name: string; crops?: { name: string } | null };
-type Bed = { id: number; length_inches: number | null; width_inches: number | null; plots?: { locations?: { name?: string | null } | null } | null };
+type Bed = {
+  id: number;
+  length_inches: number | null;
+  width_inches: number | null;
+  plots?: { locations?: { name?: string | null } | null } | null;
+};
 
 interface Props {
   cropVarieties: Variety[];
@@ -30,9 +41,17 @@ interface Props {
   closeDialog: () => void;
   formId?: string;
   defaultDate?: string | null;
+  defaultBedId?: number | null;
 }
 
-export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId, defaultDate = null }: Props) {
+export function DirectSeedForm({
+  cropVarieties,
+  beds,
+  closeDialog,
+  formId,
+  defaultDate = null,
+  defaultBedId = null,
+}: Props) {
   const initial: PlantingFormState = { message: '', errors: {}, planting: null };
   const [state, formAction] = useActionState(actionDirectSeed, initial);
 
@@ -42,7 +61,7 @@ export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId, defau
     defaultValues: {
       crop_variety_id: undefined,
       qty: undefined,
-      bed_id: undefined,
+      bed_id: defaultBedId ?? undefined,
       event_date: defaultDate || '',
       notes: '',
       weight_grams: undefined,
@@ -53,7 +72,9 @@ export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId, defau
     if (!state.message) return;
     if (state.errors && Object.keys(state.errors).length > 0) {
       Object.entries(state.errors).forEach(([field, errors]) => {
-        const msg = Array.isArray(errors) ? errors[0] : (errors as unknown as string) || 'Invalid value';
+        const msg = Array.isArray(errors)
+          ? errors[0]
+          : (errors as unknown as string) || 'Invalid value';
         form.setError(field as keyof DirectSeedInput, { message: msg });
       });
       toast.error(state.message);
@@ -85,13 +106,18 @@ export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId, defau
             <FormItem>
               <FormLabel>Plant Variety</FormLabel>
               <FormControl>
-                <Select value={field.value ? String(field.value) : ''} onValueChange={(v) => field.onChange(parseInt(v, 10))}>
+                <Select
+                  value={field.value ? String(field.value) : ''}
+                  onValueChange={(v) => field.onChange(parseInt(v, 10))}
+                >
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Select a variety" />
                   </SelectTrigger>
                   <SelectContent>
                     {cropVarieties.map((v) => (
-                      <SelectItem key={v.id} value={String(v.id)}>{v.crops?.name ? `${v.crops.name} - ${v.name}` : v.name}</SelectItem>
+                      <SelectItem key={v.id} value={String(v.id)}>
+                        {v.crops?.name ? `${v.crops.name} - ${v.name}` : v.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -119,12 +145,12 @@ export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId, defau
                     value={field.value != null ? String(field.value) : ''}
                     onKeyDown={(e) => {
                       if (['e', 'E', '+', '-', '.'].includes(e.key)) {
-                        e.preventDefault()
+                        e.preventDefault();
                       }
                     }}
                     onChange={(e) => {
-                      const digits = e.target.value.replace(/[^0-9]/g, '')
-                      field.onChange(digits === '' ? '' : Number(digits))
+                      const digits = e.target.value.replace(/[^0-9]/g, '');
+                      field.onChange(digits === '' ? '' : Number(digits));
                     }}
                     onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                   />
@@ -151,12 +177,12 @@ export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId, defau
                     value={field.value != null ? String(field.value) : ''}
                     onKeyDown={(e) => {
                       if (['e', 'E', '+', '-', '.'].includes(e.key)) {
-                        e.preventDefault()
+                        e.preventDefault();
                       }
                     }}
                     onChange={(e) => {
-                      const digits = e.target.value.replace(/[^0-9]/g, '')
-                      field.onChange(digits === '' ? '' : Number(digits))
+                      const digits = e.target.value.replace(/[^0-9]/g, '');
+                      field.onChange(digits === '' ? '' : Number(digits));
                     }}
                     onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                   />
@@ -174,7 +200,10 @@ export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId, defau
             <FormItem>
               <FormLabel>Bed</FormLabel>
               <FormControl>
-                <Select value={field.value ? String(field.value) : ''} onValueChange={(v) => field.onChange(parseInt(v, 10))}>
+                <Select
+                  value={field.value ? String(field.value) : ''}
+                  onValueChange={(v) => field.onChange(parseInt(v, 10))}
+                >
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Select a bed" />
                   </SelectTrigger>
@@ -207,7 +236,14 @@ export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId, defau
                 />
               </FormControl>
               {typeof field.value === 'string' && field.value ? (
-                <div className="text-xs text-muted-foreground">Hawaiian moon: <span className="font-medium">{hawaiianMoonForISO(field.value) ?? '—'}</span> {(() => { const info = hawaiianMoonInfoForISO(field.value); return info ? `· ${info.recommendation}` : '' })()}</div>
+                <div className="text-xs text-muted-foreground">
+                  Hawaiian moon:{' '}
+                  <span className="font-medium">{hawaiianMoonForISO(field.value) ?? '—'}</span>{' '}
+                  {(() => {
+                    const info = hawaiianMoonInfoForISO(field.value);
+                    return info ? `· ${info.recommendation}` : '';
+                  })()}
+                </div>
               ) : null}
               <FormMessage />
             </FormItem>
@@ -221,7 +257,12 @@ export function DirectSeedForm({ cropVarieties, beds, closeDialog, formId, defau
             <FormItem>
               <FormLabel>Notes</FormLabel>
               <FormControl>
-                <Textarea className="mt-1" rows={3} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value)} />
+                <Textarea
+                  className="mt-1"
+                  rows={3}
+                  value={field.value ?? ''}
+                  onChange={(e) => field.onChange(e.target.value)}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

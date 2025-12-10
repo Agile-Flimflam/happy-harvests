@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useActionState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,8 @@ import { deletePlanting, markPlantingAsPlanted } from '../_actions';
 import { NurserySowForm } from './NurserySowForm';
 import { DirectSeedForm } from './DirectSeedForm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Stepper } from '@/components/ui/stepper';
+import { InlineCreateSheet } from '@/components/ui/inline-create-sheet';
 import {
   Trash2,
   Plus,
@@ -52,9 +55,22 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { FlowShell } from '@/components/ui/flow-shell';
-import { InlineCreateSheet } from '@/components/ui/inline-create-sheet';
 import { StickyActionBar } from '@/components/ui/sticky-action-bar';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { CropVarietyForm } from '@/app/(app)/crop-varieties/_components/CropVarietyForm';
+import { BedForm } from '@/app/(app)/plots/_components/BedForm';
+import { PlotForm } from '@/app/(app)/plots/_components/PlotForm';
+import { LocationForm } from '@/app/(app)/locations/_components/LocationForm';
+import { actionCreateNursery, type NurseryFormState } from '@/app/(app)/nurseries/_actions';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import TransplantForm from './TransplantForm';
 import MoveForm from './MoveForm';
 import HarvestForm from './HarvestForm';
@@ -62,6 +78,7 @@ import RemovePlantingForm from './RemovePlantingForm';
 import PlantingHistoryDialog from './PlantingHistoryDialog';
 import { PLANTING_STATUS } from '@/lib/plantings/constants';
 import StatusBadge from '@/components/plantings/StatusBadge';
+import type { QuickActionContext } from '../../actions';
 
 type Planting = Tables<'plantings'>;
 type CropVariety = Pick<
@@ -347,6 +364,9 @@ interface PlantingsPageContentProps {
   nurseries: { id: string; name: string }[];
   scheduleDate?: string;
   defaultCreateMode?: 'nursery' | 'direct' | null;
+  defaultBedId?: number | null;
+  defaultNurseryId?: string | null;
+  creationContext?: QuickActionContext;
 }
 
 const isResultWithMessage = (value: unknown): value is { message: string } =>
@@ -366,11 +386,19 @@ export function PlantingsPageContent({
   nurseries: _nurseries,
   scheduleDate,
   defaultCreateMode = null,
+  defaultBedId = null,
+  defaultNurseryId = null,
+  creationContext,
 }: PlantingsPageContentProps) {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const router = useRouter();
+  const [isDialogOpen, setIsDialogOpen] = useState(defaultCreateMode !== null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [createMode, setCreateMode] = useState<'nursery' | 'direct' | null>(defaultCreateMode);
+  const [wizardStep, setWizardStep] = useState<'plan' | 'dependencies' | 'details'>('plan');
+  const [dependencySheet, setDependencySheet] = useState<
+    null | 'cropVariety' | 'nursery' | 'location' | 'plot' | 'bed'
+  >(null);
   const [statusFilter, setStatusFilter] = useState<
     'all' | 'active' | 'nursery' | 'planted' | 'harvested'
   >('active');
@@ -389,6 +417,15 @@ export function PlantingsPageContent({
   const [optimisticHarvest, setOptimisticHarvest] = useState<
     Record<number, { start: string; end: string }>
   >({});
+
+  const creationCrops = creationContext?.crops ?? [];
+  const creationLocations = creationContext?.locations ?? [];
+  const creationPlots = creationContext?.plots ?? [];
+
+  const closeDependencySheet = () => {
+    setDependencySheet(null);
+    router.refresh();
+  };
 
   const selectNormalizedRange = useCallback(
     (
@@ -513,14 +550,18 @@ export function PlantingsPageContent({
   const openNurserySow = () => {
     setCreateMode('nursery');
     setIsDialogOpen(true);
+    setWizardStep('plan');
   };
   const openDirectSeed = () => {
     setCreateMode('direct');
     setIsDialogOpen(true);
+    setWizardStep('plan');
   };
   const closeDialog = () => {
     setIsDialogOpen(false);
     setCreateMode(null);
+    setWizardStep('plan');
+    setDependencySheet(null);
   };
   const closeActionDialog = () => setActionDialog(null);
 
@@ -681,49 +722,278 @@ export function PlantingsPageContent({
           open={isDialogOpen}
           onOpenChange={(open) => {
             setIsDialogOpen(open);
-            if (!open) setCreateMode(null);
+            if (!open) closeDialog();
           }}
-          title={activeCreateMode === 'direct' ? 'Direct seed' : 'Nursery sow'}
-          description={
-            activeCreateMode === 'direct' ? 'Seed directly in field' : 'Start in nursery'
+          title={
+            wizardStep === 'plan'
+              ? 'Create planting'
+              : activeCreateMode === 'direct'
+                ? 'Direct seed'
+                : 'Nursery sow'
           }
-          primaryAction={{
-            label: createPrimaryLabel,
-            formId: createFormId,
-          }}
-          secondaryAction={{
-            label: 'Cancel',
-            onClick: closeDialog,
-          }}
-          side="bottom"
+          description={
+            wizardStep === 'plan'
+              ? 'Choose the flow and prepare dependencies, then enter planting details.'
+              : activeCreateMode === 'direct'
+                ? 'Seed directly in field'
+                : 'Start seeds in nursery'
+          }
+          primaryAction={
+            wizardStep === 'details'
+              ? {
+                  label: createPrimaryLabel,
+                  formId: createFormId,
+                }
+              : {
+                  label: 'Next',
+                  onClick: () =>
+                    setWizardStep((prev) => (prev === 'plan' ? 'dependencies' : 'details')),
+                }
+          }
+          secondaryAction={
+            wizardStep === 'plan'
+              ? {
+                  label: 'Cancel',
+                  onClick: closeDialog,
+                }
+              : {
+                  label: 'Back',
+                  onClick: () =>
+                    setWizardStep((prev) => (prev === 'details' ? 'dependencies' : 'plan')),
+                }
+          }
+          side="right"
         >
-          <Tabs
-            value={activeCreateMode}
-            onValueChange={(v) => setCreateMode(v as 'nursery' | 'direct')}
-          >
-            <TabsList>
-              <TabsTrigger value="nursery">Nursery Sow</TabsTrigger>
-              <TabsTrigger value="direct">Direct Seed</TabsTrigger>
-            </TabsList>
-            <TabsContent value="nursery">
-              <NurserySowForm
-                cropVarieties={cropVarieties}
-                nurseries={_nurseries}
-                closeDialog={closeDialog}
-                formId="nurserySowForm"
-                defaultDate={scheduleDate}
-              />
-            </TabsContent>
-            <TabsContent value="direct">
-              <DirectSeedForm
-                cropVarieties={cropVarieties}
-                beds={beds}
-                closeDialog={closeDialog}
-                formId="directSeedForm"
-                defaultDate={scheduleDate}
-              />
-            </TabsContent>
-          </Tabs>
+          <div className="space-y-6">
+            <Stepper
+              steps={[
+                { id: 'plan', title: 'Choose flow', description: 'Nursery vs direct seed' },
+                {
+                  id: 'dependencies',
+                  title: 'Prep dependencies',
+                  description: 'Create varieties, beds, nurseries, locations',
+                },
+                { id: 'details', title: 'Enter details', description: 'Fill planting form' },
+              ]}
+              currentStepId={wizardStep}
+              onStepChange={(id) => setWizardStep(id as typeof wizardStep)}
+            />
+
+            {wizardStep === 'plan' ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Pick the flow you want to complete. You can still switch later.
+                </p>
+                <Tabs
+                  value={activeCreateMode}
+                  onValueChange={(v) => setCreateMode(v as 'nursery' | 'direct')}
+                >
+                  <TabsList className="grid grid-cols-2">
+                    <TabsTrigger value="nursery">Nursery Sow</TabsTrigger>
+                    <TabsTrigger value="direct">Direct Seed</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+            ) : null}
+
+            {wizardStep === 'dependencies' ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Card className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Crop & variety</p>
+                      <p className="text-xs text-muted-foreground">
+                        Add varieties (or crops) before planting.
+                      </p>
+                    </div>
+                    <Badge variant="secondary">{cropVarieties.length} available</Badge>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    onClick={() => setDependencySheet('cropVariety')}
+                  >
+                    Create crop variety
+                  </Button>
+                </Card>
+
+                {activeCreateMode === 'nursery' ? (
+                  <Card className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Nursery & location</p>
+                        <p className="text-xs text-muted-foreground">
+                          Create nursery or a new location before sowing.
+                        </p>
+                      </div>
+                      <Badge variant="secondary">{_nurseries.length} nurseries</Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDependencySheet('nursery')}
+                      >
+                        Create nursery
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDependencySheet('location')}
+                      >
+                        Create location
+                      </Button>
+                    </div>
+                  </Card>
+                ) : (
+                  <Card className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Beds & plots</p>
+                        <p className="text-xs text-muted-foreground">
+                          Add a bed (or plot) to assign plantings.
+                        </p>
+                      </div>
+                      <Badge variant="secondary">{beds.length} beds</Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setDependencySheet('bed')}>
+                        Create bed
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDependencySheet('plot')}>
+                        Create plot
+                      </Button>
+                    </div>
+                  </Card>
+                )}
+              </div>
+            ) : null}
+
+            {wizardStep === 'details' ? (
+              <Tabs
+                value={activeCreateMode}
+                onValueChange={(v) => setCreateMode(v as 'nursery' | 'direct')}
+              >
+                <TabsList>
+                  <TabsTrigger value="nursery">Nursery Sow</TabsTrigger>
+                  <TabsTrigger value="direct">Direct Seed</TabsTrigger>
+                </TabsList>
+                <TabsContent value="nursery">
+                  <NurserySowForm
+                    cropVarieties={cropVarieties}
+                    nurseries={_nurseries}
+                    closeDialog={closeDialog}
+                    formId="nurserySowForm"
+                    defaultDate={scheduleDate}
+                    defaultNurseryId={defaultNurseryId ?? undefined}
+                  />
+                </TabsContent>
+                <TabsContent value="direct">
+                  <DirectSeedForm
+                    cropVarieties={cropVarieties}
+                    beds={beds}
+                    closeDialog={closeDialog}
+                    formId="directSeedForm"
+                    defaultDate={scheduleDate}
+                    defaultBedId={defaultBedId ?? undefined}
+                  />
+                </TabsContent>
+              </Tabs>
+            ) : null}
+          </div>
+        </InlineCreateSheet>
+
+        <InlineCreateSheet
+          title="Create crop variety"
+          description="Add a crop and variety to use in the planting form."
+          open={dependencySheet === 'cropVariety'}
+          onOpenChange={(open) => {
+            if (!open) closeDependencySheet();
+            else setDependencySheet('cropVariety');
+          }}
+          primaryAction={{ label: 'Save variety', formId: 'depCropVarietyForm' }}
+          secondaryAction={{ label: 'Cancel', onClick: closeDependencySheet, variant: 'ghost' }}
+          side="right"
+        >
+          <CropVarietyForm
+            crops={creationCrops}
+            closeDialog={closeDependencySheet}
+            formId="depCropVarietyForm"
+          />
+        </InlineCreateSheet>
+
+        <InlineCreateSheet
+          title="Create nursery"
+          description="Set up a nursery to record sowings."
+          open={dependencySheet === 'nursery'}
+          onOpenChange={(open) => {
+            if (!open) closeDependencySheet();
+            else setDependencySheet('nursery');
+          }}
+          primaryAction={{ label: 'Save nursery', formId: 'depNurseryForm' }}
+          secondaryAction={{ label: 'Cancel', onClick: closeDependencySheet, variant: 'ghost' }}
+          side="right"
+        >
+          <QuickNurseryForm
+            locations={creationLocations}
+            onCompleted={closeDependencySheet}
+            onRequestLocation={() => setDependencySheet('location')}
+          />
+        </InlineCreateSheet>
+
+        <InlineCreateSheet
+          title="Create location"
+          description="Add a location for plots or nurseries."
+          open={dependencySheet === 'location'}
+          onOpenChange={(open) => {
+            if (!open) closeDependencySheet();
+            else setDependencySheet('location');
+          }}
+          primaryAction={{ label: 'Save location', formId: 'depLocationForm' }}
+          secondaryAction={{ label: 'Cancel', onClick: closeDependencySheet, variant: 'ghost' }}
+          side="right"
+        >
+          <LocationForm closeDialog={closeDependencySheet} formId="depLocationForm" />
+        </InlineCreateSheet>
+
+        <InlineCreateSheet
+          title="Create plot"
+          description="Create a plot with a location to add beds."
+          open={dependencySheet === 'plot'}
+          onOpenChange={(open) => {
+            if (!open) closeDependencySheet();
+            else setDependencySheet('plot');
+          }}
+          primaryAction={{ label: 'Save plot', formId: 'depPlotForm' }}
+          secondaryAction={{ label: 'Cancel', onClick: closeDependencySheet, variant: 'ghost' }}
+          side="right"
+        >
+          <PlotForm
+            locations={creationLocations}
+            closeDialog={closeDependencySheet}
+            formId="depPlotForm"
+          />
+        </InlineCreateSheet>
+
+        <InlineCreateSheet
+          title="Create bed"
+          description="Add a bed inside an existing plot."
+          open={dependencySheet === 'bed'}
+          onOpenChange={(open) => {
+            if (!open) closeDependencySheet();
+            else setDependencySheet('bed');
+          }}
+          primaryAction={{ label: 'Save bed', formId: 'depBedForm' }}
+          secondaryAction={{ label: 'Cancel', onClick: closeDependencySheet, variant: 'ghost' }}
+          side="right"
+        >
+          <BedForm
+            plots={creationPlots}
+            closeDialog={closeDependencySheet}
+            formId="depBedForm"
+            initialPlotId={creationPlots[0]?.plot_id ?? null}
+          />
         </InlineCreateSheet>
 
         {actionDialog && (
@@ -1074,5 +1344,90 @@ export function PlantingsPageContent({
         </StickyActionBar>
       ) : null}
     </div>
+  );
+}
+
+type QuickNurseryFormProps = {
+  locations: Array<Pick<Tables<'locations'>, 'id' | 'name'>>;
+  onCompleted: () => void;
+  onRequestLocation?: () => void;
+};
+
+function QuickNurseryForm({ locations, onCompleted, onRequestLocation }: QuickNurseryFormProps) {
+  const initial: NurseryFormState = { message: '' };
+  const [state, submitAction] = useActionState<NurseryFormState, FormData>(
+    actionCreateNursery,
+    initial
+  );
+  const [name, setName] = useState('');
+  const [locationId, setLocationId] = useState<string>('');
+  const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (!state?.message) return;
+    if (state.message === 'Nursery created.') {
+      toast.success(state.message);
+      onCompleted();
+    } else {
+      toast.error(state.message);
+    }
+  }, [state, onCompleted]);
+
+  const onSubmit = (evt: React.FormEvent<HTMLFormElement>) => {
+    evt.preventDefault();
+    const fd = new FormData();
+    fd.append('name', name.trim());
+    fd.append('location_id', locationId);
+    if (notes.trim()) fd.append('notes', notes.trim());
+    submitAction(fd);
+  };
+
+  return (
+    <form id="depNurseryForm" onSubmit={onSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="wizardNurseryName">Name</Label>
+        <Input
+          id="wizardNurseryName"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          minLength={2}
+          placeholder="Propagation house"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="wizardNurseryLocation">Location</Label>
+        <Select value={locationId} onValueChange={setLocationId}>
+          <SelectTrigger id="wizardNurseryLocation">
+            <SelectValue placeholder="Select a location" />
+          </SelectTrigger>
+          <SelectContent>
+            {locations.map((loc) => (
+              <SelectItem key={loc.id} value={loc.id}>
+                {loc.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="px-0 text-left text-primary"
+          onClick={onRequestLocation}
+        >
+          Need a new location? Create one
+        </Button>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="wizardNurseryNotes">Notes (optional)</Label>
+        <Input
+          id="wizardNurseryNotes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Light, cover, bench details..."
+        />
+      </div>
+    </form>
   );
 }

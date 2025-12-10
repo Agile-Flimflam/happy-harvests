@@ -1,13 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { Leaf, Sprout, Tractor } from 'lucide-react';
 import CalendarHeaderWeather from './calendar/CalendarHeaderWeather';
-import { getDashboardOverview, type DashboardOverview } from './actions';
+import { getDashboardOverview, getQuickActionContext, type DashboardOverview } from './actions';
 import { sanitizeErrorMessage } from '@/lib/sanitize';
+import { QuickActionsHub } from '@/components/ui/quick-actions-hub';
 
 export default async function DashboardPage() {
-  const overviewResult = await getDashboardOverview();
+  const [overviewResult, quickActionsResult] = await Promise.all([
+    getDashboardOverview(),
+    getQuickActionContext(),
+  ]);
 
   if (!overviewResult.ok) {
     const safeMessage = sanitizeErrorMessage(overviewResult.message);
@@ -32,6 +35,7 @@ export default async function DashboardPage() {
   const safeCropVarietyError = cropVarietyError ? sanitizeErrorMessage(cropVarietyError) : null;
   const safePlotError = plotError ? sanitizeErrorMessage(plotError) : null;
   const safePlantingError = plantingError ? sanitizeErrorMessage(plantingError) : null;
+  const quickContext = quickActionsResult.ok ? quickActionsResult.data : null;
 
   return (
     <div>
@@ -80,21 +84,11 @@ export default async function DashboardPage() {
             </CardContent>
           </Link>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild>
-                <Link href="/activities/new">Track an Activity</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/activities">View Activities</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {quickContext ? (
+          <div className="lg:col-span-2 xl:col-span-3">
+            <QuickActionsHub context={quickContext} />
+          </div>
+        ) : null}
       </div>
     </div>
   );

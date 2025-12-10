@@ -1,6 +1,6 @@
 'use server';
 
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient, type Tables } from '@/lib/supabase-server';
 import type { ActionResult } from '@/lib/action-result';
 
 type RawDashboardLocation = {
@@ -116,4 +116,93 @@ export async function getDashboardOverview(): Promise<DashboardOverviewResult> {
   }
 
   return { ok: true, data: overview };
+}
+
+export type QuickActionContext = {
+  cropVarieties: Tables<'crop_varieties'>[];
+  crops: Tables<'crops'>[];
+  plots: Array<Tables<'plots'> & { locations?: Tables<'locations'> | null }>;
+  locations: Tables<'locations'>[];
+  nurseries: Tables<'nurseries'>[];
+  beds: Tables<'beds'>[];
+  counts: {
+    cropVarieties: number;
+    plots: number;
+    beds: number;
+    nurseries: number;
+  };
+};
+
+export type QuickActionContextResult = ActionResult<QuickActionContext>;
+
+export async function getQuickActionContext(): Promise<QuickActionContextResult> {
+  const supabase = await createSupabaseServerClient();
+
+  const [
+    cropVarietyRes,
+    cropRes,
+    plotRes,
+    locationRes,
+    nurseryRes,
+    bedRes,
+    cropVarietyCountRes,
+    plotCountRes,
+    bedCountRes,
+    nurseryCountRes,
+  ] = await Promise.all([
+    supabase.from('crop_varieties').select('*').order('created_at', { ascending: true }).limit(15),
+    supabase.from('crops').select('*').order('name', { ascending: true }).limit(25),
+    supabase
+      .from('plots')
+      .select('*, locations(*)')
+      .order('created_at', { ascending: true })
+      .limit(15),
+    supabase.from('locations').select('*').order('created_at', { ascending: true }).limit(25),
+    supabase.from('nurseries').select('*').order('created_at', { ascending: true }).limit(15),
+    supabase.from('beds').select('*').order('created_at', { ascending: true }).limit(25),
+    supabase.from('crop_varieties').select('*', { head: true, count: 'exact' }),
+    supabase.from('plots').select('*', { head: true, count: 'exact' }),
+    supabase.from('beds').select('*', { head: true, count: 'exact' }),
+    supabase.from('nurseries').select('*', { head: true, count: 'exact' }),
+  ]);
+
+  const errors = [
+    cropVarietyRes.error,
+    cropRes.error,
+    plotRes.error,
+    locationRes.error,
+    nurseryRes.error,
+    bedRes.error,
+    cropVarietyCountRes.error,
+    plotCountRes.error,
+    bedCountRes.error,
+    nurseryCountRes.error,
+  ].filter(Boolean);
+
+  if (errors.length) {
+    console.error('[QuickActions] Failed to load context', errors);
+    return {
+      ok: false,
+      code: 'server',
+      message: 'Unable to load quick actions context.',
+    };
+  }
+
+  return {
+    ok: true,
+    data: {
+      cropVarieties: cropVarietyRes.data ?? [],
+      crops: cropRes.data ?? [],
+      plots: plotRes.data ?? [],
+      locations: locationRes.data ?? [],
+      nurseries: nurseryRes.data ?? [],
+      beds: bedRes.data ?? [],
+      counts: {
+        cropVarieties: cropVarietyCountRes.count ?? 0,
+        plots: plotCountRes.count ?? 0,
+        beds: bedCountRes.count ?? 0,
+        nurseries: nurseryCountRes.count ?? 0,
+      },
+    },
+  };
 }

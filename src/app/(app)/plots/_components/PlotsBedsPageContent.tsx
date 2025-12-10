@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { WeatherBadge } from '@/components/weather/WeatherBadge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatSquareFeet, formatAcres, squareFeetToAcres } from '@/lib/utils';
@@ -29,7 +30,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlotForm } from '../_components/PlotForm';
 import { BedForm } from '../_components/BedForm';
 import { deletePlot, deleteBed } from '../_actions';
-import { Pencil, Trash2, Plus, MapPin, Sunrise, Sunset, Droplet, LayoutGrid } from 'lucide-react';
+import {
+  Pencil,
+  Trash2,
+  Plus,
+  MapPin,
+  Sunrise,
+  Sunset,
+  Droplet,
+  LayoutGrid,
+  Sprout,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Empty,
@@ -262,7 +273,13 @@ export function PlotsBedsPageContent({
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button asChild variant="outline" size="sm" className="gap-1">
+                              <Link href={`/plantings?mode=direct&bedId=${bed.id}`}>
+                                <Sprout className="h-3 w-3" aria-hidden />
+                                Plan planting here
+                              </Link>
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"

@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useActionState } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -28,7 +29,7 @@ import {
   type NurseryFormState,
 } from '../_actions';
 import type { Tables } from '@/lib/database.types';
-import { Plus, FlaskConical, Pencil, Trash2 } from 'lucide-react';
+import { Plus, FlaskConical, Pencil, Trash2, Sprout } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Empty,
@@ -210,6 +211,18 @@ export default function NurseriesPageContent({
                       {locations.find((l) => l.id === n.location_id)?.name ?? '—'}
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="mr-2 gap-1"
+                        aria-label={`Record sow in ${n.name}`}
+                      >
+                        <Link href={`/plantings?mode=nursery&nurseryId=${n.id}`}>
+                          <Sprout className="h-3 w-3" aria-hidden />
+                          Record sow here
+                        </Link>
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
