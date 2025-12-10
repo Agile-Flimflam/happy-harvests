@@ -5,12 +5,11 @@ import type { Tables } from '@/lib/database.types';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const supabase = await createSupabaseServerClient();
-    const pathname = new URL(req.url).pathname;
-    const match = pathname.match(/\/api\/locations\/([^/]+)\/weather$/);
-    const id = match?.[1];
+    const resolvedParams = params ? await params : undefined;
+    const id = resolvedParams?.id;
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
     // Server-side guard against malformed ids (mirrors client sanitization)

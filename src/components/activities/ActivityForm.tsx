@@ -20,10 +20,15 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ChevronDownIcon } from 'lucide-react';
 import { parseLocalDateFromYMD } from '@/lib/utils';
+const genAmendmentId = () =>
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `amend-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
 function AmendmentsEditor() {
   const [items, setItems] = React.useState<
-    Array<{ name: string; quantity?: string; unit?: string; notes?: string }>
-  >([{ name: '' }]);
+    Array<{ id: string; name: string; quantity?: string; unit?: string; notes?: string }>
+  >([{ id: genAmendmentId(), name: '' }]);
   React.useEffect(() => {
     const payload = JSON.stringify(
       items
@@ -39,13 +44,22 @@ function AmendmentsEditor() {
     if (el) el.value = payload;
   }, [items]);
   function addRow() {
-    setItems((prev) => [...prev, { name: '' }]);
+    setItems((prev) => [...prev, { id: genAmendmentId(), name: '' }]);
   }
-  function updateRow(idx: number, field: keyof (typeof items)[number], value: string) {
-    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, [field]: value } : it)));
+  function updateRow(id: string, field: keyof (typeof items)[number], value: string) {
+    if (field === 'quantity') {
+      const trimmed = value.trim();
+      if (trimmed && Number.isNaN(Number(trimmed))) {
+        toast.error('Quantity must be a number');
+        return;
+      }
+      setItems((prev) => prev.map((it) => (it.id === id ? { ...it, quantity: trimmed } : it)));
+      return;
+    }
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, [field]: value } : it)));
   }
-  function removeRow(idx: number) {
-    setItems((prev) => prev.filter((_, i) => i !== idx));
+  function removeRow(id: string) {
+    setItems((prev) => prev.filter((it) => it.id !== id));
   }
   return (
     <div className="col-span-full space-y-3">
@@ -57,13 +71,13 @@ function AmendmentsEditor() {
         </Button>
       </div>
       <div className="space-y-2">
-        {items.map((it, idx) => (
-          <div key={idx} className="grid grid-cols-12 gap-2">
+        {items.map((it) => (
+          <div key={it.id} className="grid grid-cols-12 gap-2">
             <input
               className="col-span-4 border rounded px-2 py-1"
               placeholder="Name (e.g., Base Fertilizer)"
               value={it.name}
-              onChange={(e) => updateRow(idx, 'name', e.currentTarget.value)}
+              onChange={(e) => updateRow(it.id, 'name', e.currentTarget.value)}
             />
             <input
               className="col-span-2 border rounded px-2 py-1"
@@ -71,21 +85,21 @@ function AmendmentsEditor() {
               type="number"
               step="0.01"
               value={it.quantity || ''}
-              onChange={(e) => updateRow(idx, 'quantity', e.currentTarget.value)}
+              onChange={(e) => updateRow(it.id, 'quantity', e.currentTarget.value)}
             />
             <input
               className="col-span-2 border rounded px-2 py-1"
               placeholder="Unit (kg, lb)"
               value={it.unit || ''}
-              onChange={(e) => updateRow(idx, 'unit', e.currentTarget.value)}
+              onChange={(e) => updateRow(it.id, 'unit', e.currentTarget.value)}
             />
             <input
               className="col-span-3 border rounded px-2 py-1"
               placeholder="Notes"
               value={it.notes || ''}
-              onChange={(e) => updateRow(idx, 'notes', e.currentTarget.value)}
+              onChange={(e) => updateRow(it.id, 'notes', e.currentTarget.value)}
             />
-            <Button type="button" size="sm" variant="destructive" onClick={() => removeRow(idx)}>
+            <Button type="button" size="sm" variant="destructive" onClick={() => removeRow(it.id)}>
               Remove
             </Button>
           </div>
