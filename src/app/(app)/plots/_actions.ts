@@ -15,6 +15,21 @@ type BedWithPlotLocation = Bed & {
   plots: { name: string | null; location_id: string | null } | null;
 };
 
+function toPlotLocation(
+  value: unknown
+): { name: string | null; location_id: string | null } | null {
+  if (!value || typeof value !== 'object') return null;
+  const maybe = value as { name?: unknown; location_id?: unknown };
+  const name = typeof maybe.name === 'string' ? maybe.name : null;
+  const location_id = typeof maybe.location_id === 'string' ? maybe.location_id : null;
+  return { name, location_id };
+}
+
+function dbErrorMessage(context: string, error: unknown): string {
+  console.error(`[Plots] ${context}`, error);
+  return 'Database error. Please try again.';
+}
+
 export type PlotFormState = {
   message: string;
   errors?: Record<string, string | string[] | undefined>;
@@ -69,14 +84,12 @@ export async function createPlot(
   try {
     const { error } = await supabase.from('plots').insert(plotData);
     if (error) {
-      console.error('Supabase Error:', error);
-      return { message: `Database Error: ${error.message}` };
+      return { message: dbErrorMessage('createPlot', error) };
     }
     revalidatePath('/plots');
     return { message: 'Plot created successfully.', plot: null, errors: {} };
   } catch (e) {
-    console.error('Unexpected Error:', e);
-    return { message: 'An unexpected error occurred.' };
+    return { message: dbErrorMessage('createPlot unexpected', e) };
   }
 }
 
@@ -110,14 +123,12 @@ export async function updatePlot(
   try {
     const { error } = await supabase.from('plots').update(plotDataToUpdate).eq('plot_id', id);
     if (error) {
-      console.error('Supabase Error:', error);
-      return { message: `Database Error: ${error.message}`, plot: prevState.plot };
+      return { message: dbErrorMessage('updatePlot', error), plot: prevState.plot };
     }
     revalidatePath('/plots');
     return { message: 'Plot updated successfully.', plot: null, errors: {} };
   } catch (e) {
-    console.error('Unexpected Error:', e);
-    return { message: 'An unexpected error occurred.', plot: prevState.plot };
+    return { message: dbErrorMessage('updatePlot unexpected', e), plot: prevState.plot };
   }
 }
 
@@ -129,12 +140,11 @@ export async function getLocationsList(): Promise<{ locations?: Location[]; erro
       .select('*')
       .order('name', { ascending: true });
     if (error) {
-      return { error: `Database Error: ${error.message}` };
+      return { error: dbErrorMessage('getLocationsList', error) };
     }
     return { locations: data ?? [] };
   } catch (e) {
-    console.error('Unexpected Error fetching locations:', e);
-    return { error: 'An unexpected error occurred while fetching locations.' };
+    return { error: dbErrorMessage('getLocationsList unexpected', e) };
   }
 }
 
@@ -147,14 +157,12 @@ export async function deletePlot(id: string | number): Promise<{ message: string
   try {
     const { error } = await supabase.from('plots').delete().eq('plot_id', numericId);
     if (error) {
-      console.error('Supabase Error:', error);
-      return { message: `Database Error: ${error.message}` };
+      return { message: dbErrorMessage('deletePlot', error) };
     }
     revalidatePath('/plots');
     return { message: 'Plot deleted successfully.' };
   } catch (e) {
-    console.error('Unexpected Error:', e);
-    return { message: 'An unexpected error occurred.' };
+    return { message: dbErrorMessage('deletePlot unexpected', e) };
   }
 }
 
@@ -240,17 +248,15 @@ export async function createBed(
   try {
     const { error } = await supabase.from('beds').insert(bedData);
     if (error) {
-      console.error('Supabase Error:', error);
       if (error.code === '23503') {
         return { message: 'Database Error: The selected plot does not exist.' };
       }
-      return { message: `Database Error: ${error.message}` };
+      return { message: dbErrorMessage('createBed', error) };
     }
     revalidatePath('/plots');
     return { message: 'Bed created successfully.', bed: null, errors: {} };
   } catch (e) {
-    console.error('Unexpected Error:', e);
-    return { message: 'An unexpected error occurred.' };
+    return { message: dbErrorMessage('createBed unexpected', e) };
   }
 }
 
@@ -293,17 +299,15 @@ export async function updateBed(
   try {
     const { error } = await supabase.from('beds').update(bedDataToUpdate).eq('id', id);
     if (error) {
-      console.error('Supabase Error:', error);
       if (error.code === '23503') {
         return { message: 'Database Error: The selected plot does not exist.', bed: prevState.bed };
       }
-      return { message: `Database Error: ${error.message}`, bed: prevState.bed };
+      return { message: dbErrorMessage('updateBed', error), bed: prevState.bed };
     }
     revalidatePath('/plots');
     return { message: 'Bed updated successfully.', bed: null, errors: {} };
   } catch (e) {
-    console.error('Unexpected Error:', e);
-    return { message: 'An unexpected error occurred.', bed: prevState.bed };
+    return { message: dbErrorMessage('updateBed unexpected', e), bed: prevState.bed };
   }
 }
 
@@ -316,20 +320,18 @@ export async function deleteBed(id: string | number): Promise<{ message: string 
   try {
     const { error } = await supabase.from('beds').delete().eq('id', numericId);
     if (error) {
-      console.error('Supabase Error:', error);
       if (error.code === '23503') {
         return {
           message:
             'Database Error: Cannot delete bed because it is currently associated with one or more crops.',
         };
       }
-      return { message: `Database Error: ${error.message}` };
+      return { message: dbErrorMessage('deleteBed', error) };
     }
     revalidatePath('/plots');
     return { message: 'Bed deleted successfully.' };
   } catch (e) {
-    console.error('Unexpected Error:', e);
-    return { message: 'An unexpected error occurred.' };
+    return { message: dbErrorMessage('deleteBed unexpected', e) };
   }
 }
 
@@ -341,18 +343,11 @@ export async function getBeds(): Promise<{ beds?: BedWithPlotLocation[]; error?:
       .select('*, plots(name,location_id)')
       .order('id', { ascending: true });
     if (error) {
-      console.error('Supabase Error fetching beds:', error);
-      return { error: `Database Error: ${error.message}` };
+      return { error: dbErrorMessage('getBeds', error) };
     }
     const rawRows = Array.isArray(data) ? data : [];
     const beds: BedWithPlotLocation[] = rawRows.map((row) => {
-      const plots = (() => {
-        const p = row?.plots as Record<string, unknown> | null | undefined;
-        if (!p || typeof p !== 'object') return null;
-        const name = typeof p.name === 'string' ? p.name : null;
-        const location_id = typeof p.location_id === 'string' ? p.location_id : null;
-        return { name, location_id };
-      })();
+      const plots = toPlotLocation(row?.plots);
       return { ...row, plots };
     });
     return { beds };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useLayoutEffect, useRef, useState } from 'react';
+import { useActionState, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/page-header';
 import PageContent from '@/components/page-content';
@@ -41,6 +41,7 @@ type Seed = Tables<'seeds'>;
 export function SeedsPageContent({ seeds, varieties }: { seeds: Seed[]; varieties: Variety[] }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Seed | null>(null);
+  const [cropVarietyId, setCropVarietyId] = useState<string>('');
   const initial: SeedFormState = { message: '' };
   const [state, formAction] = useActionState(upsertSeed, initial);
   const formRef = useRef<HTMLFormElement>(null);
@@ -59,6 +60,15 @@ export function SeedsPageContent({ seeds, varieties }: { seeds: Seed[]; varietie
   useLayoutEffect(() => {
     setupFormControlProperty(formRef.current);
   }, []);
+
+  // Initialize form values when dialog opens
+  useEffect(() => {
+    if (open) {
+      setCropVarietyId(editing?.crop_variety_id != null ? String(editing.crop_variety_id) : '');
+    } else {
+      setCropVarietyId('');
+    }
+  }, [open, editing]);
 
   return (
     <div>
@@ -153,7 +163,8 @@ export function SeedsPageContent({ seeds, varieties }: { seeds: Seed[]; varietie
           {editing ? <input type="hidden" name="id" value={editing.id} /> : null}
           <div>
             <Label htmlFor="crop_variety_id">Crop Variety</Label>
-            <Select name="crop_variety_id" defaultValue={String(editing?.crop_variety_id ?? '')}>
+            <input type="hidden" name="crop_variety_id" value={cropVarietyId} />
+            <Select value={cropVarietyId} onValueChange={(value) => setCropVarietyId(value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a crop variety" />
               </SelectTrigger>
