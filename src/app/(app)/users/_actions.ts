@@ -23,10 +23,17 @@ async function detectImageType(file: File): Promise<DetectedImage> {
 
   // Explicitly disallow SVG to avoid embedded script/XSS vectors in avatars
   const isLikelySvg = (() => {
-    const text = String.fromCharCode(...head)
-      .trimStart()
-      .toLowerCase();
-    return text.startsWith('<svg') || text.startsWith('<?xml');
+    // Check raw bytes for "<svg" or "<?xml" without decoding (avoids BOM/encoding tricks)
+    const lowerHead = head.slice(0, 12).map((b) => (b >= 0x41 && b <= 0x5a ? b + 0x20 : b)); // A-Z -> a-z
+    const startsWith = (needle: number[]): boolean => needle.every((v, i) => lowerHead[i] === v);
+    const svgBytes = [0x3c, 0x73, 0x76, 0x67]; // "<svg"
+    const xmlBytes = [0x3c, 0x3f, 0x78, 0x6d, 0x6c]; // "<?xml"
+    return (
+      startsWith(svgBytes) ||
+      startsWith(xmlBytes) ||
+      startsWith([0xef, 0xbb, 0xbf, ...svgBytes.slice(0, 1)]) || // BOM + '<'
+      startsWith([0xef, 0xbb, 0xbf, ...xmlBytes.slice(0, 2)]) // BOM + '<?'
+    );
   })();
   if (declaredType === 'image/svg+xml' || isLikelySvg) {
     return { error: 'SVG avatars are not allowed due to XSS risk' };
