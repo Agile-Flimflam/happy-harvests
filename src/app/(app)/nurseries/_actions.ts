@@ -24,6 +24,14 @@ const NurserySchema = z.object({
   notes: z.string().trim().optional().nullable(),
 });
 
+const requireAdmin = async (): Promise<{ ok: true } | { error: string }> => {
+  const { user, profile } = await getUserAndProfile();
+  if (!user || !isAdmin(profile)) {
+    return { error: 'Unauthorized' };
+  }
+  return { ok: true };
+};
+
 function getStringField(value: FormDataEntryValue | null): string | null {
   return typeof value === 'string' ? value : null;
 }
@@ -34,6 +42,8 @@ const isUuid = (value: string): boolean =>
   );
 
 export async function getNurseries(): Promise<{ nurseries?: Nursery[]; error?: string }> {
+  const auth = await requireAdmin();
+  if ('error' in auth) return { error: auth.error };
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('nurseries')
@@ -47,6 +57,8 @@ export async function getLocationsForSelect(): Promise<{
   locations?: Pick<Location, 'id' | 'name'>[];
   error?: string;
 }> {
+  const auth = await requireAdmin();
+  if ('error' in auth) return { error: auth.error };
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('locations')
@@ -332,6 +344,8 @@ export type NurseryStats = Record<
 >;
 
 export async function getNurseryStats(): Promise<{ stats: NurseryStats; error?: string }> {
+  const auth = await requireAdmin();
+  if ('error' in auth) return { stats: {}, error: auth.error };
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('plantings')

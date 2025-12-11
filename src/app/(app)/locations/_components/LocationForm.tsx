@@ -226,8 +226,12 @@ export function LocationForm({ location, closeDialog, formId, onCreated }: Locat
     fd.append('city', (values.city ?? '').toString());
     fd.append('state', (values.state ?? '').toString());
     fd.append('zip', (values.zip ?? '').toString());
-    fd.append('latitude', values.latitude != null ? String(values.latitude) : '');
-    fd.append('longitude', values.longitude != null ? String(values.longitude) : '');
+    if (values.latitude != null && Number.isFinite(values.latitude)) {
+      fd.append('latitude', String(values.latitude));
+    }
+    if (values.longitude != null && Number.isFinite(values.longitude)) {
+      fd.append('longitude', String(values.longitude));
+    }
     fd.append('notes', (values.notes ?? '').toString());
     startTransition(() => {
       dispatch(fd);
@@ -246,7 +250,9 @@ export function LocationForm({ location, closeDialog, formId, onCreated }: Locat
         ref={(el) => {
           formRef.current = el;
           // Set up form control property as soon as form is available
-          setupFormControlOnRef(el);
+          if (el) {
+            setupFormControlOnRef(el);
+          }
         }}
         onSubmit={form.handleSubmit(onSubmit)}
         noValidate
@@ -276,6 +282,7 @@ export function LocationForm({ location, closeDialog, formId, onCreated }: Locat
                 size="sm"
                 onClick={handleClearAddress}
                 className="h-7 text-xs"
+                aria-label="Clear address"
               >
                 <X className="h-3 w-3" />
                 Clear address

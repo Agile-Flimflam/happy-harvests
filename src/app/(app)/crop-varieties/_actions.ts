@@ -34,6 +34,11 @@ const DUPLICATE_LATIN_MESSAGE = 'A variety with this crop and Latin name already
 const DUPLICATE_CROP_MESSAGE = 'A crop with this name already exists.';
 
 const normalizeText = (value: string) => value.trim().toLocaleLowerCase();
+const escapePostgrestFilterValue = (value: string): string => {
+  const safeBackslashes = value.replace(/\\/g, '\\\\');
+  const safeQuotes = safeBackslashes.replace(/"/g, '""');
+  return `"${safeQuotes}"`;
+};
 
 const STORAGE_BUCKET = 'crop_variety_images';
 function getPublicImageUrl(
@@ -105,11 +110,14 @@ async function assertUniqueVariety(
   const { cropId, name, latinName, excludeId } = payload;
   const normalizedName = normalizeText(name);
   const normalizedLatin = normalizeText(latinName);
+  const nameFilter = escapePostgrestFilterValue(normalizedName);
+  const latinFilter = escapePostgrestFilterValue(normalizedLatin);
+  const orFilter = `name.ilike.${nameFilter},latin_name.ilike.${latinFilter}`;
   const query = supabase
     .from('crop_varieties')
     .select('id, name, latin_name')
     .eq('crop_id', cropId)
-    .or(`name.ilike.${normalizedName},latin_name.ilike.${normalizedLatin}`);
+    .or(orFilter);
   const { data, error } = await query;
   if (error) {
     return {

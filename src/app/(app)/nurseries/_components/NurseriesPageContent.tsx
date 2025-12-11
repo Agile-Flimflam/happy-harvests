@@ -105,6 +105,7 @@ export default function NurseriesPageContent({
   const [varietySheetOpen, setVarietySheetOpen] = useState(false);
   const [pendingVarietyId, setPendingVarietyId] = useState<number | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const processedCorrelationsRef = useRef<Set<string>>(new Set());
   const hasNurseries = nurseriesState.length > 0;
   const dialogDescription = editing
     ? 'Update nursery name, location, and optional notes.'
@@ -141,6 +142,15 @@ export default function NurseriesPageContent({
   useEffect(() => {
     const state = editing ? updateState : createState;
     if (!state?.message) return;
+
+    const correlationId = state.correlationId ?? '';
+    if (correlationId && processedCorrelationsRef.current.has(correlationId)) {
+      return;
+    }
+    if (correlationId) {
+      processedCorrelationsRef.current.add(correlationId);
+    }
+
     if (!state.ok) {
       const errors = state.fieldErrors ?? {};
       setFieldErrors({
@@ -440,6 +450,7 @@ export default function NurseriesPageContent({
             <Select value={locationId} onValueChange={(v) => setLocationId(v)}>
               <SelectTrigger
                 className={`mt-1 ${fieldErrors.location_id ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                aria-invalid={fieldErrors.location_id ? 'true' : 'false'}
               >
                 <SelectValue placeholder="Select a location" />
               </SelectTrigger>

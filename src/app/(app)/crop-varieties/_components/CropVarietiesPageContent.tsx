@@ -54,6 +54,20 @@ type CropVariety = Tables<'crop_varieties'> & { crops?: { name: string } | null 
 
 type CropLite = Pick<Tables<'crops'>, 'id' | 'name' | 'crop_type' | 'created_at'>;
 
+function isCropLite(value: unknown): value is CropLite {
+  if (value == null || typeof value !== 'object') return false;
+  const candidate = value as Partial<CropLite>;
+  return (
+    typeof candidate.id === 'number' &&
+    Number.isFinite(candidate.id) &&
+    typeof candidate.name === 'string' &&
+    candidate.name.trim().length > 0 &&
+    typeof candidate.crop_type === 'string' &&
+    candidate.crop_type.trim().length > 0 &&
+    typeof candidate.created_at === 'string'
+  );
+}
+
 interface CropVarietiesPageContentProps {
   cropVarieties: CropVariety[];
   crops?: CropLite[];
@@ -83,12 +97,11 @@ export function CropVarietiesPageContent({
   );
   const [isCropSheetOpen, setIsCropSheetOpen] = useState(false);
   const [pendingFavoriteId, setPendingFavoriteId] = useState<number | null>(null);
-  const [cropFormState, cropFormAction] = useActionState(createCropSimple, {
+  const [cropFormState, cropFormAction, isSubmittingCrop] = useActionState(createCropSimple, {
     message: '',
     errors: {},
     crop: null,
   });
-  const [isSubmittingCrop, startCropTransition] = useTransition();
   const [isTogglingFavorite, startToggleFavorite] = useTransition();
   const [newCropType, setNewCropType] = useState<string>('');
   const cropMap = useMemo(() => {
@@ -137,7 +150,12 @@ export function CropVarietiesPageContent({
       return;
     }
     if (cropFormState.crop) {
-      const created = cropFormState.crop as CropLite;
+      if (!isCropLite(cropFormState.crop)) {
+        console.error('Invalid crop payload received:', cropFormState.crop);
+        toast.error('Received invalid crop data. Please refresh and try again.');
+        return;
+      }
+      const created = cropFormState.crop;
       setCropsState((prev) =>
         [...prev, created].sort((a, b) =>
           a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
@@ -448,11 +466,7 @@ export function CropVarietiesPageContent({
         primaryAction={{ label: 'Save crop', formId: 'quickCropForm' }}
         secondaryAction={{ label: 'Cancel', onClick: () => setIsCropSheetOpen(false) }}
       >
-        <form
-          id="quickCropForm"
-          className="space-y-3"
-          action={(formData) => startCropTransition(() => cropFormAction(formData))}
-        >
+        <form id="quickCropForm" className="space-y-3" action={cropFormAction}>
           <div className="space-y-1.5">
             <Label htmlFor="cropName">Name</Label>
             <Input

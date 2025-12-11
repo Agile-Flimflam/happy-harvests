@@ -47,12 +47,10 @@ const isFileLike = (value: unknown): value is File =>
   typeof File !== 'undefined' && value instanceof File;
 
 const getFileExtension = (file: File): string => {
-  const name = file.name || '';
-  const dotIdx = name.lastIndexOf('.');
-  if (dotIdx !== -1) return name.slice(dotIdx + 1).toLowerCase();
-  const mime = file.type || '';
+  const mime = (file.type || '').toLowerCase();
   switch (mime) {
     case 'image/jpeg':
+    case 'image/jpg':
       return 'jpg';
     case 'image/png':
       return 'png';
@@ -319,14 +317,15 @@ export async function actionNurserySow(
     }
   }
 
-  const { error } = await supabase.rpc('fn_create_nursery_planting', {
+  const nurseryPayload: Database['public']['Functions']['fn_create_nursery_planting']['Args'] = {
     p_crop_variety_id: cropVarietyId,
     p_qty: qty,
     p_nursery_id: nurseryId,
     p_event_date: eventDate,
     p_notes: notesToPersist ?? undefined,
     p_weight_grams: weightGrams ?? undefined,
-  } as unknown as Database['public']['Functions']['fn_create_nursery_planting']['Args']);
+  };
+  const { error } = await supabase.rpc('fn_create_nursery_planting', nurseryPayload);
   if (error) {
     const actionError = mapDbError(error, correlationId, 'Failed to create nursery planting.');
     logActionError('actionNurserySow.rpc', actionError, { nurseryId, eventDate });
@@ -463,14 +462,16 @@ export async function actionDirectSeed(
     }
   }
 
-  const { error } = await supabase.rpc('fn_create_direct_seed_planting', {
-    p_crop_variety_id: cropVarietyId,
-    p_qty: qty,
-    p_bed_id: bedId,
-    p_event_date: eventDate,
-    p_notes: notesToPersist ?? undefined,
-    p_weight_grams: weightGrams ?? undefined,
-  } as unknown as Database['public']['Functions']['fn_create_direct_seed_planting']['Args']);
+  const directSeedPayload: Database['public']['Functions']['fn_create_direct_seed_planting']['Args'] =
+    {
+      p_crop_variety_id: cropVarietyId,
+      p_qty: qty,
+      p_bed_id: bedId,
+      p_event_date: eventDate,
+      p_notes: notesToPersist ?? undefined,
+      p_weight_grams: weightGrams ?? undefined,
+    };
+  const { error } = await supabase.rpc('fn_create_direct_seed_planting', directSeedPayload);
   if (error) {
     const actionError = mapDbError(error, correlationId, 'Failed to create direct seed planting.');
     logActionError('actionDirectSeed.rpc', actionError, { bedId, eventDate });
@@ -520,14 +521,15 @@ export async function bulkCreateDirectSeedPlantings(
   const failures: Array<{ bedId: number; error: string }> = [];
 
   for (const bedId of uniqueBedIds) {
-    const { error } = await supabase.rpc('fn_create_direct_seed_planting', {
+    const rpcArgs: Database['public']['Functions']['fn_create_direct_seed_planting']['Args'] = {
       p_crop_variety_id: input.crop_variety_id,
       p_qty: input.qty,
       p_bed_id: bedId,
       p_event_date: input.event_date,
       p_notes: input.notes ?? undefined,
       p_weight_grams: input.weight_grams ?? undefined,
-    } as unknown as Database['public']['Functions']['fn_create_direct_seed_planting']['Args']);
+    };
+    const { error } = await supabase.rpc('fn_create_direct_seed_planting', rpcArgs);
     if (error) {
       failures.push({ bedId, error: error.message });
     } else {
@@ -897,9 +899,10 @@ export async function getCropVarietiesForSelect(): Promise<{
     .select(
       'id, name, latin_name, dtm_direct_seed_min, dtm_direct_seed_max, dtm_transplant_min, dtm_transplant_max, crops(name)'
     )
-    .order('name', { ascending: true });
+    .order('name', { ascending: true })
+    .returns<CropVarietyForSelect[]>();
   if (error) return { error: error.message };
-  const rows = (data as unknown as CropVarietyForSelect[]) || [];
+  const rows = data ?? [];
   // Ensure newly created varieties from seeds are included immediately (no filter)
   return { varieties: rows };
 }
@@ -913,13 +916,14 @@ export async function createNurseryPlanting(input: {
   notes?: string;
 }) {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc('fn_create_nursery_planting', {
+  const payload: Database['public']['Functions']['fn_create_nursery_planting']['Args'] = {
     p_crop_variety_id: input.crop_variety_id,
     p_qty: input.qty,
     p_nursery_id: input.nursery_id,
     p_event_date: input.event_date,
     p_notes: input.notes ?? undefined,
-  } as unknown as Database['public']['Functions']['fn_create_nursery_planting']['Args']);
+  };
+  const { error } = await supabase.rpc('fn_create_nursery_planting', payload);
   if (error) return { error: error.message };
   revalidatePath('/plantings');
   return { ok: true };
@@ -933,13 +937,14 @@ export async function createDirectSeedPlanting(input: {
   notes?: string;
 }) {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc('fn_create_direct_seed_planting', {
+  const payload: Database['public']['Functions']['fn_create_direct_seed_planting']['Args'] = {
     p_crop_variety_id: input.crop_variety_id,
     p_qty: input.qty,
     p_bed_id: input.bed_id,
     p_event_date: input.event_date,
     p_notes: input.notes ?? undefined,
-  } as unknown as Database['public']['Functions']['fn_create_direct_seed_planting']['Args']);
+  };
+  const { error } = await supabase.rpc('fn_create_direct_seed_planting', payload);
   if (error) return { error: error.message };
   revalidatePath('/plantings');
   return { ok: true };

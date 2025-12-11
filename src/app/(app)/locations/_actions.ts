@@ -227,6 +227,10 @@ type LocationWithPlots = Location & { plots: Tables<'plots'>[] };
 
 export async function getLocations(): Promise<{ locations: Location[]; error?: string }> {
   const supabase = await createSupabaseServerClient();
+  const auth = await ensureAuthenticated(supabase);
+  if ('error' in auth) {
+    return { locations: [], error: auth.error };
+  }
   const { data, error } = await supabase
     .from('locations')
     .select('*')
@@ -244,6 +248,10 @@ export async function getLocationWithPlots(
   id: string
 ): Promise<{ location?: LocationWithPlots; error?: string }> {
   const supabase = await createSupabaseServerClient();
+  const auth = await ensureAuthenticated(supabase);
+  if ('error' in auth) {
+    return { error: auth.error };
+  }
   if (!id || !UUID_REGEX.test(id.trim())) {
     return { error: 'Invalid location id.' };
   }

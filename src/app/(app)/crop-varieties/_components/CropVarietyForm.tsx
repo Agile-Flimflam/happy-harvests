@@ -199,6 +199,15 @@ export function CropVarietyForm({
     });
   };
 
+  // Revoke blob URLs on unmount to prevent leaks if dialog closes while previewing.
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl]);
+
   const defaultValues: Partial<CropVarietyFormValues> = {
     id: cropVariety?.id,
     crop_id: cropVariety?.crop_id ?? defaultCropId ?? undefined,
@@ -502,6 +511,7 @@ export function CropVarietyForm({
                     variant="outline"
                     size="sm"
                     className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                    aria-label="Remove selected image"
                     onClick={handleClearSelectedImage}
                   >
                     <X className="h-4 w-4" />
@@ -522,6 +532,7 @@ export function CropVarietyForm({
                     variant="outline"
                     size="sm"
                     className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                    aria-label="Remove existing image"
                     onClick={() => {
                       setRemoveExistingImage(true);
                     }}

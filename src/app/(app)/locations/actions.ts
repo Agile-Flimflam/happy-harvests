@@ -1,3 +1,5 @@
+'use server';
+
 import type { Tables } from '@/lib/supabase-server';
 import { fetchWeatherByCoords } from '@/lib/openweather';
 import {

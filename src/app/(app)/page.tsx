@@ -6,6 +6,7 @@ import { getDashboardOverview, getQuickActionContext } from './actions';
 import { sanitizeErrorMessage } from '@/lib/sanitize';
 import { QuickActionsHub } from '@/components/ui/quick-actions-hub';
 import { fetchWeatherByCoords } from '@/lib/openweather';
+import type { WeatherSnapshot } from './locations/actions';
 
 export default async function DashboardPage() {
   const [overviewResult, quickActionsResult] = await Promise.all([
@@ -33,7 +34,7 @@ export default async function DashboardPage() {
     plotError,
     plantingError,
   } = overview;
-  let primaryWeather = null;
+  let primaryWeather: WeatherSnapshot | null = null;
   if (primaryLocation?.latitude != null && primaryLocation.longitude != null) {
     try {
       primaryWeather = await fetchWeatherByCoords(
