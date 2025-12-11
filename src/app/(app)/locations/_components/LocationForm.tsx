@@ -156,6 +156,8 @@ export function LocationForm({ location, closeDialog, formId, onCreated }: Locat
     };
   }, []);
 
+  const { setError } = form;
+
   useEffect(() => {
     if (state.message) {
       if (state.errors && Object.keys(state.errors).length > 0) {
@@ -168,7 +170,7 @@ export function LocationForm({ location, closeDialog, formId, onCreated }: Locat
             return;
           }
           const message = Array.isArray(errors) ? errors[0] : errors || 'Invalid value';
-          form.setError(fieldKey, { message });
+          setError(fieldKey, { message });
         });
         toast.error(state.message);
       } else {
@@ -179,7 +181,7 @@ export function LocationForm({ location, closeDialog, formId, onCreated }: Locat
         closeDialog();
       }
     }
-  }, [state, closeDialog, form, isEditing, onCreated]);
+  }, [state, closeDialog, isEditing, onCreated, setError]);
 
   // Watch form values for address preview and clear functionality
   const street = form.watch('street');

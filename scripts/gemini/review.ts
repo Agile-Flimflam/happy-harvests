@@ -46,6 +46,16 @@ const reviewIssueArraySchema = z.array(
   })
 );
 
+function filterIssuesByFocus(issues: ReviewIssue[], focus: ReviewFocus): ReviewIssue[] {
+  if (focus === 'critical-only') {
+    return issues.filter((issue) => issue.severity === 'error');
+  }
+  if (focus === 'high-only') {
+    return issues.filter((issue) => issue.severity === 'error' || issue.severity === 'warning');
+  }
+  return issues;
+}
+
 function sanitizeEnvPromptValue(envValue: string | undefined, fallback: string): string {
   const trimmed = envValue?.trim();
   if (!trimmed) return fallback;
@@ -301,17 +311,19 @@ async function run(): Promise<void> {
       allIssues.push(...reviewResult.issues);
     }
 
-    const criticalIssues: ReviewIssue[] = allIssues.filter((issue) => issue.severity === 'error');
+    const focusedIssues: ReviewIssue[] = filterIssuesByFocus(allIssues, reviewFocus);
 
     await postReviewSummary(
       octokit,
       prContext.owner,
       prContext.repo,
       prContext.prNumber,
-      criticalIssues
+      focusedIssues
     );
 
-    core.info(`Review complete. Found ${criticalIssues.length} critical issues.`);
+    core.info(
+      `Review complete. Focus="${reviewFocus}". Reported ${focusedIssues.length} issue(s) after filtering.`
+    );
   } catch (error: unknown) {
     const message: string = error instanceof Error ? error.message : String(error);
     core.setFailed(`Code review failed: ${message}`);

@@ -2,9 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { Leaf, Sprout, Tractor } from 'lucide-react';
 import CalendarHeaderWeather from './calendar/CalendarHeaderWeather';
-import { getDashboardOverview, getQuickActionContext, type DashboardOverview } from './actions';
+import { getDashboardOverview, getQuickActionContext } from './actions';
 import { sanitizeErrorMessage } from '@/lib/sanitize';
 import { QuickActionsHub } from '@/components/ui/quick-actions-hub';
+import { fetchWeatherByCoords } from '@/lib/openweather';
 
 export default async function DashboardPage() {
   const [overviewResult, quickActionsResult] = await Promise.all([
@@ -22,7 +23,7 @@ export default async function DashboardPage() {
     );
   }
 
-  const overview = overviewResult.data as DashboardOverview;
+  const overview = overviewResult.data;
   const {
     cropVarietyCount,
     plotCount,
@@ -32,6 +33,21 @@ export default async function DashboardPage() {
     plotError,
     plantingError,
   } = overview;
+  let primaryWeather = null;
+  if (primaryLocation?.latitude != null && primaryLocation.longitude != null) {
+    try {
+      primaryWeather = await fetchWeatherByCoords(
+        primaryLocation.latitude,
+        primaryLocation.longitude,
+        {
+          units: 'imperial',
+        }
+      );
+    } catch (error) {
+      console.error('[Dashboard] Failed to fetch weather for primary location', { error });
+      primaryWeather = null;
+    }
+  }
   const safeCropVarietyError = cropVarietyError ? sanitizeErrorMessage(cropVarietyError) : null;
   const safePlotError = plotError ? sanitizeErrorMessage(plotError) : null;
   const safePlantingError = plantingError ? sanitizeErrorMessage(plantingError) : null;
@@ -42,7 +58,7 @@ export default async function DashboardPage() {
       <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
       {primaryLocation ? (
         <div className="mb-4">
-          <CalendarHeaderWeather />
+          <CalendarHeaderWeather weather={primaryWeather} />
         </div>
       ) : null}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

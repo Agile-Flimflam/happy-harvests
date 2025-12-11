@@ -166,8 +166,10 @@ export function CropVarietyForm({
   const [newCropType, setNewCropType] = useState<string>('');
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [removeExistingImage, setRemoveExistingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const mainFormRef = useRef<HTMLFormElement>(null);
   const inlineCropFormRef = useRef<HTMLFormElement>(null);
+  const imageInputId = formId ? `${formId}-image` : 'crop-variety-image';
 
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -187,7 +189,7 @@ export function CropVarietyForm({
   };
 
   const handleClearSelectedImage = () => {
-    const inputEl = document.getElementById('image') as HTMLInputElement | null;
+    const inputEl = imageInputRef.current;
     if (inputEl) {
       inputEl.value = '';
     }
@@ -351,9 +353,10 @@ export function CropVarietyForm({
     if (values.row_spacing_max != null) {
       fd.append('row_spacing_max', String(values.row_spacing_max));
     }
-    const inputEl = document.getElementById('image') as HTMLInputElement | null;
-    if (inputEl && inputEl.files && inputEl.files[0]) {
-      fd.append('image', inputEl.files[0]);
+    const inputEl = imageInputRef.current;
+    const file = inputEl?.files?.[0];
+    if (file) {
+      fd.append('image', file);
     }
     fd.append('remove_image', removeExistingImage ? 'on' : 'off');
 
@@ -528,7 +531,7 @@ export function CropVarietyForm({
                 </div>
               )}
               <div className="flex-1">
-                <Label htmlFor="image" className="cursor-pointer block">
+                <Label htmlFor={imageInputId} className="cursor-pointer block">
                   <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg h-20 flex flex-col items-center justify-center text-center hover:border-muted-foreground/50 transition-colors">
                     <div className="mx-auto h-6 w-6 text-muted-foreground mb-1">
                       <svg
@@ -551,12 +554,13 @@ export function CropVarietyForm({
                   </div>
                 </Label>
                 <Input
-                  id="image"
+                  id={imageInputId}
                   name="image"
                   type="file"
                   accept="image/*"
                   className="sr-only"
                   onChange={handleImageChange}
+                  ref={imageInputRef}
                 />
               </div>
             </div>

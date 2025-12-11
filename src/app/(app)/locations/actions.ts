@@ -52,20 +52,25 @@ export async function getLocationsWithWeather(): Promise<ActionResult<LocationsW
   }
   const locations = base.locations ?? [];
   const weatherByLocation: Record<string, WeatherSnapshot> = {};
+  const MAX_CONCURRENT_REQUESTS = 5;
 
-  await Promise.all(
-    locations.map(async (loc) => {
-      if (loc.latitude == null || loc.longitude == null) return;
-      try {
-        const weather = await fetchWeatherByCoords(loc.latitude, loc.longitude, {
-          units: 'imperial',
-        });
-        weatherByLocation[loc.id] = weather;
-      } catch (error) {
-        console.error('[Locations] Weather fetch failed', { id: loc.id, error });
-      }
-    })
-  );
+  for (let i = 0; i < locations.length; i += MAX_CONCURRENT_REQUESTS) {
+    const batch = locations.slice(i, i + MAX_CONCURRENT_REQUESTS);
+    // Batch requests to stay within provider rate limits
+    await Promise.all(
+      batch.map(async (loc) => {
+        if (loc.latitude == null || loc.longitude == null) return;
+        try {
+          const weather = await fetchWeatherByCoords(loc.latitude, loc.longitude, {
+            units: 'imperial',
+          });
+          weatherByLocation[loc.id] = weather;
+        } catch (error) {
+          console.error('[Locations] Weather fetch failed', { id: loc.id, error });
+        }
+      })
+    );
+  }
 
   const quickCreatePrefs = await getQuickCreatePrefs();
 

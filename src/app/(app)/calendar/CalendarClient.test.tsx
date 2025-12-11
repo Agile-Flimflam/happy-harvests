@@ -168,19 +168,8 @@ describe('CalendarClient', () => {
     fireEvent.click(weekButtons[0]);
 
     // Switch to Today view (range selector, not the "Today" button which jumps to current date)
-    // The range selector has text "Today"
-    // The "Today" button also has text "Today"
-    // So we might have 4 "Today" texts (Mobile Jump, Mobile Range, Desktop Jump, Desktop Range)
-    const todayTexts = screen.getAllByText('Today');
-    expect(todayTexts.length).toBeGreaterThan(0);
-
-    // Let's try to find the tab specifically
-    // The tabs have role="tab"
-    const tabs = screen.getAllByRole('tab');
-    const todayTab = tabs.find((t) => t.textContent === 'Today');
-    if (todayTab) {
-      fireEvent.click(todayTab);
-    }
+    const todayButtons = screen.getAllByText('Today');
+    fireEvent.click(todayButtons[0]);
 
     // Switch back to Month view
     const monthButtons = screen.getAllByText('Month');

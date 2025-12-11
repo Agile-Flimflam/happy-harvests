@@ -43,10 +43,9 @@ export type PlotsPageData = {
 
 export async function getPlotsPageData(): Promise<ActionResult<PlotsPageData>> {
   const correlationId = createCorrelationId();
-  const [plotsRes, locationsWeatherRes, locationsListRes, prefs] = await Promise.all([
+  const [plotsRes, locationsWeatherRes, prefs] = await Promise.all([
     getPlotsWithBeds(),
     getLocationsWithWeather(),
-    getLocationsList(),
     getQuickCreatePrefs(),
   ]);
 
@@ -56,12 +55,12 @@ export async function getPlotsPageData(): Promise<ActionResult<PlotsPageData>> {
   if (!locationsWeatherRes.ok) {
     return locationsWeatherRes;
   }
-  const locationsFromList = locationsListRes.locations ?? [];
+  const locationsFromWeather = locationsWeatherRes.data.locations ?? [];
 
   return asActionSuccess(
     {
       plotsWithBeds: plotsRes.plots ?? [],
-      locations: locationsFromList,
+      locations: locationsFromWeather,
       weatherByLocation: locationsWeatherRes.data.weatherByLocation,
       quickCreatePrefs: prefs,
     },

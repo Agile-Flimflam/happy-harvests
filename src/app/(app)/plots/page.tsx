@@ -1,7 +1,4 @@
-import {
-  PlotsBedsPageContent,
-  type PlotsBedsPageContentProps,
-} from './_components/PlotsBedsPageContent';
+import { PlotsBedsPageContent } from './_components/PlotsBedsPageContent';
 import { getPlotsPageData } from './actions';
 
 export default async function PlotsBedsPage({
@@ -20,8 +17,8 @@ export default async function PlotsBedsPage({
 
   return (
     <PlotsBedsPageContent
-      plotsWithBeds={plotsWithBeds || []}
-      locations={locations as PlotsBedsPageContentProps['locations']}
+      plotsWithBeds={plotsWithBeds}
+      locations={locations}
       weatherByLocation={weatherByLocation}
       initialLocationId={initialLocationId}
       quickCreatePrefs={result.data.quickCreatePrefs}

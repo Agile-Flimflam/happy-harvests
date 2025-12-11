@@ -62,6 +62,14 @@ export async function createNursery(input: {
   notes?: string;
 }): Promise<ActionResult<{ nursery: Nursery }>> {
   const correlationId = createCorrelationId();
+  const { user, profile } = await getUserAndProfile();
+  if (!user || !isAdmin(profile)) {
+    return asActionError({
+      code: 'unauthorized',
+      message: 'Unauthorized',
+      correlationId,
+    });
+  }
   const supabase = await createSupabaseServerClient();
   const validation = NurserySchema.safeParse(input);
   if (!validation.success) {
@@ -96,6 +104,14 @@ export async function updateNursery(input: {
   notes?: string;
 }): Promise<ActionResult<{ nursery: Nursery }>> {
   const correlationId = createCorrelationId();
+  const { user, profile } = await getUserAndProfile();
+  if (!user || !isAdmin(profile)) {
+    return asActionError({
+      code: 'unauthorized',
+      message: 'Unauthorized',
+      correlationId,
+    });
+  }
   const supabase = await createSupabaseServerClient();
   const validation = NurserySchema.extend({
     id: z.string().uuid({ message: 'Invalid id' }),
@@ -128,6 +144,14 @@ export async function updateNursery(input: {
 
 export async function deleteNursery(id: string): Promise<ActionResult<{ id: string }>> {
   const correlationId = createCorrelationId();
+  const { user, profile } = await getUserAndProfile();
+  if (!user || !isAdmin(profile)) {
+    return asActionError({
+      code: 'unauthorized',
+      message: 'Unauthorized',
+      correlationId,
+    });
+  }
   const supabase = await createSupabaseServerClient();
   if (!id || !isUuid(id)) {
     return asActionError({

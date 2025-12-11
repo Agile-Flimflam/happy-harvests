@@ -47,8 +47,8 @@ export default function HarvestForm({
     hasPayload,
   } = useRetryableActionState(actionHarvest, initial);
 
-  const form = useForm<z.input<typeof HarvestSchema>>({
-    resolver: zodResolver(HarvestSchema) as Resolver<z.input<typeof HarvestSchema>>,
+  const form = useForm<z.output<typeof HarvestSchema>>({
+    resolver: zodResolver(HarvestSchema) as Resolver<z.output<typeof HarvestSchema>>,
     mode: 'onSubmit',
     defaultValues: {
       planting_id: plantingId,
@@ -73,13 +73,12 @@ export default function HarvestForm({
     closeDialog();
   }, [state, form, closeDialog]);
 
-  const onSubmit = (values: unknown) => {
-    const parsed: HarvestInput = HarvestSchema.parse(values);
+  const onSubmit = (values: HarvestInput) => {
     const fd = new FormData();
-    fd.append('planting_id', String(parsed.planting_id));
-    fd.append('event_date', parsed.event_date);
-    if (parsed.qty_harvested != null) fd.append('qty_harvested', String(parsed.qty_harvested));
-    if (parsed.weight_grams != null) fd.append('weight_grams', String(parsed.weight_grams));
+    fd.append('planting_id', String(values.planting_id));
+    fd.append('event_date', values.event_date);
+    if (values.qty_harvested != null) fd.append('qty_harvested', String(values.qty_harvested));
+    if (values.weight_grams != null) fd.append('weight_grams', String(values.weight_grams));
     startTransition(() => formAction(fd));
   };
 
@@ -141,7 +140,7 @@ export default function HarvestForm({
                     }}
                     onChange={(e) => {
                       const digits = e.target.value.replace(/[^0-9]/g, '');
-                      field.onChange(digits === '' ? '' : Number(digits));
+                      field.onChange(digits === '' ? undefined : Number(digits));
                     }}
                     onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                   />
@@ -173,7 +172,7 @@ export default function HarvestForm({
                     }}
                     onChange={(e) => {
                       const digits = e.target.value.replace(/[^0-9]/g, '');
-                      field.onChange(digits === '' ? '' : Number(digits));
+                      field.onChange(digits === '' ? undefined : Number(digits));
                     }}
                     onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                   />

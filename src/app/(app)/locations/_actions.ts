@@ -13,6 +13,23 @@ type Location = Tables<'locations'>;
 type LocationInsert = Database['public']['Tables']['locations']['Insert'];
 type LocationUpdate = Database['public']['Tables']['locations']['Update'];
 
+const ensureAuthenticated = async (
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>
+): Promise<{ ok: true } | { error: string }> => {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  if (error) {
+    console.error('[Locations] auth check failed', error);
+    return { error: 'Authentication failed. Please sign in and try again.' };
+  }
+  if (!user) {
+    return { error: 'You must be signed in to perform this action.' };
+  }
+  return { ok: true };
+};
+
 export type LocationFormState = {
   message: string;
   errors?: Partial<Record<keyof LocationFormValues, string | string[]>>;
@@ -42,6 +59,10 @@ export async function createLocation(
   formData: FormData
 ): Promise<LocationFormState> {
   const supabase = await createSupabaseServerClient();
+  const auth = await ensureAuthenticated(supabase);
+  if ('error' in auth) {
+    return { message: auth.error };
+  }
   const validated = LocationSchema.safeParse({
     name: valueOrNull(formData.get('name')),
     street: valueOrNull(formData.get('street')),
@@ -98,6 +119,10 @@ export async function updateLocation(
   formData: FormData
 ): Promise<LocationFormState> {
   const supabase = await createSupabaseServerClient();
+  const auth = await ensureAuthenticated(supabase);
+  if ('error' in auth) {
+    return { message: auth.error, location: prevState.location };
+  }
   const idValue = formData.get('id');
   const id = typeof idValue === 'string' ? idValue.trim() : '';
   if (!id) {
@@ -123,7 +148,7 @@ export async function updateLocation(
       location: prevState.location,
     };
   }
-  const updateData: LocationUpdate = {
+  const updateData: Partial<LocationUpdate> = {
     name: validated.data.name,
     street: validated.data.street ?? null,
     city: validated.data.city ?? null,
@@ -131,22 +156,25 @@ export async function updateLocation(
     zip: validated.data.zip ?? null,
     latitude: validated.data.latitude ?? null,
     longitude: validated.data.longitude ?? null,
-    timezone: null,
     notes: validated.data.notes ?? null,
   };
-  // Populate or clear timezone depending on coordinates
-  if (typeof validated.data.latitude === 'number' && typeof validated.data.longitude === 'number') {
+  // Populate timezone when coords exist; clear only when coords are cleared
+  const hasCoords =
+    typeof validated.data.latitude === 'number' && typeof validated.data.longitude === 'number';
+  if (hasCoords) {
     try {
-      const weather = await fetchWeatherByCoords(
-        validated.data.latitude,
-        validated.data.longitude,
-        { units: 'imperial' }
-      );
+      const { latitude, longitude } = validated.data;
+      if (latitude == null || longitude == null) {
+        throw new Error('Latitude/longitude missing after validation');
+      }
+      const weather = await fetchWeatherByCoords(latitude, longitude, { units: 'imperial' });
       updateData.timezone = weather.timezone ?? null;
     } catch (e) {
       console.error('OpenWeather timezone fetch failed on update:', e);
-      updateData.timezone = null; // Explicitly clear timezone on failure to avoid stale data
+      // Preserve existing timezone by omitting the field on failure
     }
+  } else {
+    updateData.timezone = null; // user cleared coordinates; clear timezone
   }
   const { error } = await supabase.from('locations').update(updateData).eq('id', id);
   if (error) {
@@ -160,6 +188,8 @@ export type DeleteLocationResult = { message: string };
 
 export async function deleteLocation(id: string): Promise<DeleteLocationResult> {
   const supabase = await createSupabaseServerClient();
+  const auth = await ensureAuthenticated(supabase);
+  if ('error' in auth) return { message: auth.error };
   if (!id) return { message: 'Error: Missing Location ID for delete.' };
   const trimmedId = id.trim();
   if (!UUID_REGEX.test(trimmedId)) {

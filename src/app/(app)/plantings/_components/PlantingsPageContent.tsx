@@ -819,7 +819,7 @@ export function PlantingsPageContent({
       setBulkResult(null);
       const payload: BulkDirectSeedInput = {
         bedIds: targets,
-        crop_variety_id: varietyId ?? 0,
+        crop_variety_id: varietyId,
         qty: qtyNumber,
         event_date: date,
         notes: notes || undefined,
