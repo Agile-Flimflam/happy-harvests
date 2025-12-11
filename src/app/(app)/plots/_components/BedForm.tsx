@@ -42,6 +42,8 @@ interface BedFormProps {
   initialPlotId?: number | null;
   defaultSize?: { lengthInches?: number; widthInches?: number } | null;
   onCreated?: (bed: BedWithLocation) => void;
+  onResultTelemetry?: (outcome: 'success' | 'error', code?: string) => void;
+  onSubmitTelemetry?: () => void;
 }
 
 export function BedForm({
@@ -52,6 +54,8 @@ export function BedForm({
   initialPlotId,
   defaultSize,
   onCreated,
+  onResultTelemetry,
+  onSubmitTelemetry,
 }: BedFormProps) {
   const isEditing = Boolean(bed?.id);
   const action = isEditing ? updateBed : createBed;
@@ -76,6 +80,7 @@ export function BedForm({
   useEffect(() => {
     if (state.message) {
       if (state.errors && Object.keys(state.errors).length > 0) {
+        onResultTelemetry?.('error', 'validation');
         Object.entries(state.errors).forEach(([field, errors]) => {
           const message = Array.isArray(errors)
             ? errors[0]
@@ -84,6 +89,7 @@ export function BedForm({
         });
         toast.error(state.message);
       } else {
+        onResultTelemetry?.('success');
         toast.success(state.message);
         if (!isEditing && state.bed) {
           onCreated?.(state.bed);
@@ -91,7 +97,7 @@ export function BedForm({
         closeDialog();
       }
     }
-  }, [state, closeDialog, form, isEditing, onCreated]);
+  }, [state, closeDialog, form, isEditing, onCreated, onResultTelemetry]);
 
   // Ensure plot is preselected when creating from a specific plot
   useEffect(() => {
@@ -117,6 +123,7 @@ export function BedForm({
     fd.append('length_inches', values.length_inches != null ? String(values.length_inches) : '');
     fd.append('width_inches', values.width_inches != null ? String(values.width_inches) : '');
     if (values.name != null) fd.append('name', values.name);
+    onSubmitTelemetry?.();
     startTransition(() => {
       dispatch(fd);
     });

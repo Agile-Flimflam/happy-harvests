@@ -52,7 +52,7 @@
     "mapbox-gl": "^3.17.0",
     "next": "15.4.8",
     "next-themes": "^0.4.6",
-    "posthog-js": "^1.181.2",
+    "posthog-js": "^1.304.0",
     "react": "^19.2.1",
     "react-day-picker": "^9.11.3",
     "react-dom": "^19.2.1",
@@ -135,6 +135,9 @@
       "sharp",
       "supabase",
       "unrs-resolver"
+    ],
+    "ignoredBuiltDependencies": [
+      "core-js"
     ]
   }
 }

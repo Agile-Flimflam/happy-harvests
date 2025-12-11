@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition, type FormEvent, type ReactNode } from 'react';
+import { useMemo, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react';
 import {
   BadgeCheck,
   BedDouble,
@@ -34,7 +34,12 @@ import {
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createCorrelationId } from '@/lib/action-result';
-import { trackQuickActionBlocked, trackQuickActionTrigger } from '@/lib/telemetry';
+import {
+  createInlineSheetTracker,
+  createStopwatch,
+  trackQuickActionBlocked,
+  trackQuickActionTrigger,
+} from '@/lib/telemetry';
 
 type SheetKind = 'plot' | 'bed' | 'crop-variety' | 'nursery' | 'nursery-sow';
 
@@ -44,6 +49,7 @@ type QuickActionDescriptor = {
   description: string;
   icon: ReactNode;
   ctaLabel: string;
+  ariaLabel?: string;
   onClick: () => void;
   secondaryCta?: ReactNode;
   disabled?: boolean;
@@ -58,26 +64,95 @@ export function QuickActionsHub({ context, className }: QuickActionsHubProps) {
   const router = useRouter();
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const quickActionsCorrelationId = useMemo(() => createCorrelationId(), []);
+  const stopwatchRef = useRef<() => number>(createStopwatch());
+  const sheetTrackers = useMemo<Record<SheetKind, ReturnType<typeof createInlineSheetTracker>>>(
+    () => ({
+      plot: createInlineSheetTracker('quick-plot', 'quick-actions', quickActionsCorrelationId),
+      bed: createInlineSheetTracker('quick-bed', 'quick-actions', quickActionsCorrelationId),
+      'crop-variety': createInlineSheetTracker(
+        'quick-crop-variety',
+        'quick-actions',
+        quickActionsCorrelationId
+      ),
+      nursery: createInlineSheetTracker(
+        'quick-nursery',
+        'quick-actions',
+        quickActionsCorrelationId
+      ),
+      'nursery-sow': createInlineSheetTracker(
+        'quick-nursery-sow',
+        'quick-actions',
+        quickActionsCorrelationId
+      ),
+    }),
+    [quickActionsCorrelationId]
+  );
+  const sheetCompletedRef = useRef<Record<SheetKind, boolean>>({
+    plot: false,
+    bed: false,
+    'crop-variety': false,
+    nursery: false,
+    'nursery-sow': false,
+  });
 
   const hasCropVarieties = context.counts.cropVarieties > 0;
   const hasNurseries = context.counts.nurseries > 0;
   const hasPlots = context.counts.plots > 0;
+  const recordTrigger = (
+    actionId: QuickActionDescriptor['id'],
+    allowed: boolean,
+    blocked?: string
+  ) => {
+    const elapsedMs = stopwatchRef.current();
+    stopwatchRef.current = createStopwatch();
+    trackQuickActionTrigger({
+      actionId,
+      allowed,
+      blockedReason: blocked,
+      correlationId: quickActionsCorrelationId,
+      elapsedMs,
+    });
+  };
+  const recordBlocked = (actionId: QuickActionDescriptor['id'], missingDependency: string) => {
+    trackQuickActionBlocked({
+      actionId,
+      missingDependency,
+      correlationId: quickActionsCorrelationId,
+    });
+  };
+  const markSheetSucceeded = (kind: SheetKind) => {
+    sheetCompletedRef.current[kind] = true;
+    sheetTrackers[kind].succeeded();
+  };
+  const markSheetFailed = (kind: SheetKind, errorCode?: string) => {
+    sheetCompletedRef.current[kind] = false;
+    sheetTrackers[kind].failed(errorCode);
+  };
 
   const openSheet = (kind: SheetKind) => {
+    sheetCompletedRef.current[kind] = false;
+    sheetTrackers[kind].opened();
     setSheet(kind);
     setSheetOpen(true);
   };
 
   const closeSheet = () => {
+    if (sheet && !sheetCompletedRef.current[sheet]) {
+      sheetTrackers[sheet].failed('cancel');
+    }
     setSheet(null);
     setSheetOpen(false);
   };
 
   const handleStartPlanting = () => {
     if (!hasCropVarieties) {
+      recordTrigger('start-planting', false, 'crop-variety');
+      recordBlocked('start-planting', 'crop-variety');
       openSheet('crop-variety');
       return;
     }
+    recordTrigger('start-planting', true);
     const params = new URLSearchParams();
     params.set('mode', 'direct');
     router.push(`/plantings?${params.toString()}`);
@@ -85,18 +160,32 @@ export function QuickActionsHub({ context, className }: QuickActionsHubProps) {
 
   const handleRecordNurserySow = () => {
     if (!hasCropVarieties) {
+      recordTrigger('record-nursery-sow', false, 'crop-variety');
+      recordBlocked('record-nursery-sow', 'crop-variety');
       openSheet('crop-variety');
       return;
     }
     if (!hasNurseries) {
+      recordTrigger('record-nursery-sow', false, 'nursery');
+      recordBlocked('record-nursery-sow', 'nursery');
       openSheet('nursery');
       return;
     }
+    recordTrigger('record-nursery-sow', true);
     openSheet('nursery-sow');
   };
 
   const handleAddPlotBed = () => {
+    recordTrigger('add-plot-bed', hasPlots);
+    if (!hasPlots) {
+      recordBlocked('add-plot-bed', 'plot');
+    }
     openSheet(hasPlots ? 'bed' : 'plot');
+  };
+
+  const handleAddCropVariety = () => {
+    recordTrigger('add-crop-variety', true);
+    openSheet('crop-variety');
   };
 
   const quickActions: QuickActionDescriptor[] = [
@@ -136,7 +225,8 @@ export function QuickActionsHub({ context, className }: QuickActionsHubProps) {
         : 'Create your first crop variety to unlock flows.',
       icon: <Leaf className="h-5 w-5 text-lime-600" aria-hidden />,
       ctaLabel: hasCropVarieties ? 'Add another variety' : 'Add first variety',
-      onClick: () => openSheet('crop-variety'),
+      ariaLabel: 'Add crop variety',
+      onClick: handleAddCropVariety,
     },
   ];
 
@@ -192,7 +282,12 @@ export function QuickActionsHub({ context, className }: QuickActionsHubProps) {
             <CardContent className="space-y-3 text-sm text-muted-foreground">
               <p>{qa.description}</p>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={qa.onClick} className="gap-2">
+                <Button
+                  size="sm"
+                  onClick={qa.onClick}
+                  className="gap-2"
+                  aria-label={qa.ariaLabel ?? qa.ctaLabel}
+                >
                   {qa.ctaLabel}
                 </Button>
                 {qa.secondaryCta}
@@ -208,8 +303,13 @@ export function QuickActionsHub({ context, className }: QuickActionsHubProps) {
         description={sheetDescription}
         open={sheetOpen && (sheet === 'plot' || sheet === 'bed')}
         onOpenChange={(open) => {
-          if (!open) closeSheet();
-          else if (sheet === null) setSheet('plot');
+          if (!open) {
+            closeSheet();
+            return;
+          }
+          if (sheet === null) {
+            openSheet('plot');
+          }
         }}
         primaryAction={{
           label: sheet === 'plot' ? 'Create plot' : 'Create bed',
@@ -219,13 +319,41 @@ export function QuickActionsHub({ context, className }: QuickActionsHubProps) {
         side="right"
       >
         {sheet === 'plot' ? (
-          <PlotForm locations={context.locations} closeDialog={closeSheet} formId="quickPlotForm" />
+          <PlotForm
+            locations={context.locations}
+            closeDialog={closeSheet}
+            formId="quickPlotForm"
+            onSubmitTelemetry={() => sheetTrackers.plot.submitted()}
+            onResultTelemetry={(outcome, code) => {
+              if (outcome === 'success') {
+                markSheetSucceeded('plot');
+              } else {
+                markSheetFailed('plot', code);
+              }
+            }}
+            onCreated={() => {
+              markSheetSucceeded('plot');
+              closeSheet();
+            }}
+          />
         ) : (
           <BedForm
             plots={context.plots}
             closeDialog={closeSheet}
             formId="quickBedForm"
             initialPlotId={activePlot?.plot_id ?? null}
+            onSubmitTelemetry={() => sheetTrackers.bed.submitted()}
+            onResultTelemetry={(outcome, code) => {
+              if (outcome === 'success') {
+                markSheetSucceeded('bed');
+              } else {
+                markSheetFailed('bed', code);
+              }
+            }}
+            onCreated={() => {
+              markSheetSucceeded('bed');
+              closeSheet();
+            }}
           />
         )}
       </InlineCreateSheet>
@@ -235,8 +363,13 @@ export function QuickActionsHub({ context, className }: QuickActionsHubProps) {
         description="Unlock planting flows by adding your first crop variety."
         open={sheetOpen && sheet === 'crop-variety'}
         onOpenChange={(open) => {
-          if (!open) closeSheet();
-          else setSheet('crop-variety');
+          if (!open) {
+            closeSheet();
+            return;
+          }
+          if (sheet === null) {
+            openSheet('crop-variety');
+          }
         }}
         primaryAction={{ label: 'Save variety', formId: 'quickCropVarietyForm' }}
         secondaryAction={{ label: 'Cancel', onClick: closeSheet, variant: 'ghost' }}
@@ -246,6 +379,18 @@ export function QuickActionsHub({ context, className }: QuickActionsHubProps) {
           crops={context.crops}
           closeDialog={closeSheet}
           formId="quickCropVarietyForm"
+          onSubmitTelemetry={() => sheetTrackers['crop-variety'].submitted()}
+          onResultTelemetry={(outcome, code) => {
+            if (outcome === 'success') {
+              markSheetSucceeded('crop-variety');
+            } else {
+              markSheetFailed('crop-variety', code);
+            }
+          }}
+          onCreated={() => {
+            markSheetSucceeded('crop-variety');
+            closeSheet();
+          }}
         />
       </InlineCreateSheet>
 
@@ -254,14 +399,33 @@ export function QuickActionsHub({ context, className }: QuickActionsHubProps) {
         description="Create a nursery to record sowings and transplants."
         open={sheetOpen && sheet === 'nursery'}
         onOpenChange={(open) => {
-          if (!open) closeSheet();
-          else setSheet('nursery');
+          if (!open) {
+            closeSheet();
+            return;
+          }
+          if (sheet === null) {
+            openSheet('nursery');
+          }
         }}
         primaryAction={{ label: 'Save nursery', formId: 'quickNurseryForm' }}
         secondaryAction={{ label: 'Cancel', onClick: closeSheet, variant: 'ghost' }}
         side="right"
       >
-        <QuickNurseryForm locations={context.locations} onCompleted={closeSheet} />
+        <QuickNurseryForm
+          locations={context.locations}
+          onCompleted={() => {
+            markSheetSucceeded('nursery');
+            closeSheet();
+          }}
+          onSubmit={() => sheetTrackers.nursery.submitted()}
+          onResult={(outcome, code) => {
+            if (outcome === 'success') {
+              markSheetSucceeded('nursery');
+            } else {
+              markSheetFailed('nursery', code);
+            }
+          }}
+        />
       </InlineCreateSheet>
 
       <InlineCreateSheet
@@ -269,8 +433,13 @@ export function QuickActionsHub({ context, className }: QuickActionsHubProps) {
         description="Log a nursery sowing with selected variety and nursery."
         open={sheetOpen && sheet === 'nursery-sow'}
         onOpenChange={(open) => {
-          if (!open) closeSheet();
-          else setSheet('nursery-sow');
+          if (!open) {
+            closeSheet();
+            return;
+          }
+          if (sheet === null) {
+            openSheet('nursery-sow');
+          }
         }}
         primaryAction={{ label: 'Save sowing', formId: 'quickNurserySowForm' }}
         secondaryAction={{ label: 'Cancel', onClick: closeSheet, variant: 'ghost' }}
@@ -281,6 +450,15 @@ export function QuickActionsHub({ context, className }: QuickActionsHubProps) {
           nurseries={context.nurseries}
           closeDialog={closeSheet}
           formId="quickNurserySowForm"
+          onSubmitTelemetry={() => sheetTrackers['nursery-sow'].submitted()}
+          onRetryTelemetry={() => sheetTrackers['nursery-sow'].submitted()}
+          onResultTelemetry={(outcome, code) => {
+            if (outcome === 'success') {
+              markSheetSucceeded('nursery-sow');
+            } else {
+              markSheetFailed('nursery-sow', code);
+            }
+          }}
         />
       </InlineCreateSheet>
     </div>
@@ -290,9 +468,11 @@ export function QuickActionsHub({ context, className }: QuickActionsHubProps) {
 type QuickNurseryFormProps = {
   locations: QuickActionContext['locations'];
   onCompleted: () => void;
+  onResult?: (outcome: 'success' | 'error', code?: string) => void;
+  onSubmit?: () => void;
 };
 
-function QuickNurseryForm({ locations, onCompleted }: QuickNurseryFormProps) {
+function QuickNurseryForm({ locations, onCompleted, onResult, onSubmit }: QuickNurseryFormProps) {
   const initial: NurseryFormState = {
     ok: true,
     data: { nursery: null },
@@ -310,25 +490,28 @@ function QuickNurseryForm({ locations, onCompleted }: QuickNurseryFormProps) {
 
   if (state?.message) {
     if (!state.ok) {
+      onResult?.('error', state.code);
       const ref = state.correlationId ? ` (Ref: ${state.correlationId})` : '';
       toast.error(`${state.message}${ref}`);
     } else {
+      onResult?.('success');
       toast.success(state.message);
       onCompleted();
     }
   }
 
-  const onSubmit = (evt: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (evt: FormEvent<HTMLFormElement>) => {
     evt.preventDefault();
     const fd = new FormData();
     fd.append('name', name.trim());
     fd.append('location_id', locationId);
     if (notes.trim()) fd.append('notes', notes.trim());
+    onSubmit?.();
     startTransition(() => submitAction(fd));
   };
 
   return (
-    <form id="quickNurseryForm" onSubmit={onSubmit} className="space-y-4">
+    <form id="quickNurseryForm" onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="nurseryName">Name</Label>
         <Input

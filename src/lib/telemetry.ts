@@ -56,6 +56,7 @@ type InlineSheetEvent = {
   sheetId: string;
   flowId: FlowId;
   correlationId?: string;
+  durationMs?: number;
 };
 
 type InlineSheetSubmit = InlineSheetEvent & { attempt: number };
@@ -70,28 +71,46 @@ type QuickActionTrigger = {
   actionId: string;
   allowed: boolean;
   blockedReason?: string;
+  correlationId?: string;
+  elapsedMs?: number;
 };
 
 type QuickActionBlocked = {
   actionId: string;
   missingDependency: string;
+  correlationId?: string;
 };
 
 type UndoTelemetry = {
   target: string;
   correlationId?: string;
+  outcome?: 'attempt' | 'success' | 'error';
+  durationMs?: number;
+  errorCode?: string;
 };
 
 type RetryTelemetry = {
   target: string;
   correlationId?: string;
+  outcome?: 'attempt' | 'success' | 'error';
+  durationMs?: number;
+  errorCode?: string;
 };
 
-type TelemetryObserver = (event: TelemetryEvent) => void;
+type TelemetryObserver = (event: TimestampedEvent) => void;
 
 const observers: TelemetryObserver[] = [];
 let client: PostHog | null = null;
 let initialized = false;
+
+type Timestamped<T> = T & { timestamp: number };
+
+type TimestampedEvent<E extends TelemetryEvent = TelemetryEvent> = E extends {
+  name: infer N;
+  properties: infer P;
+}
+  ? { name: N; properties: Timestamped<P> }
+  : never;
 
 const now = (): number => {
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
@@ -99,6 +118,11 @@ const now = (): number => {
   }
   return Date.now();
 };
+
+const withTimestamp = <T>(props: T): Timestamped<T> => ({
+  ...props,
+  timestamp: Date.now(),
+});
 
 const getPostHog = (): PostHog | null => {
   if (typeof window === 'undefined') return null;
@@ -123,15 +147,19 @@ const getPostHog = (): PostHog | null => {
   return client;
 };
 
-export function trackTelemetry(event: TelemetryEvent): void {
-  observers.forEach((observer) => observer(event));
+export function trackTelemetry<E extends TelemetryEvent>(event: E): void {
+  const enriched = {
+    ...event,
+    properties: withTimestamp(event.properties),
+  } as unknown as TimestampedEvent<E>;
+  observers.forEach((observer) => observer(enriched));
   const ph = getPostHog();
   if (ph) {
-    ph.capture(event.name, event.properties);
+    ph.capture(enriched.name, enriched.properties);
     return;
   }
   if (process.env.NODE_ENV !== 'production') {
-    console.debug('[telemetry][noop]', event.name, event.properties);
+    console.debug('[telemetry][noop]', enriched.name, enriched.properties);
   }
 }
 
@@ -268,10 +296,27 @@ export function trackQuickActionBlocked(payload: QuickActionBlocked): void {
   trackTelemetry({ name: 'quick_action_blocked', properties: payload });
 }
 
-export function trackUndo(target: string, correlationId?: string): void {
-  trackTelemetry({ name: 'undo_action', properties: { target, correlationId } });
+export function trackUndo(payload: UndoTelemetry): void;
+export function trackUndo(target: string, correlationId?: string): void;
+export function trackUndo(targetOrPayload: string | UndoTelemetry, correlationId?: string): void {
+  const properties: UndoTelemetry =
+    typeof targetOrPayload === 'string'
+      ? { target: targetOrPayload, correlationId, outcome: 'attempt' }
+      : { outcome: 'attempt', ...targetOrPayload };
+  trackTelemetry({ name: 'undo_action', properties });
 }
 
-export function trackRetry(target: string, correlationId?: string): void {
-  trackTelemetry({ name: 'retry_action', properties: { target, correlationId } });
+export function trackRetry(payload: RetryTelemetry): void;
+export function trackRetry(target: string, correlationId?: string): void;
+export function trackRetry(targetOrPayload: string | RetryTelemetry, correlationId?: string): void {
+  const properties: RetryTelemetry =
+    typeof targetOrPayload === 'string'
+      ? { target: targetOrPayload, correlationId, outcome: 'attempt' }
+      : { outcome: 'attempt', ...targetOrPayload };
+  trackTelemetry({ name: 'retry_action', properties });
+}
+
+export function createStopwatch(): () => number {
+  const start = now();
+  return () => now() - start;
 }

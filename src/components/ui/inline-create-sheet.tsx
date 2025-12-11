@@ -84,6 +84,7 @@ export function InlineCreateSheet({
           side === 'bottom' ? 'max-h-[90dvh]' : 'max-h-[100dvh]',
           className
         )}
+        aria-label={resolvedTitle}
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
       >

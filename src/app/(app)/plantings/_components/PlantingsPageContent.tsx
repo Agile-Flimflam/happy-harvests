@@ -253,6 +253,19 @@ export function PlantingsPageContent({
   const [nurserySheetOpen, setNurserySheetOpen] = useState(false);
   const [varietySheetOpen, setVarietySheetOpen] = useState(false);
 
+  const handleNurserySheetOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        nurserySheetCompletedRef.current = false;
+        nurserySheetTracker.opened();
+      } else if (!nurserySheetCompletedRef.current) {
+        nurserySheetTracker.failed('cancel');
+      }
+      setNurserySheetOpen(open);
+    },
+    [nurserySheetTracker]
+  );
+
   useEffect(() => {
     setTemplateList(templates);
   }, [templates]);
@@ -340,7 +353,7 @@ export function PlantingsPageContent({
       setNurseryId(created.id);
       router.refresh();
     }
-  }, [nurseryCreateState, router]);
+  }, [nurseryCreateState, router, handleNurserySheetOpenChange, nurserySheetTracker]);
 
   const stepperItems = [
     { id: 'location', label: 'Location', title: 'Location' },
@@ -430,16 +443,6 @@ export function PlantingsPageContent({
       bedSheetTracker.failed('cancel');
     }
     setBedSheetOpen(open);
-  };
-
-  const handleNurserySheetOpenChange = (open: boolean) => {
-    if (open) {
-      nurserySheetCompletedRef.current = false;
-      nurserySheetTracker.opened();
-    } else if (!nurserySheetCompletedRef.current) {
-      nurserySheetTracker.failed('cancel');
-    }
-    setNurserySheetOpen(open);
   };
 
   const handleVarietySheetOpenChange = (open: boolean) => {

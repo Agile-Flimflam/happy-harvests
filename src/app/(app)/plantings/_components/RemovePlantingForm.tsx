@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useEffect } from 'react';
+import { startTransition, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { RemoveSchema, type RemoveInput } from '@/lib/validation/plantings/remove';
@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/form';
 import { ErrorPresenter } from '@/components/ui/error-presenter';
 import { useRetryableActionState } from '@/hooks/use-retryable-action';
+import { createStopwatch, trackRetry, trackUndo } from '@/lib/telemetry';
 
 interface Props {
   plantingId: number;
@@ -39,6 +40,7 @@ export default function RemovePlantingForm({ plantingId, closeDialog, formId }: 
     retry,
     hasPayload,
   } = useRetryableActionState(actionRemove, initial);
+  const retryAttemptRef = useRef<(() => number) | null>(null);
 
   const form = useForm<z.input<typeof RemoveSchema>>({
     resolver: zodResolver(RemoveSchema),
@@ -52,6 +54,17 @@ export default function RemovePlantingForm({ plantingId, closeDialog, formId }: 
 
   useEffect(() => {
     if (!state?.message) return;
+    if (retryAttemptRef.current) {
+      const durationMs = retryAttemptRef.current();
+      trackRetry({
+        target: 'remove-planting',
+        correlationId: state.correlationId,
+        outcome: state.ok ? 'success' : 'error',
+        durationMs,
+        errorCode: state.ok ? undefined : state.code,
+      });
+      retryAttemptRef.current = null;
+    }
     if (!state.ok) {
       const fieldErrors = state.fieldErrors ?? {};
       Object.entries(fieldErrors).forEach(([field, errors]) => {
@@ -68,11 +81,26 @@ export default function RemovePlantingForm({ plantingId, closeDialog, formId }: 
           ? {
               label: 'Undo',
               onClick: () => {
+                const stopUndo = createStopwatch();
+                trackUndo({ target: 'remove-planting', correlationId: state.correlationId });
                 undoRemovePlanting(undoId).then((res) => {
                   if (!res.ok) {
+                    trackUndo({
+                      target: 'remove-planting',
+                      correlationId: res.correlationId ?? state.correlationId,
+                      outcome: 'error',
+                      durationMs: stopUndo(),
+                      errorCode: res.code,
+                    });
                     toast.error(res.message);
                     return;
                   }
+                  trackUndo({
+                    target: 'remove-planting',
+                    correlationId: res.correlationId ?? state.correlationId,
+                    outcome: 'success',
+                    durationMs: stopUndo(),
+                  });
                   toast.success(res.message);
                 });
               },
@@ -93,6 +121,12 @@ export default function RemovePlantingForm({ plantingId, closeDialog, formId }: 
 
   const handleRetry = () => {
     if (!hasPayload) return;
+    retryAttemptRef.current = createStopwatch();
+    trackRetry({
+      target: 'remove-planting',
+      correlationId: state.correlationId,
+      outcome: 'attempt',
+    });
     startTransition(() => retry());
   };
 

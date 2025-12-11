@@ -108,7 +108,7 @@ async function generatePRDescription(
   wasDiffTruncated: boolean,
   originalDiffLength: number
 ): Promise<string> {
-  const model = gemini.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const model = gemini.getGenerativeModel({ model: 'gemini-3-pro-preview' });
 
   const safeTitle: string = wrapPromptSection('title', title);
   const safeDescription: string =

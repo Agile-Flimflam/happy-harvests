@@ -64,6 +64,8 @@ interface CropVarietyFormProps {
   defaultCropId?: number | null;
   defaultIsOrganic?: boolean;
   onCreated?: (variety: CropVariety) => void;
+  onResultTelemetry?: (outcome: 'success' | 'error', code?: string) => void;
+  onSubmitTelemetry?: () => void;
 }
 
 /**
@@ -150,6 +152,8 @@ export function CropVarietyForm({
   defaultCropId = null,
   defaultIsOrganic = false,
   onCreated,
+  onResultTelemetry,
+  onSubmitTelemetry,
 }: CropVarietyFormProps) {
   const isEditing = Boolean(cropVariety?.id);
   // Update action functions
@@ -225,6 +229,7 @@ export function CropVarietyForm({
   useEffect(() => {
     if (state.message) {
       if (state.errors && Object.keys(state.errors).length > 0) {
+        onResultTelemetry?.('error', 'validation');
         // Set server errors on form fields
         const formFields = [
           'id',
@@ -253,6 +258,7 @@ export function CropVarietyForm({
         });
         toast.error(state.message);
       } else {
+        onResultTelemetry?.('success');
         // Success toast
         toast.success(state.message);
         if (!isEditing && state.cropVariety && onCreated) {
@@ -261,7 +267,7 @@ export function CropVarietyForm({
         closeDialog(); // Close dialog on success
       }
     }
-  }, [state, closeDialog, form, isEditing, onCreated]);
+  }, [state, closeDialog, form, isEditing, onCreated, onResultTelemetry]);
 
   useEffect(() => {
     setCropsLocal(crops ?? []);
@@ -351,6 +357,7 @@ export function CropVarietyForm({
     }
     fd.append('remove_image', removeExistingImage ? 'on' : 'off');
 
+    onSubmitTelemetry?.();
     startTransition(() => {
       dispatch(fd);
     });

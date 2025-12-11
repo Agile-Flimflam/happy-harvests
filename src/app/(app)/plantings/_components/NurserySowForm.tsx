@@ -39,6 +39,9 @@ interface Props {
   defaultDate?: string | null;
   defaultNurseryId?: string | null;
   defaultVarietyId?: number | null;
+  onResultTelemetry?: (outcome: 'success' | 'error', code?: string) => void;
+  onSubmitTelemetry?: () => void;
+  onRetryTelemetry?: () => void;
 }
 
 export function NurserySowForm({
@@ -49,6 +52,9 @@ export function NurserySowForm({
   defaultDate = null,
   defaultNurseryId = null,
   defaultVarietyId = null,
+  onResultTelemetry,
+  onSubmitTelemetry,
+  onRetryTelemetry,
 }: Props) {
   const initial: PlantingFormState = {
     ok: true,
@@ -79,6 +85,7 @@ export function NurserySowForm({
   useEffect(() => {
     if (!state?.message) return;
     if (!state.ok) {
+      onResultTelemetry?.('error', state.code);
       const fieldErrors = state.fieldErrors ?? {};
       Object.entries(fieldErrors).forEach(([field, errors]) => {
         const msg = Array.isArray(errors) ? errors[0] : String(errors);
@@ -91,9 +98,10 @@ export function NurserySowForm({
       toast.error(state.message);
       return;
     }
+    onResultTelemetry?.('success');
     toast.success(state.message);
     closeDialog();
-  }, [state, form, closeDialog]);
+  }, [state, form, closeDialog, onResultTelemetry]);
 
   const attachmentRef = useRef<HTMLInputElement | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
@@ -123,11 +131,13 @@ export function NurserySowForm({
       fd.append('attachment', attachment);
     }
     setAttachmentError(null);
+    onSubmitTelemetry?.();
     startTransition(() => formAction(fd));
   };
 
   const handleRetry = () => {
     if (!hasPayload) return;
+    onRetryTelemetry?.();
     startTransition(() => retry());
   };
 

@@ -102,7 +102,7 @@ async function reviewCodeWithGemini(
   filePath: string,
   fileContent: string
 ): Promise<ReviewResult> {
-  const model = gemini.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const model = gemini.getGenerativeModel({ model: 'gemini-3-pro-preview' });
 
   const safeFilePath: string = escapeBoundary(prepareForPrompt(filePath), FILE_CONTENT_BOUNDARY);
   const safeFileContent: string = escapeBoundary(

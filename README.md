@@ -15,6 +15,14 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
 - **Hooks:** Husky (pre-commit)
 - **Package Manager:** pnpm
 
+## Quality gates (CI)
+
+- `pnpm lint`
+- `pnpm type-check`
+- `pnpm test`
+
+CI runs these checks on every PR and blocks merges on failure.
+
 ## Local Development Setup
 
 1.  **Clone the repository:**
