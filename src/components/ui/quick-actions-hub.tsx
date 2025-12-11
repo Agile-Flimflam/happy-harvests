@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, type FormEvent, type ReactNode } from 'react';
+import { useMemo, useState, useTransition, type FormEvent, type ReactNode } from 'react';
 import {
   BadgeCheck,
   BedDouble,
@@ -33,6 +33,8 @@ import {
 } from '@/components/ui/select';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { createCorrelationId } from '@/lib/action-result';
+import { trackQuickActionBlocked, trackQuickActionTrigger } from '@/lib/telemetry';
 
 type SheetKind = 'plot' | 'bed' | 'crop-variety' | 'nursery' | 'nursery-sow';
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,15 @@ import {
   type BulkDirectSeedResult,
   type PlantingDraft,
 } from '../_actions';
+import { createCorrelationId } from '@/lib/action-result';
+import {
+  createFlowTracker,
+  createInlineSheetTracker,
+  trackTelemetry,
+  trackRetry,
+  type FlowTracker,
+  type InlineSheetTracker,
+} from '@/lib/telemetry';
 import type { QuickActionContext } from '../../actions';
 import {
   Empty,
@@ -198,6 +207,44 @@ export function PlantingsPageContent({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState('');
   const [isSavingTemplate, startSaveTemplate] = useTransition();
+
+  const flowCorrelationId = useMemo(() => createCorrelationId(), []);
+  const flowTrackerRef = useRef<FlowTracker | null>(null);
+  if (!flowTrackerRef.current) {
+    flowTrackerRef.current = createFlowTracker({
+      flowId: 'planting-wizard',
+      correlationId: flowCorrelationId,
+      variant: creationContext ? 'quick-action' : undefined,
+    });
+  }
+  const flowTracker = flowTrackerRef.current;
+  const stepRef = useRef<WizardStep>('location');
+
+  const locationSheetTracker = useMemo<InlineSheetTracker>(
+    () => createInlineSheetTracker('location-inline', 'inline-sheet', flowCorrelationId),
+    [flowCorrelationId]
+  );
+  const plotSheetTracker = useMemo<InlineSheetTracker>(
+    () => createInlineSheetTracker('plot-inline', 'inline-sheet', flowCorrelationId),
+    [flowCorrelationId]
+  );
+  const bedSheetTracker = useMemo<InlineSheetTracker>(
+    () => createInlineSheetTracker('bed-inline', 'inline-sheet', flowCorrelationId),
+    [flowCorrelationId]
+  );
+  const nurserySheetTracker = useMemo<InlineSheetTracker>(
+    () => createInlineSheetTracker('nursery-inline', 'inline-sheet', flowCorrelationId),
+    [flowCorrelationId]
+  );
+  const varietySheetTracker = useMemo<InlineSheetTracker>(
+    () => createInlineSheetTracker('variety-inline', 'inline-sheet', flowCorrelationId),
+    [flowCorrelationId]
+  );
+  const locationSheetCompletedRef = useRef(false);
+  const plotSheetCompletedRef = useRef(false);
+  const bedSheetCompletedRef = useRef(false);
+  const nurserySheetCompletedRef = useRef(false);
+  const varietySheetCompletedRef = useRef(false);
   const [templateList, setTemplateList] = useState<PlantingTemplate[]>(templates);
 
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
@@ -209,6 +256,18 @@ export function PlantingsPageContent({
   useEffect(() => {
     setTemplateList(templates);
   }, [templates]);
+
+  useEffect(() => {
+    stepRef.current = step;
+    flowTracker.markStepView(step);
+  }, [flowTracker, step]);
+
+  useEffect(
+    () => () => {
+      flowTracker.markDrop('unmount', stepRef.current);
+    },
+    [flowTracker]
+  );
 
   const nurseryInitial: NurseryFormState = {
     ok: true,
@@ -264,6 +323,7 @@ export function PlantingsPageContent({
   useEffect(() => {
     if (!nurseryCreateState?.message) return;
     if (!nurseryCreateState.ok) {
+      nurserySheetTracker.failed(nurseryCreateState.code);
       toast.error(
         nurseryCreateState.correlationId
           ? `${nurseryCreateState.message} (Ref: ${nurseryCreateState.correlationId})`
@@ -271,10 +331,12 @@ export function PlantingsPageContent({
       );
       return;
     }
+    nurserySheetCompletedRef.current = true;
+    nurserySheetTracker.succeeded();
     const created = nurseryCreateState.data?.nursery;
     if (created) {
       toast.success(nurseryCreateState.message);
-      setNurserySheetOpen(false);
+      handleNurserySheetOpenChange(false);
       setNurseryId(created.id);
       router.refresh();
     }
@@ -340,6 +402,56 @@ export function PlantingsPageContent({
     });
   };
 
+  const handleLocationSheetOpenChange = (open: boolean) => {
+    if (open) {
+      locationSheetCompletedRef.current = false;
+      locationSheetTracker.opened();
+    } else if (!locationSheetCompletedRef.current) {
+      locationSheetTracker.failed('cancel');
+    }
+    setLocationSheetOpen(open);
+  };
+
+  const handlePlotSheetOpenChange = (open: boolean) => {
+    if (open) {
+      plotSheetCompletedRef.current = false;
+      plotSheetTracker.opened();
+    } else if (!plotSheetCompletedRef.current) {
+      plotSheetTracker.failed('cancel');
+    }
+    setPlotSheetOpen(open);
+  };
+
+  const handleBedSheetOpenChange = (open: boolean) => {
+    if (open) {
+      bedSheetCompletedRef.current = false;
+      bedSheetTracker.opened();
+    } else if (!bedSheetCompletedRef.current) {
+      bedSheetTracker.failed('cancel');
+    }
+    setBedSheetOpen(open);
+  };
+
+  const handleNurserySheetOpenChange = (open: boolean) => {
+    if (open) {
+      nurserySheetCompletedRef.current = false;
+      nurserySheetTracker.opened();
+    } else if (!nurserySheetCompletedRef.current) {
+      nurserySheetTracker.failed('cancel');
+    }
+    setNurserySheetOpen(open);
+  };
+
+  const handleVarietySheetOpenChange = (open: boolean) => {
+    if (open) {
+      varietySheetCompletedRef.current = false;
+      varietySheetTracker.opened();
+    } else if (!varietySheetCompletedRef.current) {
+      varietySheetTracker.failed('cancel');
+    }
+    setVarietySheetOpen(open);
+  };
+
   const validateStep = (currentStep: WizardStep): boolean => {
     if (currentStep === 'location' && !locationId) {
       setFieldErrors((prev) => ({ ...prev, locationId: 'Select a location to continue.' }));
@@ -378,7 +490,9 @@ export function PlantingsPageContent({
     setLocationId(created.id);
     setPlotId(null);
     setBedId(null);
-    setLocationSheetOpen(false);
+    locationSheetCompletedRef.current = true;
+    locationSheetTracker.succeeded();
+    handleLocationSheetOpenChange(false);
     router.refresh();
   };
 
@@ -388,7 +502,9 @@ export function PlantingsPageContent({
     }
     setPlotId(created.plot_id ?? null);
     setBedId(null);
-    setPlotSheetOpen(false);
+    plotSheetCompletedRef.current = true;
+    plotSheetTracker.succeeded();
+    handlePlotSheetOpenChange(false);
     router.refresh();
   };
 
@@ -400,7 +516,9 @@ export function PlantingsPageContent({
       setPlotId(created.plot_id);
     }
     setBedId(created.id);
-    setBedSheetOpen(false);
+    bedSheetCompletedRef.current = true;
+    bedSheetTracker.succeeded();
+    handleBedSheetOpenChange(false);
     router.refresh();
   };
 
@@ -485,6 +603,18 @@ export function PlantingsPageContent({
           toast.error(`Some beds failed: ${res.failures.map((f) => f.bedId).join(', ')}`);
           setBulkBeds(res.failures.map((f) => f.bedId));
         }
+        const hasFailures = res.failures.length > 0;
+        trackTelemetry({
+          name: 'flow_step_result',
+          properties: {
+            flowId: 'planting-wizard',
+            stepId: 'schedule',
+            outcome: hasFailures ? 'error' : 'success',
+            errorCode: hasFailures ? 'bulk_partial_failure' : undefined,
+            correlationId: flowCorrelationId,
+            elapsedMs: flowTracker.getElapsedMs(),
+          },
+        });
         router.refresh();
       });
     });
@@ -496,6 +626,7 @@ export function PlantingsPageContent({
     const retryPayload: BulkDirectSeedInput = { ...lastBulkPayload, bedIds: failedIds };
     setPendingBulk(retryPayload);
     setBulkDialogOpen(true);
+    trackRetry('bulk-direct-seed', flowCorrelationId);
   };
 
   const LOCAL_STORAGE_KEY = 'plantingDraftV1';
@@ -602,6 +733,7 @@ export function PlantingsPageContent({
     setSaveError(null);
     restoreDefaults();
     clearPlantingDraft();
+    flowTracker.markDrop('cancel', stepRef.current);
     toast.success('Draft discarded.');
   };
 
@@ -644,6 +776,7 @@ export function PlantingsPageContent({
   };
 
   const handleSubmit = () => {
+    flowTracker.markSubmit('schedule');
     const missingQty = !qty;
     const missingDate = !date;
     const qtyNumber = Number(qty);
@@ -656,12 +789,14 @@ export function PlantingsPageContent({
         date: missingDate ? 'Choose a date.' : prev.date,
       }));
       toast.error('Please complete required fields.');
+      flowTracker.markResult('schedule', 'validation', 'missing_required');
       return;
     }
     setFieldErrors({});
     if (!Number.isFinite(qtyNumber) || qtyNumber <= 0) {
       setFieldErrors((prev) => ({ ...prev, qty: 'Quantity must be a positive number.' }));
       toast.error('Quantity must be a positive number.');
+      flowTracker.markResult('schedule', 'validation', 'invalid_qty');
       return;
     }
     const parsedWeight =
@@ -721,8 +856,10 @@ export function PlantingsPageContent({
             setFieldErrors(mapped);
             const ref = res.correlationId ? ` (Ref: ${res.correlationId})` : '';
             toast.error(`${res.message}${ref}`);
+            flowTracker.markResult('schedule', 'error', res.code);
             return;
           }
+          flowTracker.markResult('schedule', 'success');
           toast.success(res.message ?? 'Nursery sow recorded.');
           router.refresh();
         });
@@ -740,8 +877,10 @@ export function PlantingsPageContent({
             setFieldErrors(mapped);
             const ref = res.correlationId ? ` (Ref: ${res.correlationId})` : '';
             toast.error(`${res.message}${ref}`);
+            flowTracker.markResult('schedule', 'error', res.code);
             return;
           }
+          flowTracker.markResult('schedule', 'success');
           toast.success(res.message ?? 'Direct sow recorded.');
           router.refresh();
         });
@@ -776,7 +915,7 @@ export function PlantingsPageContent({
             {fieldErrors.locationId ? (
               <p className="text-xs text-destructive">{fieldErrors.locationId}</p>
             ) : null}
-            <Button variant="outline" size="sm" onClick={() => setLocationSheetOpen(true)}>
+            <Button variant="outline" size="sm" onClick={() => handleLocationSheetOpenChange(true)}>
               <Plus className="h-4 w-4 mr-2" aria-hidden />
               Add location
             </Button>
@@ -903,11 +1042,11 @@ export function PlantingsPageContent({
               </div>
             ) : null}
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPlotSheetOpen(true)}>
+              <Button variant="outline" size="sm" onClick={() => handlePlotSheetOpenChange(true)}>
                 <Layers className="h-4 w-4 mr-2" aria-hidden />
                 Add plot
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setBedSheetOpen(true)}>
+              <Button variant="outline" size="sm" onClick={() => handleBedSheetOpenChange(true)}>
                 <MapPin className="h-4 w-4 mr-2" aria-hidden />
                 Add bed
               </Button>
@@ -980,7 +1119,11 @@ export function PlantingsPageContent({
                     })}
                   </div>
                 ) : null}
-                <Button variant="outline" size="sm" onClick={() => setNurserySheetOpen(true)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleNurserySheetOpenChange(true)}
+                >
                   <Plus className="h-4 w-4 mr-2" aria-hidden />
                   Add nursery
                 </Button>
@@ -1030,7 +1173,7 @@ export function PlantingsPageContent({
                 })}
               </div>
             ) : null}
-            <Button variant="outline" size="sm" onClick={() => setVarietySheetOpen(true)}>
+            <Button variant="outline" size="sm" onClick={() => handleVarietySheetOpenChange(true)}>
               <Plus className="h-4 w-4 mr-2" aria-hidden />
               Add variety
             </Button>
@@ -1337,7 +1480,7 @@ export function PlantingsPageContent({
             <EmptyDescription>Add a location to start planning plantings.</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Button onClick={() => setLocationSheetOpen(true)}>
+            <Button onClick={() => handleLocationSheetOpenChange(true)}>
               <Plus className="h-4 w-4 mr-2" aria-hidden />
               Add location
             </Button>
@@ -1414,32 +1557,32 @@ export function PlantingsPageContent({
 
       <InlineCreateSheet
         open={locationSheetOpen}
-        onOpenChange={setLocationSheetOpen}
+        onOpenChange={handleLocationSheetOpenChange}
         title="Add location"
         description="Create a location to hold plots and beds."
         primaryAction={{ label: 'Save location', formId: 'locationFormWizard' }}
-        secondaryAction={{ label: 'Cancel', onClick: () => setLocationSheetOpen(false) }}
+        secondaryAction={{ label: 'Cancel', onClick: () => handleLocationSheetOpenChange(false) }}
         side="right"
       >
         <LocationForm
           formId="locationFormWizard"
-          closeDialog={() => setLocationSheetOpen(false)}
+          closeDialog={() => handleLocationSheetOpenChange(false)}
           onCreated={handleLocationCreated}
         />
       </InlineCreateSheet>
 
       <InlineCreateSheet
         open={plotSheetOpen}
-        onOpenChange={setPlotSheetOpen}
+        onOpenChange={handlePlotSheetOpenChange}
         title="Add plot"
         description="Create a plot within a location."
         primaryAction={{ label: 'Save plot', formId: 'plotFormWizard' }}
-        secondaryAction={{ label: 'Cancel', onClick: () => setPlotSheetOpen(false) }}
+        secondaryAction={{ label: 'Cancel', onClick: () => handlePlotSheetOpenChange(false) }}
         side="right"
       >
         <PlotForm
           formId="plotFormWizard"
-          closeDialog={() => setPlotSheetOpen(false)}
+          closeDialog={() => handlePlotSheetOpenChange(false)}
           locations={locationRecords}
           defaultLocationId={locationId ?? undefined}
           onCreated={handlePlotCreated}
@@ -1448,16 +1591,16 @@ export function PlantingsPageContent({
 
       <InlineCreateSheet
         open={bedSheetOpen}
-        onOpenChange={setBedSheetOpen}
+        onOpenChange={handleBedSheetOpenChange}
         title="Add bed"
         description="Create a bed inside a plot."
         primaryAction={{ label: 'Save bed', formId: 'bedFormWizard' }}
-        secondaryAction={{ label: 'Cancel', onClick: () => setBedSheetOpen(false) }}
+        secondaryAction={{ label: 'Cancel', onClick: () => handleBedSheetOpenChange(false) }}
         side="right"
       >
         <BedForm
           formId="bedFormWizard"
-          closeDialog={() => setBedSheetOpen(false)}
+          closeDialog={() => handleBedSheetOpenChange(false)}
           plots={plotRecordsForBedForm}
           initialPlotId={plotId}
           onCreated={handleBedCreated}
@@ -1466,11 +1609,11 @@ export function PlantingsPageContent({
 
       <InlineCreateSheet
         open={nurserySheetOpen}
-        onOpenChange={setNurserySheetOpen}
+        onOpenChange={handleNurserySheetOpenChange}
         title="Add nursery"
         description="Create a nursery for sowing."
         primaryAction={{ label: 'Save nursery', formId: 'nurseryFormWizard' }}
-        secondaryAction={{ label: 'Cancel', onClick: () => setNurserySheetOpen(false) }}
+        secondaryAction={{ label: 'Cancel', onClick: () => handleNurserySheetOpenChange(false) }}
         side="right"
       >
         <form id="nurseryFormWizard" className="space-y-3" action={nurseryCreateAction} noValidate>
@@ -1505,20 +1648,20 @@ export function PlantingsPageContent({
 
       <InlineCreateSheet
         open={varietySheetOpen}
-        onOpenChange={setVarietySheetOpen}
+        onOpenChange={handleVarietySheetOpenChange}
         title="Add crop variety"
         description="Create a new variety and return to the flow."
         primaryAction={{ label: 'Save variety', formId: 'varietyFormWizard' }}
-        secondaryAction={{ label: 'Cancel', onClick: () => setVarietySheetOpen(false) }}
+        secondaryAction={{ label: 'Cancel', onClick: () => handleVarietySheetOpenChange(false) }}
         side="right"
       >
         <CropVarietyForm
           formId="varietyFormWizard"
-          closeDialog={() => setVarietySheetOpen(false)}
+          closeDialog={() => handleVarietySheetOpenChange(false)}
           crops={creationContext?.crops ?? []}
           onCreated={(variety) => {
             setVarietyId(variety.id);
-            setVarietySheetOpen(false);
+            handleVarietySheetOpenChange(false);
             router.refresh();
           }}
         />
