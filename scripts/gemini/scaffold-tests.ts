@@ -79,8 +79,11 @@ const CODE_FENCE_TS: string = `${CODE_FENCE}typescript`;
 // Remove a single, outer markdown code fence while preserving inner fenced blocks.
 function stripSingleOuterFence(content: string): string {
   const trimmed: string = content.trim();
-  const fencePattern: RegExp = /^(\u200b?```[a-zA-Z0-9+-]*\s*\n)([\s\S]*?)(\n?\u200b?```\s*)$/;
-  const match = trimmed.match(fencePattern);
+  // Explicitly match standard Markdown fences with optional language tag; no hidden chars.
+  const fencePattern: RegExp = new RegExp(
+    `^(${CODE_FENCE}[a-zA-Z0-9+-]*\\s*\\n)([\\s\\S]*?)(\\n?${CODE_FENCE}\\s*)$`
+  );
+  const match: RegExpMatchArray | null = trimmed.match(fencePattern);
 
   if (!match) {
     return trimmed;
@@ -292,7 +295,11 @@ async function generateTestScaffold(
 
   // Ensure the path cannot break prompt structure by stripping newlines after prepareForPrompt.
   const safeSourceFilePath: string = prepareForPrompt(sourceFilePath).replace(/\r?\n/g, ' ');
-  const safeSourceCode: string = prepareForPrompt(sourceCode);
+  // Escape any embedded fences in user-controlled source to avoid breaking the prompt envelope.
+  const safeSourceCode: string = prepareForPrompt(sourceCode).replace(
+    /```/g,
+    `${CODE_FENCE}\u200b`
+  );
 
   ensureCombinedPromptLength([safeSourceFilePath, safeSourceCode]);
 

@@ -264,7 +264,7 @@ export async function actionNurserySow(
   let notesToPersist = notes ?? undefined;
   const attachmentEntry = formData.get('attachment');
   const attachment = isFileLike(attachmentEntry) ? attachmentEntry : null;
-  if (attachment) {
+  if (attachment && attachment.size > 0) {
     if (!ALLOWED_ATTACHMENT_TYPES.includes(attachment.type)) {
       const error = asActionError({
         code: 'validation',
@@ -411,7 +411,7 @@ export async function actionDirectSeed(
   let notesToPersist = notes ?? undefined;
   const attachmentEntry = formData.get('attachment');
   const attachment = isFileLike(attachmentEntry) ? attachmentEntry : null;
-  if (attachment) {
+  if (attachment && attachment.size > 0) {
     if (!ALLOWED_ATTACHMENT_TYPES.includes(attachment.type)) {
       const error = asActionError({
         code: 'validation',
@@ -521,13 +521,55 @@ export async function bulkCreateDirectSeedPlantings(
   const failures: Array<{ bedId: number; error: string }> = [];
 
   for (const bedId of uniqueBedIds) {
+    const validation = DirectSeedSchema.safeParse({
+      crop_variety_id: input.crop_variety_id,
+      qty: input.qty,
+      bed_id: bedId,
+      event_date: input.event_date,
+      notes: input.notes,
+      weight_grams: input.weight_grams,
+    });
+    if (!validation.success) {
+      const message = validation.error.issues[0]?.message ?? 'Invalid planting data';
+      failures.push({ bedId, error: message });
+      continue;
+    }
+
+    const {
+      crop_variety_id: cropVarietyId,
+      qty,
+      bed_id: validBedId,
+      event_date: eventDate,
+      notes,
+      weight_grams: weightGrams,
+    } = validation.data;
+
+    const { data: conflicts, error: conflictError } = await supabase
+      .from('plantings')
+      .select('id')
+      .eq('bed_id', validBedId)
+      .eq('planted_date', eventDate)
+      .not('status', 'eq', 'removed');
+    if (conflictError) {
+      failures.push({ bedId, error: conflictError.message });
+      continue;
+    }
+    if ((conflicts?.length ?? 0) >= DAILY_BED_PLANT_LIMIT) {
+      failures.push({
+        bedId,
+        error:
+          'Bed capacity reached for this date. Choose another date or update existing plantings.',
+      });
+      continue;
+    }
+
     const rpcArgs: Database['public']['Functions']['fn_create_direct_seed_planting']['Args'] = {
-      p_crop_variety_id: input.crop_variety_id,
-      p_qty: input.qty,
-      p_bed_id: bedId,
-      p_event_date: input.event_date,
-      p_notes: input.notes ?? undefined,
-      p_weight_grams: input.weight_grams ?? undefined,
+      p_crop_variety_id: cropVarietyId,
+      p_qty: qty,
+      p_bed_id: validBedId,
+      p_event_date: eventDate,
+      p_notes: notes ?? undefined,
+      p_weight_grams: weightGrams ?? undefined,
     };
     const { error } = await supabase.rpc('fn_create_direct_seed_planting', rpcArgs);
     if (error) {

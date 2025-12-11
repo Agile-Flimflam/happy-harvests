@@ -150,8 +150,9 @@ export async function getCalendarEvents(): Promise<ActionResult<{ events: Calend
         bedId != null
           ? `Bed #${bedId}` + (plotName ? ` @ ${plotName}` : locName ? ` @ ${locName}` : '')
           : null;
+      // Use planting_event id to keep keys unique when multiple events exist per planting
       events.push({
-        id: `p:${pe.planting_id}`,
+        id: `p:${pe.id}`,
         type: 'planting',
         title: `Planting · ${pe.plantings?.status ?? ''}`,
         start: pe.event_date,
@@ -253,7 +254,6 @@ export async function getCalendarEvents(): Promise<ActionResult<{ events: Calend
       status: string | null;
       nursery_started_date: string | null;
       planted_date: string | null;
-      propagation_method: string;
       crop_varieties: {
         name: string | null;
         crops: { name: string | null } | null;
@@ -270,7 +270,7 @@ export async function getCalendarEvents(): Promise<ActionResult<{ events: Calend
     const { data: plantings, error: plantingsError } = await supabase
       .from('plantings')
       .select(
-        'id, status, nursery_started_date, planted_date, propagation_method, crop_varieties:crop_variety_id(name, crops(name), dtm_direct_seed_min, dtm_direct_seed_max, dtm_transplant_min, dtm_transplant_max), beds:bed_id(id, plots(name, locations(name)))'
+        'id, status, nursery_started_date, planted_date, crop_varieties:crop_variety_id(name, crops(name), dtm_direct_seed_min, dtm_direct_seed_max, dtm_transplant_min, dtm_transplant_max), beds:bed_id(id, plots(name, locations(name)))'
       );
     if (plantingsError) {
       return asActionError({

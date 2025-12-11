@@ -37,8 +37,12 @@ const normalizeText = (value: string) => value.trim().toLocaleLowerCase();
 const escapePostgrestFilterValue = (value: string): string => {
   const safeBackslashes = value.replace(/\\/g, '\\\\');
   const safeQuotes = safeBackslashes.replace(/"/g, '""');
-  return `"${safeQuotes}"`;
+  const safeWildcards = safeQuotes.replace(/%/g, '\\%').replace(/_/g, '\\_');
+  return `"${safeWildcards}"`;
 };
+
+// Strip HTML delimiters to keep stored text plain; complements schema validation.
+const sanitizePlainText = (value: string): string => value.replace(/[<>]/g, '');
 
 const STORAGE_BUCKET = 'crop_variety_images';
 function getPublicImageUrl(
@@ -111,8 +115,12 @@ async function assertUniqueVariety(
   const normalizedName = normalizeText(name);
   const normalizedLatin = normalizeText(latinName);
   const nameFilter = escapePostgrestFilterValue(normalizedName);
-  const latinFilter = escapePostgrestFilterValue(normalizedLatin);
-  const orFilter = `name.ilike.${nameFilter},latin_name.ilike.${latinFilter}`;
+  const filters = [`name.ilike.${nameFilter}`];
+  if (normalizedLatin) {
+    const latinFilter = escapePostgrestFilterValue(normalizedLatin);
+    filters.push(`latin_name.ilike.${latinFilter}`);
+  }
+  const orFilter = filters.join(',');
   const query = supabase
     .from('crop_varieties')
     .select('id, name, latin_name')
@@ -160,20 +168,27 @@ export async function createCropVariety(
   formData: FormData
 ): Promise<CropVarietyFormState> {
   const supabase = await createSupabaseServerClient();
+  const parseNumber = (value: FormDataEntryValue | null) => {
+    if (value === null) return null;
+    const str = value.toString().trim();
+    if (str === '') return null;
+    const n = Number(str);
+    return Number.isFinite(n) ? n : null;
+  };
   const validatedFields = CropVarietySchema.safeParse({
     crop_id: formData.get('crop_id'),
     name: formData.get('name'),
     latin_name: formData.get('latin_name'),
     is_organic: formData.get('is_organic') === 'on',
     notes: formData.get('notes') || null,
-    dtm_direct_seed_min: formData.get('dtm_direct_seed_min'),
-    dtm_direct_seed_max: formData.get('dtm_direct_seed_max'),
-    dtm_transplant_min: formData.get('dtm_transplant_min'),
-    dtm_transplant_max: formData.get('dtm_transplant_max'),
-    plant_spacing_min: formData.get('plant_spacing_min') || null,
-    plant_spacing_max: formData.get('plant_spacing_max') || null,
-    row_spacing_min: formData.get('row_spacing_min') || null,
-    row_spacing_max: formData.get('row_spacing_max') || null,
+    dtm_direct_seed_min: parseNumber(formData.get('dtm_direct_seed_min')),
+    dtm_direct_seed_max: parseNumber(formData.get('dtm_direct_seed_max')),
+    dtm_transplant_min: parseNumber(formData.get('dtm_transplant_min')),
+    dtm_transplant_max: parseNumber(formData.get('dtm_transplant_max')),
+    plant_spacing_min: parseNumber(formData.get('plant_spacing_min')),
+    plant_spacing_max: parseNumber(formData.get('plant_spacing_max')),
+    row_spacing_min: parseNumber(formData.get('row_spacing_min')),
+    row_spacing_max: parseNumber(formData.get('row_spacing_max')),
   });
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -306,6 +321,13 @@ export async function updateCropVariety(
       cropVariety: prevState.cropVariety,
     };
   }
+  const parseNumber = (value: FormDataEntryValue | null) => {
+    if (value === null) return null;
+    const str = value.toString().trim();
+    if (str === '') return null;
+    const n = Number(str);
+    return Number.isFinite(n) ? n : null;
+  };
   const validatedFields = CropVarietySchema.safeParse({
     id,
     crop_id: formData.get('crop_id'),
@@ -313,14 +335,14 @@ export async function updateCropVariety(
     latin_name: formData.get('latin_name'),
     is_organic: formData.get('is_organic') === 'on',
     notes: formData.get('notes') || null,
-    dtm_direct_seed_min: formData.get('dtm_direct_seed_min'),
-    dtm_direct_seed_max: formData.get('dtm_direct_seed_max'),
-    dtm_transplant_min: formData.get('dtm_transplant_min'),
-    dtm_transplant_max: formData.get('dtm_transplant_max'),
-    plant_spacing_min: formData.get('plant_spacing_min') || null,
-    plant_spacing_max: formData.get('plant_spacing_max') || null,
-    row_spacing_min: formData.get('row_spacing_min') || null,
-    row_spacing_max: formData.get('row_spacing_max') || null,
+    dtm_direct_seed_min: parseNumber(formData.get('dtm_direct_seed_min')),
+    dtm_direct_seed_max: parseNumber(formData.get('dtm_direct_seed_max')),
+    dtm_transplant_min: parseNumber(formData.get('dtm_transplant_min')),
+    dtm_transplant_max: parseNumber(formData.get('dtm_transplant_max')),
+    plant_spacing_min: parseNumber(formData.get('plant_spacing_min')),
+    plant_spacing_max: parseNumber(formData.get('plant_spacing_max')),
+    row_spacing_min: parseNumber(formData.get('row_spacing_min')),
+    row_spacing_max: parseNumber(formData.get('row_spacing_max')),
   });
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -514,9 +536,11 @@ export async function createCropSimple(
   formData: FormData
 ): Promise<SimpleCropFormState> {
   const supabase = await createSupabaseServerClient();
+  const rawName = formData.get('name');
+  const rawCropType = formData.get('crop_type');
   const validated = SimpleCropSchema.safeParse({
-    name: formData.get('name'),
-    crop_type: formData.get('crop_type'),
+    name: sanitizePlainText(typeof rawName === 'string' ? rawName.trim() : ''),
+    crop_type: sanitizePlainText(typeof rawCropType === 'string' ? rawCropType.trim() : ''),
   });
   if (!validated.success) {
     return {

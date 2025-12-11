@@ -15,8 +15,6 @@ import {
   deleteLocation,
   getLocations,
   getLocationWithPlots,
-  type LocationFormState,
-  type DeleteLocationResult,
   rememberLocationSelection,
 } from './_actions';
 
@@ -89,7 +87,5 @@ export {
   deleteLocation,
   getLocations,
   getLocationWithPlots,
-  type LocationFormState,
-  type DeleteLocationResult,
   rememberLocationSelection,
 };

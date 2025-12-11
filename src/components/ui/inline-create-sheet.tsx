@@ -79,34 +79,22 @@ export function InlineCreateSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side={side}
+        aria-label={resolvedTitle}
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
         className={cn(
           'flex h-full flex-col gap-0 p-0 sm:max-w-[520px]',
           side === 'bottom' ? 'max-h-[90dvh]' : 'max-h-[100dvh]',
           className
         )}
-        aria-label={resolvedTitle}
-        aria-labelledby={titleId}
-        aria-describedby={descriptionId}
       >
         <SheetHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
-          {title ? (
-            <SheetTitle id={titleId} className="text-xl">
-              {title}
-            </SheetTitle>
-          ) : (
-            <SheetTitle id={titleId} className="sr-only">
-              {resolvedTitle}
-            </SheetTitle>
-          )}
-          {description ? (
-            <SheetDescription id={descriptionId} className="text-sm text-muted-foreground">
-              {description}
-            </SheetDescription>
-          ) : (
-            <SheetDescription id={descriptionId} className="sr-only">
-              {resolvedDescription}
-            </SheetDescription>
-          )}
+          <SheetTitle id={titleId} className="text-xl">
+            {title || resolvedTitle}
+          </SheetTitle>
+          <SheetDescription id={descriptionId} className="text-sm text-muted-foreground">
+            {description || resolvedDescription}
+          </SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-4 pb-28 pt-2 sm:px-6 sm:pb-6">{children}</div>

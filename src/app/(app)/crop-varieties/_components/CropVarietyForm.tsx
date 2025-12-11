@@ -38,7 +38,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod/dist/zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { CropVarietySchema, type CropVarietyFormValues } from '@/lib/validation/crop-varieties';
 import { Plus, X } from 'lucide-react';
 import {
@@ -225,7 +225,7 @@ export function CropVarietyForm({
     row_spacing_max: cropVariety?.row_spacing_max ?? null,
   };
 
-  const formResolver = zodResolver<CropVarietyFormValues>(CropVarietySchema);
+  const formResolver = zodResolver(CropVarietySchema);
 
   const form = useForm<CropVarietyFormValues>({
     resolver: formResolver,
