@@ -1,7 +1,12 @@
 'use server';
 
 import { createSupabaseServerClient, type Tables } from '@/lib/supabase-server';
-import type { ActionResult } from '@/lib/action-result';
+import {
+  asActionError,
+  asActionSuccess,
+  createCorrelationId,
+  type ActionResult,
+} from '@/lib/action-result';
 
 type RawDashboardLocation = {
   id: string;
@@ -65,6 +70,7 @@ function redactDbError(context: string, err: unknown): string {
 export type DashboardOverviewResult = ActionResult<DashboardOverview>;
 
 export async function getDashboardOverview(): Promise<DashboardOverviewResult> {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
 
   const [cropVarietyRes, plotRes, plantingRes, locationsRes] = await Promise.all([
@@ -108,14 +114,14 @@ export async function getDashboardOverview(): Promise<DashboardOverviewResult> {
   };
 
   if (errors.length) {
-    return {
-      ok: false,
+    return asActionError({
       code: 'server',
       message: overview.error ?? 'Unable to load dashboard data.',
-    };
+      correlationId,
+    });
   }
 
-  return { ok: true, data: overview };
+  return asActionSuccess(overview, undefined, correlationId);
 }
 
 export type QuickActionContext = {
@@ -136,6 +142,7 @@ export type QuickActionContext = {
 export type QuickActionContextResult = ActionResult<QuickActionContext>;
 
 export async function getQuickActionContext(): Promise<QuickActionContextResult> {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
 
   const [
@@ -181,16 +188,15 @@ export async function getQuickActionContext(): Promise<QuickActionContextResult>
 
   if (errors.length) {
     console.error('[QuickActions] Failed to load context', errors);
-    return {
-      ok: false,
+    return asActionError({
       code: 'server',
       message: 'Unable to load quick actions context.',
-    };
+      correlationId,
+    });
   }
 
-  return {
-    ok: true,
-    data: {
+  return asActionSuccess(
+    {
       cropVarieties: cropVarietyRes.data ?? [],
       crops: cropRes.data ?? [],
       plots: plotRes.data ?? [],
@@ -204,5 +210,7 @@ export async function getQuickActionContext(): Promise<QuickActionContextResult>
         nurseries: nurseryCountRes.count ?? 0,
       },
     },
-  };
+    undefined,
+    correlationId
+  );
 }

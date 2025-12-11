@@ -1,5 +1,10 @@
 import type { Tables } from '@/lib/supabase-server';
-import { asActionError, type ActionResult } from '@/lib/action-result';
+import {
+  asActionError,
+  asActionSuccess,
+  createCorrelationId,
+  type ActionResult,
+} from '@/lib/action-result';
 import { getLocationsWithWeather, type WeatherSnapshot } from '../locations/actions';
 import {
   createPlot,
@@ -37,6 +42,7 @@ export type PlotsPageData = {
 };
 
 export async function getPlotsPageData(): Promise<ActionResult<PlotsPageData>> {
+  const correlationId = createCorrelationId();
   const [plotsRes, locationsWeatherRes, locationsListRes, prefs] = await Promise.all([
     getPlotsWithBeds(),
     getLocationsWithWeather(),
@@ -45,22 +51,23 @@ export async function getPlotsPageData(): Promise<ActionResult<PlotsPageData>> {
   ]);
 
   if (plotsRes.error) {
-    return asActionError({ code: 'server', message: plotsRes.error });
+    return asActionError({ code: 'server', message: plotsRes.error, correlationId });
   }
   if (!locationsWeatherRes.ok) {
     return locationsWeatherRes;
   }
   const locationsFromList = locationsListRes.locations ?? [];
 
-  return {
-    ok: true,
-    data: {
+  return asActionSuccess(
+    {
       plotsWithBeds: plotsRes.plots ?? [],
       locations: locationsFromList,
       weatherByLocation: locationsWeatherRes.data.weatherByLocation,
       quickCreatePrefs: prefs,
     },
-  };
+    undefined,
+    correlationId
+  );
 }
 
 export {

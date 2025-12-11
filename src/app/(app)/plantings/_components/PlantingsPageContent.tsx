@@ -38,6 +38,7 @@ import {
   savePlantingTemplateAction,
   deletePlantingTemplateAction,
   type BulkDirectSeedInput,
+  type PlantingFormState,
   type BulkDirectSeedResult,
   type PlantingDraft,
 } from '../_actions';
@@ -209,7 +210,12 @@ export function PlantingsPageContent({
     setTemplateList(templates);
   }, [templates]);
 
-  const nurseryInitial: NurseryFormState = { message: '', errors: {}, nursery: null };
+  const nurseryInitial: NurseryFormState = {
+    ok: true,
+    data: { nursery: null },
+    message: '',
+    correlationId: 'init',
+  };
   const [nurseryCreateState, nurseryCreateAction] = useActionState<NurseryFormState, FormData>(
     actionCreateNursery,
     nurseryInitial
@@ -256,15 +262,21 @@ export function PlantingsPageContent({
   const recentVarieties = prefs?.recents?.varietyIds ?? [];
 
   useEffect(() => {
-    if (nurseryCreateState.message) {
-      if (nurseryCreateState.errors && Object.keys(nurseryCreateState.errors).length > 0) {
-        toast.error(nurseryCreateState.message);
-      } else if (nurseryCreateState.nursery) {
-        toast.success(nurseryCreateState.message);
-        setNurserySheetOpen(false);
-        setNurseryId(nurseryCreateState.nursery.id);
-        router.refresh();
-      }
+    if (!nurseryCreateState?.message) return;
+    if (!nurseryCreateState.ok) {
+      toast.error(
+        nurseryCreateState.correlationId
+          ? `${nurseryCreateState.message} (Ref: ${nurseryCreateState.correlationId})`
+          : nurseryCreateState.message
+      );
+      return;
+    }
+    const created = nurseryCreateState.data?.nursery;
+    if (created) {
+      toast.success(nurseryCreateState.message);
+      setNurserySheetOpen(false);
+      setNurseryId(created.id);
+      router.refresh();
     }
   }, [nurseryCreateState, router]);
 
@@ -687,42 +699,50 @@ export function PlantingsPageContent({
     if (parsedWeight != null) fd.append('weight_grams', String(parsedWeight));
     if (attachment) fd.append('attachment', attachment);
 
+    const plantingInitial: PlantingFormState = {
+      ok: true,
+      data: { planting: null, undoId: null },
+      message: '',
+      correlationId: 'init',
+    };
     startSubmit(() => {
       if (mode === 'nursery') {
         fd.append('nursery_id', String(nurseryId));
-        actionNurserySow({ message: '' }, fd).then((res) => {
-          if (res.errors && Object.keys(res.errors).length > 0) {
+        actionNurserySow(plantingInitial, fd).then((res) => {
+          if (!res.ok) {
             const mapped: WizardFieldErrors = {
-              varietyId: res.errors.crop_variety_id?.[0],
-              qty: res.errors.qty?.[0],
-              nurseryId: res.errors.nursery_id?.[0],
-              date: res.errors.event_date?.[0],
-              weightGrams: res.errors.weight_grams?.[0],
-              notes: res.errors.notes?.[0],
+              varietyId: res.fieldErrors?.crop_variety_id?.[0],
+              qty: res.fieldErrors?.qty?.[0],
+              nurseryId: res.fieldErrors?.nursery_id?.[0],
+              date: res.fieldErrors?.event_date?.[0],
+              weightGrams: res.fieldErrors?.weight_grams?.[0],
+              notes: res.fieldErrors?.notes?.[0],
             };
             setFieldErrors(mapped);
-            toast.error(res.message);
+            const ref = res.correlationId ? ` (Ref: ${res.correlationId})` : '';
+            toast.error(`${res.message}${ref}`);
             return;
           }
-          toast.success(res.message);
+          toast.success(res.message ?? 'Nursery sow recorded.');
           router.refresh();
         });
       } else {
         fd.append('bed_id', String(bedId));
-        actionDirectSeed({ message: '' }, fd).then((res) => {
-          if (res.errors && Object.keys(res.errors).length > 0) {
+        actionDirectSeed(plantingInitial, fd).then((res) => {
+          if (!res.ok) {
             const mapped: WizardFieldErrors = {
-              varietyId: res.errors.crop_variety_id?.[0],
-              qty: res.errors.qty?.[0],
-              bedId: res.errors.bed_id?.[0],
-              date: res.errors.event_date?.[0],
-              weightGrams: res.errors.weight_grams?.[0],
+              varietyId: res.fieldErrors?.crop_variety_id?.[0],
+              qty: res.fieldErrors?.qty?.[0],
+              bedId: res.fieldErrors?.bed_id?.[0],
+              date: res.fieldErrors?.event_date?.[0],
+              weightGrams: res.fieldErrors?.weight_grams?.[0],
             };
             setFieldErrors(mapped);
-            toast.error(res.message);
+            const ref = res.correlationId ? ` (Ref: ${res.correlationId})` : '';
+            toast.error(`${res.message}${ref}`);
             return;
           }
-          toast.success(res.message);
+          toast.success(res.message ?? 'Direct sow recorded.');
           router.refresh();
         });
       }
@@ -1477,8 +1497,8 @@ export function PlantingsPageContent({
             <Label>Notes (optional)</Label>
             <Textarea name="notes" rows={3} />
           </div>
-          {nurseryCreateState.errors?.name ? (
-            <p className="text-sm text-destructive">{nurseryCreateState.errors.name[0]}</p>
+          {!nurseryCreateState.ok && nurseryCreateState.fieldErrors?.name ? (
+            <p className="text-sm text-destructive">{nurseryCreateState.fieldErrors.name[0]}</p>
           ) : null}
         </form>
       </InlineCreateSheet>

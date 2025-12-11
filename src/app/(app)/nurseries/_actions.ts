@@ -3,9 +3,26 @@
 import { createSupabaseServerClient, getUserAndProfile, type Tables } from '@/lib/supabase-server';
 import { isAdmin } from '@/lib/authz';
 import { revalidatePath } from 'next/cache';
+import {
+  asActionError,
+  asActionSuccess,
+  createCorrelationId,
+  logActionError,
+  mapZodFieldErrors,
+  type ActionResult,
+} from '@/lib/action-result';
+import { mapDbError } from '@/lib/error-mapper';
+import { z } from 'zod';
 
 type Nursery = Tables<'nurseries'>;
 type Location = Tables<'locations'>;
+
+const NurserySchema = z.object({
+  id: z.string().uuid({ message: 'Invalid id' }).optional(),
+  name: z.string().trim().min(1, 'Name is required'),
+  location_id: z.string().uuid({ message: 'Location is invalid' }),
+  notes: z.string().trim().optional().nullable(),
+});
 
 function getStringField(value: FormDataEntryValue | null): string | null {
   return typeof value === 'string' ? value : null;
@@ -39,15 +56,37 @@ export async function getLocationsForSelect(): Promise<{
   return { locations: data ?? [] };
 }
 
-export async function createNursery(input: { name: string; location_id: string; notes?: string }) {
+export async function createNursery(input: {
+  name: string;
+  location_id: string;
+  notes?: string;
+}): Promise<ActionResult<{ nursery: Nursery }>> {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
+  const validation = NurserySchema.safeParse(input);
+  if (!validation.success) {
+    return asActionError({
+      code: 'validation',
+      message: 'Please fix the highlighted fields.',
+      fieldErrors: mapZodFieldErrors(validation.error),
+      correlationId,
+    });
+  }
   const { data, error } = await supabase
     .from('nurseries')
-    .insert({ name: input.name, location_id: input.location_id, notes: input.notes ?? null })
+    .insert({
+      name: validation.data.name,
+      location_id: validation.data.location_id,
+      notes: validation.data.notes ?? null,
+    })
     .select('*')
     .single();
-  if (error) return { error: error.message };
-  return { ok: true as const, nursery: data as Nursery };
+  if (error) {
+    const actionError = mapDbError(error, correlationId, 'Failed to create nursery.');
+    logActionError('createNursery.rpc', actionError);
+    return actionError;
+  }
+  return asActionSuccess({ nursery: data as Nursery }, 'Nursery created.', correlationId);
 }
 
 export async function updateNursery(input: {
@@ -55,39 +94,73 @@ export async function updateNursery(input: {
   name: string;
   location_id: string;
   notes?: string;
-}) {
+}): Promise<ActionResult<{ nursery: Nursery }>> {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
+  const validation = NurserySchema.extend({
+    id: z.string().uuid({ message: 'Invalid id' }),
+  }).safeParse(input);
+  if (!validation.success) {
+    return asActionError({
+      code: 'validation',
+      message: 'Please fix the highlighted fields.',
+      fieldErrors: mapZodFieldErrors(validation.error),
+      correlationId,
+    });
+  }
   const { data, error } = await supabase
     .from('nurseries')
-    .update({ name: input.name, location_id: input.location_id, notes: input.notes ?? null })
-    .eq('id', input.id)
+    .update({
+      name: validation.data.name,
+      location_id: validation.data.location_id,
+      notes: validation.data.notes ?? null,
+    })
+    .eq('id', validation.data.id)
     .select('*')
     .single();
-  if (error) return { error: error.message };
-  return { ok: true as const, nursery: data as Nursery };
+  if (error) {
+    const actionError = mapDbError(error, correlationId, 'Failed to update nursery.');
+    logActionError('updateNursery.rpc', actionError, { id: validation.data.id });
+    return actionError;
+  }
+  return asActionSuccess({ nursery: data as Nursery }, 'Nursery updated.', correlationId);
 }
 
-export async function deleteNursery(id: string) {
+export async function deleteNursery(id: string): Promise<ActionResult<{ id: string }>> {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
+  if (!id || !isUuid(id)) {
+    return asActionError({
+      code: 'validation',
+      message: 'Invalid id',
+      fieldErrors: { id: ['Invalid id'] },
+      correlationId,
+    });
+  }
   const { error } = await supabase.from('nurseries').delete().eq('id', id);
-  if (error) return { error: error.message };
-  return { ok: true } as const;
+  if (error) {
+    const actionError = mapDbError(error, correlationId, 'Failed to delete nursery.');
+    logActionError('deleteNursery.rpc', actionError, { id });
+    return actionError;
+  }
+  return asActionSuccess({ id }, 'Nursery deleted.', correlationId);
 }
 
 // UI-friendly server actions using FormData
-export type NurseryFormState = {
-  message: string;
-  errors?: Record<string, string[] | undefined>;
-  nursery?: Nursery | null;
-};
+export type NurseryFormState = ActionResult<{ nursery: Nursery | null }>;
 
 export async function actionCreateNursery(
   prev: NurseryFormState,
   formData: FormData
 ): Promise<NurseryFormState> {
+  const correlationId = createCorrelationId();
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) {
-    return { message: 'Unauthorized' };
+    return asActionError({
+      code: 'unauthorized',
+      message: 'Unauthorized',
+      correlationId,
+    });
   }
   const supabase = await createSupabaseServerClient();
   const nameValue = getStringField(formData.get('name'));
@@ -96,35 +169,54 @@ export async function actionCreateNursery(
   const name = nameValue?.trim() ?? '';
   const location_id = locationValue?.trim() ?? '';
   const notes = notesValue ?? undefined;
-  if (!name)
-    return {
+  const validation = NurserySchema.safeParse({
+    name,
+    location_id,
+    notes,
+  });
+  if (!validation.success) {
+    const error = asActionError({
+      code: 'validation',
       message: 'Please fix the highlighted fields.',
-      errors: { name: ['Name is required'] },
-    };
-  if (!location_id || !isUuid(location_id))
-    return {
-      message: 'Please fix the highlighted fields.',
-      errors: {
-        location_id: [location_id ? 'Location is invalid' : 'Location is required'],
-      },
-    };
+      fieldErrors: mapZodFieldErrors(validation.error),
+      correlationId,
+    });
+    logActionError('actionCreateNursery.validation', error);
+    return error;
+  }
   const { data, error } = await supabase
     .from('nurseries')
-    .insert({ name, location_id, notes: notes ?? null })
+    .insert({
+      name: validation.data.name,
+      location_id: validation.data.location_id,
+      notes: validation.data.notes ?? null,
+    })
     .select('*')
     .single();
-  if (error || !data) return { message: 'Failed to create nursery. Please try again.' };
+  if (error || !data) {
+    const actionError = mapDbError(
+      error ?? { code: 'server', message: 'Insert failed', details: null },
+      correlationId
+    );
+    logActionError('actionCreateNursery.insert', actionError);
+    return actionError;
+  }
   revalidatePath('/nurseries');
-  return { message: 'Nursery created.', errors: {}, nursery: data as Nursery };
+  return asActionSuccess({ nursery: data as Nursery }, 'Nursery created.', correlationId);
 }
 
 export async function actionUpdateNursery(
   prev: NurseryFormState,
   formData: FormData
 ): Promise<NurseryFormState> {
+  const correlationId = createCorrelationId();
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) {
-    return { message: 'Unauthorized' };
+    return asActionError({
+      code: 'unauthorized',
+      message: 'Unauthorized',
+      correlationId,
+    });
   }
   const supabase = await createSupabaseServerClient();
   const idValue = getStringField(formData.get('id'));
@@ -135,56 +227,76 @@ export async function actionUpdateNursery(
   const name = nameValue?.trim() ?? '';
   const location_id = locationValue?.trim() ?? '';
   const notes = notesValue ?? undefined;
-  if (!id || !isUuid(id)) {
-    return {
+  const validation = NurserySchema.extend({
+    id: z.string().uuid({ message: 'Invalid id' }),
+  }).safeParse({
+    id,
+    name,
+    location_id,
+    notes,
+  });
+  if (!validation.success) {
+    const error = asActionError({
+      code: 'validation',
       message: 'Please fix the highlighted fields.',
-      errors: {
-        id: [id ? 'Invalid id' : 'Something went wrong. Please close and try again.'],
-      },
-    };
+      fieldErrors: mapZodFieldErrors(validation.error),
+      correlationId,
+    });
+    logActionError('actionUpdateNursery.validation', error);
+    return error;
   }
-  if (!name.trim())
-    return {
-      message: 'Please fix the highlighted fields.',
-      errors: { name: ['Name is required'] },
-    };
-  if (!location_id || !isUuid(location_id))
-    return {
-      message: 'Please fix the highlighted fields.',
-      errors: {
-        location_id: [location_id ? 'Location is invalid' : 'Location is required'],
-      },
-    };
   const { data, error } = await supabase
     .from('nurseries')
-    .update({ name, location_id, notes: notes ?? null })
-    .eq('id', id)
+    .update({
+      name: validation.data.name,
+      location_id: validation.data.location_id,
+      notes: validation.data.notes ?? null,
+    })
+    .eq('id', validation.data.id)
     .select('*')
     .single();
-  if (error || !data) return { message: 'Failed to update nursery. Please try again.' };
+  if (error || !data) {
+    const actionError = mapDbError(
+      error ?? { code: 'server', message: 'Update failed', details: null },
+      correlationId
+    );
+    logActionError('actionUpdateNursery.update', actionError, { id: validation.data.id });
+    return actionError;
+  }
   revalidatePath('/nurseries');
-  return { message: 'Nursery updated.', errors: {}, nursery: data as Nursery };
+  return asActionSuccess({ nursery: data as Nursery }, 'Nursery updated.', correlationId);
 }
 
 export async function actionDeleteNursery(id: string): Promise<NurseryFormState> {
+  const correlationId = createCorrelationId();
   const { user, profile } = await getUserAndProfile();
   if (!user || !isAdmin(profile)) {
-    return { message: 'Unauthorized' };
+    return asActionError({
+      code: 'unauthorized',
+      message: 'Unauthorized',
+      correlationId,
+    });
   }
   const trimmedId = typeof id === 'string' ? id.trim() : '';
   if (!trimmedId || !isUuid(trimmedId)) {
-    return {
+    const error = asActionError({
+      code: 'validation',
       message: 'Please fix the highlighted fields.',
-      errors: { id: ['Invalid id'] },
-    };
+      fieldErrors: { id: ['Invalid id'] },
+      correlationId,
+    });
+    logActionError('actionDeleteNursery.validation', error);
+    return error;
   }
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from('nurseries').delete().eq('id', trimmedId);
   if (error) {
-    return { message: 'Failed to delete nursery. Please try again.' };
+    const actionError = mapDbError(error, correlationId, 'Failed to delete nursery.');
+    logActionError('actionDeleteNursery.rpc', actionError, { id: trimmedId });
+    return actionError;
   }
   revalidatePath('/nurseries');
-  return { message: 'Nursery deleted.', errors: {} };
+  return asActionSuccess({ nursery: null }, 'Nursery deleted.', correlationId);
 }
 
 export type NurseryStats = Record<

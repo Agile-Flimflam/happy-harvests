@@ -24,7 +24,10 @@ export const DirectSeedSchema = z.object({
   ),
   event_date: z.preprocess(
     (v) => (v == null ? '' : v),
-    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Date is required' })
+    z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Date is required' })
+      .refine((value) => !Number.isNaN(Date.parse(value)), { message: 'Date is invalid' })
   ),
   notes: z.string().optional().nullable(),
   weight_grams: z.preprocess(

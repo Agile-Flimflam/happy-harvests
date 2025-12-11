@@ -6,6 +6,8 @@ import type { PlantingWithDetails } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
 import { NurserySowSchema } from '@/lib/validation/plantings/nursery-sow';
 import { DirectSeedSchema } from '@/lib/validation/plantings/direct-seed';
+import { HarvestSchema } from '@/lib/validation/plantings/harvest';
+import { RemoveSchema } from '@/lib/validation/plantings/remove';
 import {
   deletePlantingTemplate,
   getPlantingPrefs,
@@ -15,15 +17,24 @@ import {
   type PlantingPrefs,
   type PlantingTemplate,
 } from '@/lib/planting-prefs';
+import {
+  asActionError,
+  asActionSuccess,
+  createCorrelationId,
+  logActionError,
+  mapZodFieldErrors,
+  type ActionResult,
+} from '@/lib/action-result';
+import { mapDbError } from '@/lib/error-mapper';
 
 type Planting = Tables<'plantings'>;
 
-export type PlantingFormState = {
-  message: string;
-  errors?: Record<string, string[] | undefined>;
+type PlantingActionData = {
   planting?: Planting | null;
-  undoId?: number;
+  undoId?: number | null;
 };
+
+export type PlantingFormState = ActionResult<PlantingActionData>;
 
 const DAILY_NURSERY_SOW_LIMIT = 20;
 const DAILY_BED_PLANT_LIMIT = 5;
@@ -187,6 +198,7 @@ export async function actionNurserySow(
   prev: PlantingFormState,
   formData: FormData
 ): Promise<PlantingFormState> {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
   const validation = NurserySowSchema.safeParse({
     crop_variety_id: formData.get('crop_variety_id'),
@@ -197,10 +209,14 @@ export async function actionNurserySow(
     weight_grams: formData.get('weight_grams'),
   });
   if (!validation.success) {
-    return {
+    const error = asActionError({
+      code: 'validation',
       message: 'Please fix the highlighted fields.',
-      errors: validation.error.flatten().fieldErrors,
-    };
+      fieldErrors: mapZodFieldErrors(validation.error),
+      correlationId,
+    });
+    logActionError('actionNurserySow.validation', error);
+    return error;
   }
   const {
     crop_variety_id: cropVarietyId,
@@ -219,20 +235,32 @@ export async function actionNurserySow(
     .eq('status', 'nursery')
     .eq('nursery_started_date', eventDate);
   if (conflictError) {
-    return { message: `Database Error: ${conflictError.message}` };
+    const error = mapDbError(conflictError, correlationId, 'Database error while checking nursery');
+    logActionError('actionNurserySow.conflictQuery', error, { nurseryId, eventDate });
+    return error;
   }
   if (sameDay?.some((row) => row.crop_variety_id === cropVarietyId)) {
-    return {
+    const error = asActionError({
+      code: 'duplicate',
       message: 'A sowing for this variety already exists on this date.',
-      errors: { crop_variety_id: ['Duplicate sowing for this date'] },
-    };
+      fieldErrors: { crop_variety_id: ['Duplicate sowing for this date'] },
+      correlationId,
+      retryable: false,
+    });
+    logActionError('actionNurserySow.duplicate', error, { nurseryId, eventDate, cropVarietyId });
+    return error;
   }
   if ((sameDay?.length ?? 0) >= DAILY_NURSERY_SOW_LIMIT) {
-    return {
+    const error = asActionError({
+      code: 'capacity_exceeded',
       message:
         'Nursery capacity reached for this date. Choose another date or update existing sowings.',
-      errors: { event_date: ['Capacity reached for selected date'] },
-    };
+      fieldErrors: { event_date: ['Capacity reached for selected date'] },
+      correlationId,
+      retryable: false,
+    });
+    logActionError('actionNurserySow.capacity', error, { nurseryId, eventDate });
+    return error;
   }
 
   let notesToPersist = notes ?? undefined;
@@ -240,16 +268,24 @@ export async function actionNurserySow(
   const attachment = isFileLike(attachmentEntry) ? attachmentEntry : null;
   if (attachment) {
     if (!ALLOWED_ATTACHMENT_TYPES.includes(attachment.type)) {
-      return {
+      const error = asActionError({
+        code: 'validation',
         message: 'Attachment type not supported. Use JPEG, PNG, WEBP, or AVIF.',
-        errors: { notes: ['Unsupported attachment type'] },
-      };
+        fieldErrors: { notes: ['Unsupported attachment type'] },
+        correlationId,
+      });
+      logActionError('actionNurserySow.attachmentType', error);
+      return error;
     }
     if (attachment.size > MAX_ATTACHMENT_BYTES) {
-      return {
+      const error = asActionError({
+        code: 'validation',
         message: 'Attachment too large (max 5MB).',
-        errors: { notes: ['Attachment exceeds 5MB'] },
-      };
+        fieldErrors: { notes: ['Attachment exceeds 5MB'] },
+        correlationId,
+      });
+      logActionError('actionNurserySow.attachmentSize', error);
+      return error;
     }
     const ext = getFileExtension(attachment);
     const randomSuffix = Math.random().toString(36).slice(2, 8);
@@ -262,7 +298,17 @@ export async function actionNurserySow(
         contentType: attachment.type || 'application/octet-stream',
       });
     if (uploadError) {
-      return { message: `Attachment upload failed: ${uploadError.message}` };
+      const error = mapDbError(
+        {
+          code: uploadError.name,
+          message: uploadError.message,
+          details: String(uploadError.cause ?? ''),
+        },
+        correlationId,
+        'Attachment upload failed.'
+      );
+      logActionError('actionNurserySow.attachmentUpload', error);
+      return error;
     }
     const publicUrl =
       supabase.storage.from(ATTACHMENT_BUCKET).getPublicUrl(path).data?.publicUrl ?? null;
@@ -281,7 +327,11 @@ export async function actionNurserySow(
     p_notes: notesToPersist ?? undefined,
     p_weight_grams: weightGrams ?? undefined,
   } as unknown as Database['public']['Functions']['fn_create_nursery_planting']['Args']);
-  if (error) return { message: `Database Error: ${error.message}` };
+  if (error) {
+    const actionError = mapDbError(error, correlationId, 'Failed to create nursery planting.');
+    logActionError('actionNurserySow.rpc', actionError, { nurseryId, eventDate });
+    return actionError;
+  }
   revalidatePath('/plantings');
   revalidatePath('/nurseries');
   await pushPlantingRecents({
@@ -296,13 +346,18 @@ export async function actionNurserySow(
       weightGrams,
     },
   });
-  return { message: 'Nursery planting created.', errors: {} };
+  return asActionSuccess(
+    { planting: null, undoId: null },
+    'Nursery planting created.',
+    correlationId
+  );
 }
 
 export async function actionDirectSeed(
   prev: PlantingFormState,
   formData: FormData
 ): Promise<PlantingFormState> {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
   const validation = DirectSeedSchema.safeParse({
     crop_variety_id: formData.get('crop_variety_id'),
@@ -313,10 +368,14 @@ export async function actionDirectSeed(
     weight_grams: formData.get('weight_grams'),
   });
   if (!validation.success) {
-    return {
+    const error = asActionError({
+      code: 'validation',
       message: 'Please fix the highlighted fields.',
-      errors: validation.error.flatten().fieldErrors,
-    };
+      fieldErrors: mapZodFieldErrors(validation.error),
+      correlationId,
+    });
+    logActionError('actionDirectSeed.validation', error);
+    return error;
   }
   const {
     crop_variety_id: cropVarietyId,
@@ -334,13 +393,20 @@ export async function actionDirectSeed(
     .eq('planted_date', eventDate)
     .not('status', 'eq', 'removed');
   if (conflictError) {
-    return { message: `Database Error: ${conflictError.message}` };
+    const error = mapDbError(conflictError, correlationId, 'Database error while checking bed');
+    logActionError('actionDirectSeed.conflictQuery', error, { bedId, eventDate });
+    return error;
   }
   if ((conflicts?.length ?? 0) >= DAILY_BED_PLANT_LIMIT) {
-    return {
+    const error = asActionError({
+      code: 'overlap',
       message: 'This bed already has plantings on that date.',
-      errors: { bed_id: ['Bed is already scheduled for that date'] },
-    };
+      fieldErrors: { bed_id: ['Bed is already scheduled for that date'] },
+      correlationId,
+      retryable: false,
+    });
+    logActionError('actionDirectSeed.bedOverlap', error, { bedId, eventDate });
+    return error;
   }
 
   let notesToPersist = notes ?? undefined;
@@ -348,10 +414,22 @@ export async function actionDirectSeed(
   const attachment = isFileLike(attachmentEntry) ? attachmentEntry : null;
   if (attachment) {
     if (!ALLOWED_ATTACHMENT_TYPES.includes(attachment.type)) {
-      return { message: 'Attachment type not supported. Use JPEG, PNG, WEBP, or AVIF.' };
+      const error = asActionError({
+        code: 'validation',
+        message: 'Attachment type not supported. Use JPEG, PNG, WEBP, or AVIF.',
+        correlationId,
+      });
+      logActionError('actionDirectSeed.attachmentType', error);
+      return error;
     }
     if (attachment.size > MAX_ATTACHMENT_BYTES) {
-      return { message: 'Attachment too large (max 5MB).' };
+      const error = asActionError({
+        code: 'validation',
+        message: 'Attachment too large (max 5MB).',
+        correlationId,
+      });
+      logActionError('actionDirectSeed.attachmentSize', error);
+      return error;
     }
     const ext = getFileExtension(attachment);
     const randomSuffix = Math.random().toString(36).slice(2, 8);
@@ -364,7 +442,17 @@ export async function actionDirectSeed(
         contentType: attachment.type || 'application/octet-stream',
       });
     if (uploadError) {
-      return { message: `Attachment upload failed: ${uploadError.message}` };
+      const error = mapDbError(
+        {
+          code: uploadError.name,
+          message: uploadError.message,
+          details: String(uploadError.cause ?? ''),
+        },
+        correlationId,
+        'Attachment upload failed.'
+      );
+      logActionError('actionDirectSeed.attachmentUpload', error);
+      return error;
     }
     const publicUrl =
       supabase.storage.from(ATTACHMENT_BUCKET).getPublicUrl(path).data?.publicUrl ?? null;
@@ -383,7 +471,11 @@ export async function actionDirectSeed(
     p_notes: notesToPersist ?? undefined,
     p_weight_grams: weightGrams ?? undefined,
   } as unknown as Database['public']['Functions']['fn_create_direct_seed_planting']['Args']);
-  if (error) return { message: `Database Error: ${error.message}` };
+  if (error) {
+    const actionError = mapDbError(error, correlationId, 'Failed to create direct seed planting.');
+    logActionError('actionDirectSeed.rpc', actionError, { bedId, eventDate });
+    return actionError;
+  }
   revalidatePath('/plantings');
   await pushPlantingRecents({
     bedId,
@@ -397,7 +489,11 @@ export async function actionDirectSeed(
       weightGrams,
     },
   });
-  return { message: 'Direct-seeded planting created.', errors: {} };
+  return asActionSuccess(
+    { planting: null, undoId: null },
+    'Direct-seeded planting created.',
+    correlationId
+  );
 }
 
 export type BulkDirectSeedInput = {
@@ -467,11 +563,19 @@ export async function bulkCreateDirectSeedPlantings(
 
 export async function deletePlanting(
   id: number | string
-): Promise<{ message: string; undoId?: number }> {
+): Promise<ActionResult<{ undoId?: number }>> {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
   const numericId = typeof id === 'number' ? id : parseInt(id, 10);
   if (!numericId || Number.isNaN(numericId)) {
-    return { message: 'Error: Missing Planting ID for delete.' };
+    const error = asActionError({
+      code: 'validation',
+      message: 'Error: Missing Planting ID for delete.',
+      fieldErrors: { id: ['Invalid planting id'] },
+      correlationId,
+    });
+    logActionError('deletePlanting.validation', error);
+    return error;
   }
   const today = new Date().toISOString().slice(0, 10);
   const { error } = await supabase.rpc('fn_remove_planting', {
@@ -480,11 +584,12 @@ export async function deletePlanting(
     p_reason: 'deleted via UI',
   });
   if (error) {
-    console.error('Supabase RPC Error:', error);
-    return { message: `Database Error: ${error.message}` };
+    const actionError = mapDbError(error, correlationId, 'Failed to delete planting.');
+    logActionError('deletePlanting.rpc', actionError, { id: numericId });
+    return actionError;
   }
   revalidatePath('/plantings');
-  return { message: 'Planting removed successfully.', undoId: numericId };
+  return asActionSuccess({ undoId: numericId }, 'Planting removed successfully.', correlationId);
 }
 
 // Lifecycle server actions for RHF FormDialog flows
@@ -492,94 +597,185 @@ export const actionTransplant = async (
   prev: PlantingFormState,
   formData: FormData
 ): Promise<PlantingFormState> => {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
-  const plantingId = formData.get('planting_id');
-  const bedId = formData.get('bed_id');
+  const plantingIdRaw = formData.get('planting_id');
+  const bedIdRaw = formData.get('bed_id');
   const eventDate = formData.get('event_date');
+  const plantingId = Number(plantingIdRaw);
+  const bedId = Number(bedIdRaw);
+  if (!Number.isFinite(plantingId) || !Number.isFinite(bedId) || !eventDate) {
+    const fieldErrors: Record<string, string[]> = {};
+    if (!Number.isFinite(plantingId)) fieldErrors.planting_id = ['Planting is required'];
+    if (!Number.isFinite(bedId)) fieldErrors.bed_id = ['Bed is required'];
+    if (!eventDate) fieldErrors.event_date = ['Date is required'];
+    const error = asActionError({
+      code: 'validation',
+      message: 'Please fix the highlighted fields.',
+      fieldErrors,
+      correlationId,
+    });
+    logActionError('actionTransplant.validation', error);
+    return error;
+  }
   const { error } = await supabase.rpc('fn_transplant_planting', {
-    p_planting_id: Number(plantingId),
-    p_bed_id: Number(bedId),
+    p_planting_id: plantingId,
+    p_bed_id: bedId,
     p_event_date: String(eventDate),
   });
-  if (error) return { message: `Database Error: ${error.message}` };
+  if (error) {
+    const actionError = mapDbError(error, correlationId, 'Failed to record transplant.');
+    logActionError('actionTransplant.rpc', actionError, { plantingId, bedId, eventDate });
+    return actionError;
+  }
   revalidatePath('/plantings');
-  return { message: 'Transplant recorded.' };
+  return asActionSuccess({ planting: null, undoId: null }, 'Transplant recorded.', correlationId);
 };
 
 export const actionMove = async (
   prev: PlantingFormState,
   formData: FormData
 ): Promise<PlantingFormState> => {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
-  const plantingId = formData.get('planting_id');
-  const bedId = formData.get('bed_id');
+  const plantingIdRaw = formData.get('planting_id');
+  const bedIdRaw = formData.get('bed_id');
   const eventDate = formData.get('event_date');
+  const plantingId = Number(plantingIdRaw);
+  const bedId = Number(bedIdRaw);
+  if (!Number.isFinite(plantingId) || !Number.isFinite(bedId) || !eventDate) {
+    const fieldErrors: Record<string, string[]> = {};
+    if (!Number.isFinite(plantingId)) fieldErrors.planting_id = ['Planting is required'];
+    if (!Number.isFinite(bedId)) fieldErrors.bed_id = ['Bed is required'];
+    if (!eventDate) fieldErrors.event_date = ['Date is required'];
+    const error = asActionError({
+      code: 'validation',
+      message: 'Please fix the highlighted fields.',
+      fieldErrors,
+      correlationId,
+    });
+    logActionError('actionMove.validation', error);
+    return error;
+  }
   const { error } = await supabase.rpc('fn_move_planting', {
-    p_planting_id: Number(plantingId),
-    p_bed_id: Number(bedId),
+    p_planting_id: plantingId,
+    p_bed_id: bedId,
     p_event_date: String(eventDate),
   });
-  if (error) return { message: `Database Error: ${error.message}` };
+  if (error) {
+    const actionError = mapDbError(error, correlationId, 'Failed to record move.');
+    logActionError('actionMove.rpc', actionError, { plantingId, bedId, eventDate });
+    return actionError;
+  }
   revalidatePath('/plantings');
-  return { message: 'Move recorded.' };
+  return asActionSuccess({ planting: null, undoId: null }, 'Move recorded.', correlationId);
 };
 
 export const actionHarvest = async (
   prev: PlantingFormState,
   formData: FormData
 ): Promise<PlantingFormState> => {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
-  const plantingId = formData.get('planting_id');
-  const eventDate = formData.get('event_date');
-  const qtyHarvestedRaw = formData.get('qty_harvested');
-  const weightGramsRaw = formData.get('weight_grams');
-  const qtyHarvested =
-    qtyHarvestedRaw == null || String(qtyHarvestedRaw) === '' ? undefined : Number(qtyHarvestedRaw);
-  const weightGrams =
-    weightGramsRaw == null || String(weightGramsRaw) === '' ? undefined : Number(weightGramsRaw);
-  const { error } = await supabase.rpc('fn_harvest_planting', {
-    p_planting_id: Number(plantingId),
-    p_event_date: String(eventDate),
-    p_qty_harvested: qtyHarvested,
-    p_weight_grams: weightGrams,
+  const validation = HarvestSchema.safeParse({
+    planting_id: formData.get('planting_id'),
+    event_date: formData.get('event_date'),
+    qty_harvested: formData.get('qty_harvested'),
+    weight_grams: formData.get('weight_grams'),
   });
-  if (error) return { message: `Database Error: ${error.message}` };
+  if (!validation.success) {
+    const error = asActionError({
+      code: 'validation',
+      message: 'Please fix the highlighted fields.',
+      fieldErrors: mapZodFieldErrors(validation.error),
+      correlationId,
+    });
+    logActionError('actionHarvest.validation', error);
+    return error;
+  }
+  const {
+    planting_id: plantingId,
+    event_date: eventDate,
+    qty_harvested,
+    weight_grams,
+  } = validation.data;
+  const { error } = await supabase.rpc('fn_harvest_planting', {
+    p_planting_id: plantingId,
+    p_event_date: eventDate,
+    p_qty_harvested: qty_harvested ?? undefined,
+    p_weight_grams: weight_grams ?? undefined,
+  });
+  if (error) {
+    const actionError = mapDbError(error, correlationId, 'Failed to record harvest.');
+    logActionError('actionHarvest.rpc', actionError, { plantingId, eventDate });
+    return actionError;
+  }
   revalidatePath('/plantings');
-  return { message: 'Harvest recorded.' };
+  return asActionSuccess({ planting: null, undoId: null }, 'Harvest recorded.', correlationId);
 };
 
 export const actionRemove = async (
   prev: PlantingFormState,
   formData: FormData
 ): Promise<PlantingFormState> => {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
-  const plantingId = formData.get('planting_id');
-  const eventDate = formData.get('event_date');
-  const reason = (formData.get('reason') as string) || undefined;
-  const { error } = await supabase.rpc('fn_remove_planting', {
-    p_planting_id: Number(plantingId),
-    p_event_date: String(eventDate),
-    p_reason: reason,
+  const validation = RemoveSchema.safeParse({
+    planting_id: formData.get('planting_id'),
+    event_date: formData.get('event_date'),
+    reason: formData.get('reason'),
   });
-  if (error) return { message: `Database Error: ${error.message}` };
+  if (!validation.success) {
+    const error = asActionError({
+      code: 'validation',
+      message: 'Please fix the highlighted fields.',
+      fieldErrors: mapZodFieldErrors(validation.error),
+      correlationId,
+    });
+    logActionError('actionRemove.validation', error);
+    return error;
+  }
+  const { planting_id: plantingId, event_date: eventDate, reason } = validation.data;
+  const { error } = await supabase.rpc('fn_remove_planting', {
+    p_planting_id: plantingId,
+    p_event_date: eventDate,
+    p_reason: reason ?? undefined,
+  });
+  if (error) {
+    const actionError = mapDbError(error, correlationId, 'Failed to remove planting.');
+    logActionError('actionRemove.rpc', actionError, { plantingId, eventDate });
+    return actionError;
+  }
   revalidatePath('/plantings');
-  return { message: 'Planting removed.', undoId: Number(plantingId) };
+  return asActionSuccess({ undoId: plantingId }, 'Planting removed.', correlationId);
 };
 
 export async function undoRemovePlanting(
   plantingId: number
-): Promise<{ ok: boolean; message: string }> {
+): Promise<ActionResult<{ undoId: number }>> {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
   if (!Number.isFinite(plantingId)) {
-    return { ok: false, message: 'Invalid planting id.' };
+    const error = asActionError({
+      code: 'validation',
+      message: 'Invalid planting id.',
+      fieldErrors: { planting_id: ['Invalid planting id'] },
+      correlationId,
+    });
+    logActionError('undoRemovePlanting.validation', error);
+    return error;
   }
   const { error } = await supabase
     .from('plantings')
     .update({ status: 'planted', ended_date: null })
     .eq('id', plantingId);
-  if (error) return { ok: false, message: `Database Error: ${error.message}` };
+  if (error) {
+    const actionError = mapDbError(error, correlationId, 'Failed to undo planting removal.');
+    logActionError('undoRemovePlanting.update', actionError, { plantingId });
+    return actionError;
+  }
   revalidatePath('/plantings');
-  return { ok: true, message: 'Removal undone.' };
+  return asActionSuccess({ undoId: plantingId }, 'Removal undone.', correlationId);
 }
 
 // Using shared type from src/lib/types

@@ -10,7 +10,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { useActionState } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,6 +47,7 @@ import { StickyActionBar } from '@/components/ui/sticky-action-bar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { NurserySowForm } from '@/app/(app)/plantings/_components/NurserySowForm';
 import { CropVarietyForm } from '@/app/(app)/crop-varieties/_components/CropVarietyForm';
+import { useRetryableActionState } from '@/hooks/use-retryable-action';
 
 type Nursery = Tables<'nurseries'>;
 type Location = Tables<'locations'>;
@@ -80,15 +80,20 @@ export default function NurseriesPageContent({
   const [locationId, setLocationId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; location_id?: string }>({});
-  const initial: NurseryFormState = { message: '', errors: {}, nursery: null };
-  const [createState, createAction] = useActionState<NurseryFormState, FormData>(
-    actionCreateNursery,
-    initial
-  );
-  const [updateState, updateAction] = useActionState<NurseryFormState, FormData>(
-    actionUpdateNursery,
-    initial
-  );
+  const initial: NurseryFormState = {
+    ok: true,
+    data: { nursery: null },
+    message: '',
+    correlationId: 'init',
+  };
+  const { state: createState, dispatch: createAction } = useRetryableActionState<
+    NurseryFormState,
+    FormData
+  >(actionCreateNursery, initial);
+  const { state: updateState, dispatch: updateAction } = useRetryableActionState<
+    NurseryFormState,
+    FormData
+  >(actionUpdateNursery, initial);
   const [nurseriesState, setNurseriesState] = useState<Nursery[]>(nurseries);
   const [cropVarietiesState, setCropVarietiesState] = useState<CropVarietyLite[]>(cropVarieties);
   const [deleteTarget, setDeleteTarget] = useState<Nursery | null>(null);
@@ -136,19 +141,17 @@ export default function NurseriesPageContent({
   useEffect(() => {
     const state = editing ? updateState : createState;
     if (!state?.message) return;
-    const successMessages = new Set(['Nursery created.', 'Nursery updated.']);
-    if (!successMessages.has(state.message)) {
-      // Map server-side field errors for highlighting when present
-      if (state.errors) {
-        setFieldErrors({
-          name: state.errors.name?.[0],
-          location_id: state.errors.location_id?.[0],
-        });
-      }
-      toast.error(state.message);
+    if (!state.ok) {
+      const errors = state.fieldErrors ?? {};
+      setFieldErrors({
+        name: errors.name?.[0],
+        location_id: errors.location_id?.[0],
+      });
+      const ref = state.correlationId ? ` (Ref: ${state.correlationId})` : '';
+      toast.error(`${state.message}${ref}`);
       return;
     }
-    const updatedNursery = state.nursery ?? undefined;
+    const updatedNursery = state.data?.nursery ?? undefined;
     if (updatedNursery) {
       setNurseriesState((prev) => {
         const exists = prev.find((n) => n.id === updatedNursery.id);
@@ -173,9 +176,9 @@ export default function NurseriesPageContent({
     try {
       setDeleting(true);
       const result = await actionDeleteNursery(deleteTarget.id);
-      const success = result.message === 'Nursery deleted.';
-      if (!success) {
-        toast.error(result.message || 'Failed to delete nursery.');
+      if (!result.ok) {
+        const ref = result.correlationId ? ` (Ref: ${result.correlationId})` : '';
+        toast.error(`${result.message}${ref}`);
       } else {
         toast.success(result.message);
         setNurseriesState((prev) => prev.filter((n) => n.id !== deleteTarget.id));

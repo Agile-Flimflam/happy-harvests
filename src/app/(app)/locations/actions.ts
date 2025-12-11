@@ -1,6 +1,11 @@
 import type { Tables } from '@/lib/supabase-server';
 import { fetchWeatherByCoords } from '@/lib/openweather';
-import { asActionError, type ActionResult } from '@/lib/action-result';
+import {
+  asActionError,
+  asActionSuccess,
+  createCorrelationId,
+  type ActionResult,
+} from '@/lib/action-result';
 import { getQuickCreatePrefs, type QuickCreatePrefs } from '@/lib/quick-create-prefs';
 import {
   createLocation,
@@ -36,11 +41,13 @@ export type LocationsWithWeather = {
 };
 
 export async function getLocationsWithWeather(): Promise<ActionResult<LocationsWithWeather>> {
+  const correlationId = createCorrelationId();
   const base = await getLocations();
   if (base.error) {
     return asActionError({
       code: 'server',
       message: base.error,
+      correlationId,
     });
   }
   const locations = base.locations ?? [];
@@ -62,7 +69,11 @@ export async function getLocationsWithWeather(): Promise<ActionResult<LocationsW
 
   const quickCreatePrefs = await getQuickCreatePrefs();
 
-  return { ok: true, data: { locations, weatherByLocation, quickCreatePrefs } };
+  return asActionSuccess(
+    { locations, weatherByLocation, quickCreatePrefs },
+    undefined,
+    correlationId
+  );
 }
 
 export {

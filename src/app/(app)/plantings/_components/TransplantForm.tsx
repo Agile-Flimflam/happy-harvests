@@ -1,14 +1,19 @@
 'use client';
 
 import { startTransition, useEffect } from 'react';
-import { useActionState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { TransplantSchema, type TransplantInput } from '@/lib/validation/plantings/transplant';
 import { actionTransplant, type PlantingFormState } from '../_actions';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import {
   Form,
@@ -18,8 +23,15 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { ErrorPresenter } from '@/components/ui/error-presenter';
+import { useRetryableActionState } from '@/hooks/use-retryable-action';
 
-type Bed = { id: number; length_inches: number | null; width_inches: number | null; plots?: { locations?: { name?: string | null } | null } | null };
+type Bed = {
+  id: number;
+  length_inches: number | null;
+  width_inches: number | null;
+  plots?: { locations?: { name?: string | null } | null } | null;
+};
 
 interface Props {
   plantingId: number;
@@ -29,8 +41,18 @@ interface Props {
 }
 
 export default function TransplantForm({ plantingId, beds, closeDialog, formId }: Props) {
-  const initial: PlantingFormState = { message: '', errors: {}, planting: null };
-  const [state, formAction] = useActionState(actionTransplant, initial);
+  const initial: PlantingFormState = {
+    ok: true,
+    data: { planting: null, undoId: null },
+    message: '',
+    correlationId: 'init',
+  };
+  const {
+    state,
+    dispatch: formAction,
+    retry,
+    hasPayload,
+  } = useRetryableActionState(actionTransplant, initial);
 
   const form = useForm<z.input<typeof TransplantSchema>>({
     resolver: zodResolver(TransplantSchema),
@@ -43,27 +65,32 @@ export default function TransplantForm({ plantingId, beds, closeDialog, formId }
   });
 
   useEffect(() => {
-    if (!state.message) return;
-    if (state.errors && Object.keys(state.errors).length > 0) {
-      Object.entries(state.errors).forEach(([field, errors]) => {
-        const msg = Array.isArray(errors) ? errors[0] : (errors as unknown as string) || 'Invalid value';
+    if (!state?.message) return;
+    if (!state.ok) {
+      const fieldErrors = state.fieldErrors ?? {};
+      Object.entries(fieldErrors).forEach(([field, errors]) => {
+        const msg = Array.isArray(errors) ? errors[0] : String(errors);
         form.setError(field as keyof TransplantInput, { message: msg });
       });
       toast.error(state.message);
-    } else {
-      toast.success(state.message);
-      try {
-        const vals = form.getValues();
-        const eventDate = typeof vals.event_date === 'string' ? vals.event_date : undefined;
-        const plantingIdVal = typeof vals.planting_id === 'number' ? vals.planting_id : plantingId;
-        if (eventDate) {
-          window.dispatchEvent(new CustomEvent('planting:transplanted', { detail: { plantingId: plantingIdVal, eventDate } }));
-        }
-      } catch {
-        // Intentionally ignore errors when dispatching the event; this is non-critical and should not block the UI.
-      }
-      closeDialog();
+      return;
     }
+    toast.success(state.message);
+    try {
+      const vals = form.getValues();
+      const eventDate = typeof vals.event_date === 'string' ? vals.event_date : undefined;
+      const plantingIdVal = typeof vals.planting_id === 'number' ? vals.planting_id : plantingId;
+      if (eventDate) {
+        window.dispatchEvent(
+          new CustomEvent('planting:transplanted', {
+            detail: { plantingId: plantingIdVal, eventDate },
+          })
+        );
+      }
+    } catch {
+      // Intentionally ignore errors when dispatching the event; this is non-critical and should not block the UI.
+    }
+    closeDialog();
   }, [state, form, closeDialog, plantingId]);
 
   const onSubmit = (values: z.input<typeof TransplantSchema>) => {
@@ -75,9 +102,22 @@ export default function TransplantForm({ plantingId, beds, closeDialog, formId }
     startTransition(() => formAction(fd));
   };
 
+  const handleRetry = () => {
+    if (!hasPayload) return;
+    startTransition(() => retry());
+  };
+
   return (
     <Form {...form}>
       <form id={formId} onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+        {!state.ok ? (
+          <ErrorPresenter
+            message={state.message}
+            correlationId={state.correlationId}
+            details={state.details}
+            onRetry={hasPayload ? handleRetry : undefined}
+          />
+        ) : null}
         <FormField
           control={form.control}
           name="bed_id"
@@ -85,7 +125,10 @@ export default function TransplantForm({ plantingId, beds, closeDialog, formId }
             <FormItem>
               <FormLabel>Bed</FormLabel>
               <FormControl>
-                <Select value={field.value ? String(field.value) : ''} onValueChange={(v) => field.onChange(parseInt(v, 10))}>
+                <Select
+                  value={field.value ? String(field.value) : ''}
+                  onValueChange={(v) => field.onChange(parseInt(v, 10))}
+                >
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Select a bed" />
                   </SelectTrigger>

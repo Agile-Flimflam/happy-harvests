@@ -1,7 +1,6 @@
 'use client';
 
 import { startTransition, useEffect } from 'react';
-import { useActionState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DirectSeedSchema, type DirectSeedInput } from '@/lib/validation/plantings/direct-seed';
@@ -26,6 +25,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { ErrorPresenter } from '@/components/ui/error-presenter';
+import { useRetryableActionState } from '@/hooks/use-retryable-action';
 
 type Variety = { id: number; name: string; latin_name: string; crops?: { name: string } | null };
 type Bed = {
@@ -52,8 +53,18 @@ export function DirectSeedForm({
   defaultDate = null,
   defaultBedId = null,
 }: Props) {
-  const initial: PlantingFormState = { message: '', errors: {}, planting: null };
-  const [state, formAction] = useActionState(actionDirectSeed, initial);
+  const initial: PlantingFormState = {
+    ok: true,
+    data: { planting: null, undoId: null },
+    message: '',
+    correlationId: 'init',
+  };
+  const {
+    state,
+    dispatch: formAction,
+    retry,
+    hasPayload,
+  } = useRetryableActionState(actionDirectSeed, initial);
 
   const form = useForm<z.input<typeof DirectSeedSchema>>({
     resolver: zodResolver(DirectSeedSchema) as Resolver<z.input<typeof DirectSeedSchema>>,
@@ -69,19 +80,18 @@ export function DirectSeedForm({
   });
 
   useEffect(() => {
-    if (!state.message) return;
-    if (state.errors && Object.keys(state.errors).length > 0) {
-      Object.entries(state.errors).forEach(([field, errors]) => {
-        const msg = Array.isArray(errors)
-          ? errors[0]
-          : (errors as unknown as string) || 'Invalid value';
+    if (!state?.message) return;
+    if (!state.ok) {
+      const fieldErrors = state.fieldErrors ?? {};
+      Object.entries(fieldErrors).forEach(([field, errors]) => {
+        const msg = Array.isArray(errors) ? errors[0] : String(errors);
         form.setError(field as keyof DirectSeedInput, { message: msg });
       });
       toast.error(state.message);
-    } else {
-      toast.success(state.message);
-      closeDialog();
+      return;
     }
+    toast.success(state.message);
+    closeDialog();
   }, [state, form, closeDialog]);
 
   const onSubmit = (values: unknown) => {
@@ -96,9 +106,22 @@ export function DirectSeedForm({
     startTransition(() => formAction(fd));
   };
 
+  const handleRetry = () => {
+    if (!hasPayload) return;
+    startTransition(() => retry());
+  };
+
   return (
     <Form {...form}>
       <form id={formId} onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+        {!state.ok ? (
+          <ErrorPresenter
+            message={state.message}
+            correlationId={state.correlationId}
+            details={state.details}
+            onRetry={hasPayload ? handleRetry : undefined}
+          />
+        ) : null}
         <FormField
           control={form.control}
           name="crop_variety_id"

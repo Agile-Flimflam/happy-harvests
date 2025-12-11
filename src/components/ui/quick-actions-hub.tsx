@@ -291,7 +291,12 @@ type QuickNurseryFormProps = {
 };
 
 function QuickNurseryForm({ locations, onCompleted }: QuickNurseryFormProps) {
-  const initial: NurseryFormState = { message: '' };
+  const initial: NurseryFormState = {
+    ok: true,
+    data: { nursery: null },
+    message: '',
+    correlationId: 'init',
+  };
   const [state, submitAction] = useActionState<NurseryFormState, FormData>(
     actionCreateNursery,
     initial
@@ -302,11 +307,12 @@ function QuickNurseryForm({ locations, onCompleted }: QuickNurseryFormProps) {
   const [notes, setNotes] = useState('');
 
   if (state?.message) {
-    if (state.message === 'Nursery created.') {
+    if (!state.ok) {
+      const ref = state.correlationId ? ` (Ref: ${state.correlationId})` : '';
+      toast.error(`${state.message}${ref}`);
+    } else {
       toast.success(state.message);
       onCompleted();
-    } else {
-      toast.error(state.message);
     }
   }
 
