@@ -12,8 +12,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { useActionState } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -27,6 +28,7 @@ import {
   actionUpdateNursery,
   actionDeleteNursery,
   type NurseryFormState,
+  type NurseryStats,
 } from '../_actions';
 import type { Tables } from '@/lib/database.types';
 import { Plus, FlaskConical, Pencil, Trash2, Sprout } from 'lucide-react';
@@ -44,17 +46,32 @@ import { FlowShell } from '@/components/ui/flow-shell';
 import { InlineCreateSheet } from '@/components/ui/inline-create-sheet';
 import { StickyActionBar } from '@/components/ui/sticky-action-bar';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { NurserySowForm } from '@/app/(app)/plantings/_components/NurserySowForm';
+import { CropVarietyForm } from '@/app/(app)/crop-varieties/_components/CropVarietyForm';
 
 type Nursery = Tables<'nurseries'>;
 type Location = Tables<'locations'>;
+type CropVarietyLite = {
+  id: number;
+  name: string;
+  latin_name: string;
+  crops?: { name: string } | null;
+};
+type CropLite = Pick<Tables<'crops'>, 'id' | 'name' | 'crop_type' | 'created_at'>;
 
 export default function NurseriesPageContent({
   nurseries,
   locations,
+  cropVarieties,
+  crops,
+  stats,
   error,
 }: {
   nurseries: Nursery[];
   locations: Pick<Location, 'id' | 'name'>[];
+  cropVarieties: CropVarietyLite[];
+  crops: CropLite[];
+  stats?: NurseryStats;
   error?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -63,7 +80,7 @@ export default function NurseriesPageContent({
   const [locationId, setLocationId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; location_id?: string }>({});
-  const initial: NurseryFormState = { message: '' };
+  const initial: NurseryFormState = { message: '', errors: {}, nursery: null };
   const [createState, createAction] = useActionState<NurseryFormState, FormData>(
     actionCreateNursery,
     initial
@@ -72,10 +89,18 @@ export default function NurseriesPageContent({
     actionUpdateNursery,
     initial
   );
+  const [nurseriesState, setNurseriesState] = useState<Nursery[]>(nurseries);
+  const [cropVarietiesState, setCropVarietiesState] = useState<CropVarietyLite[]>(cropVarieties);
   const [deleteTarget, setDeleteTarget] = useState<Nursery | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [sowOpen, setSowOpen] = useState(false);
+  const [selectedNurseryId, setSelectedNurseryId] = useState<string | null>(
+    nurseries[0]?.id ?? null
+  );
+  const [varietySheetOpen, setVarietySheetOpen] = useState(false);
+  const [pendingVarietyId, setPendingVarietyId] = useState<number | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  const hasNurseries = nurseries.length > 0;
+  const hasNurseries = nurseriesState.length > 0;
   const dialogDescription = editing
     ? 'Update nursery name, location, and optional notes.'
     : 'Add a nursery by providing name, location, and optional notes.';
@@ -123,6 +148,20 @@ export default function NurseriesPageContent({
       toast.error(state.message);
       return;
     }
+    const updatedNursery = state.nursery ?? undefined;
+    if (updatedNursery) {
+      setNurseriesState((prev) => {
+        const exists = prev.find((n) => n.id === updatedNursery.id);
+        if (exists) {
+          return prev.map((n) => (n.id === updatedNursery.id ? updatedNursery : n));
+        }
+        return [...prev, updatedNursery].sort((a, b) => a.name.localeCompare(b.name));
+      });
+      setSelectedNurseryId(updatedNursery.id);
+      if (!editing) {
+        setSowOpen(true);
+      }
+    }
     toast.success(state.message);
     setOpen(false);
     setEditing(null);
@@ -139,6 +178,7 @@ export default function NurseriesPageContent({
         toast.error(result.message || 'Failed to delete nursery.');
       } else {
         toast.success(result.message);
+        setNurseriesState((prev) => prev.filter((n) => n.id !== deleteTarget.id));
       }
     } finally {
       setDeleting(false);
@@ -146,7 +186,19 @@ export default function NurseriesPageContent({
     }
   };
 
+  const handleOpenSow = (nurseryId?: string | null) => {
+    const targetId = nurseryId ?? selectedNurseryId ?? nurseriesState[0]?.id ?? null;
+    if (!targetId) {
+      toast.error('Add a nursery first.');
+      return;
+    }
+    setSelectedNurseryId(targetId);
+    setSowOpen(true);
+  };
+
   const isMobile = useIsMobile();
+  const nurseryOptions = nurseriesState.map((n) => ({ id: n.id, name: n.name }));
+  const defaultSowDate = new Date().toISOString().slice(0, 10);
 
   return (
     <div>
@@ -155,16 +207,26 @@ export default function NurseriesPageContent({
         description="Manage seedling starts and their locations."
         icon={<FlaskConical className="h-5 w-5" aria-hidden />}
         actions={
-          hasNurseries && !isMobile ? (
-            <Button
-              size="sm"
-              onClick={() => {
-                setEditing(null);
-                setOpen(true);
-              }}
-            >
-              Add Nursery
-            </Button>
+          !isMobile ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditing(null);
+                  setOpen(true);
+                }}
+              >
+                Add Nursery
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleOpenSow(selectedNurseryId)}
+                disabled={!hasNurseries}
+              >
+                Record Nursery Sow
+              </Button>
+            </div>
           ) : undefined
         }
       >
@@ -194,60 +256,107 @@ export default function NurseriesPageContent({
             </EmptyContent>
           </Empty>
         ) : (
-          <div className="border rounded-md overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {nurseries.map((n: Nursery) => (
-                  <TableRow key={n.id}>
-                    <TableCell className="font-medium">{n.name}</TableCell>
-                    <TableCell>
-                      {locations.find((l) => l.id === n.location_id)?.name ?? '—'}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      <Button
-                        asChild
-                        variant="outline"
-                        size="sm"
-                        className="mr-2 gap-1"
-                        aria-label={`Record sow in ${n.name}`}
-                      >
-                        <Link href={`/plantings?mode=nursery&nurseryId=${n.id}`}>
+          <div className="space-y-4">
+            {isMobile ? (
+              <div className="grid gap-3">
+                {nurseriesState.map((n) => {
+                  const stat = stats?.[n.id];
+                  const locationName = locations.find((l) => l.id === n.location_id)?.name ?? '—';
+                  return (
+                    <Card key={n.id} className="shadow-sm border">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center justify-between text-base">
+                          <span className="truncate">{n.name}</span>
+                          <Badge variant="secondary">Nursery</Badge>
+                        </CardTitle>
+                        <p className="text-sm text-muted-foreground">{locationName}</p>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Active sowings</span>
+                          <span className="font-semibold">{stat?.activeSows ?? 0}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Last sow</span>
+                          <span className="font-semibold">
+                            {stat?.lastSowDate ?? 'Not recorded'}
+                          </span>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" className="flex-1" onClick={() => handleOpenSow(n.id)}>
+                            <Sprout className="h-3 w-3 mr-1" aria-hidden />
+                            Record sow
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditing(n);
+                              setOpen(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : null}
+            <div className="border rounded-md overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {nurseriesState.map((n: Nursery) => (
+                    <TableRow key={n.id}>
+                      <TableCell className="font-medium">{n.name}</TableCell>
+                      <TableCell>
+                        {locations.find((l) => l.id === n.location_id)?.name ?? '—'}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mr-2 gap-1"
+                          aria-label={`Record sow in ${n.name}`}
+                          onClick={() => handleOpenSow(n.id)}
+                        >
                           <Sprout className="h-3 w-3" aria-hidden />
                           Record sow here
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditing(n);
-                          setOpen(true);
-                        }}
-                        aria-label="Edit nursery"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openDelete(n)}
-                        className="text-red-500 hover:text-red-700"
-                        aria-label="Delete nursery"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setEditing(n);
+                            setOpen(true);
+                          }}
+                          aria-label="Edit nursery"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openDelete(n)}
+                          className="text-red-500 hover:text-red-700"
+                          aria-label="Delete nursery"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         )}
       </FlowShell>
@@ -356,18 +465,88 @@ export default function NurseriesPageContent({
         </form>
       </InlineCreateSheet>
 
+      <InlineCreateSheet
+        open={sowOpen}
+        onOpenChange={(next) => {
+          setSowOpen(next);
+          if (!next) setPendingVarietyId(null);
+        }}
+        title="Record nursery sow"
+        description="Log a sowing in a nursery and attach photos for traceability."
+        primaryAction={{ label: 'Save sowing', formId: 'nurserySowForm' }}
+        secondaryAction={{ label: 'Cancel', onClick: () => setSowOpen(false) }}
+        side="right"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Prefilled nursery and date based on your selection.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => setVarietySheetOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" aria-hidden />
+              Add variety
+            </Button>
+          </div>
+          <NurserySowForm
+            key={`${selectedNurseryId ?? 'none'}-${pendingVarietyId ?? 'novar'}`}
+            cropVarieties={cropVarietiesState}
+            nurseries={nurseryOptions}
+            closeDialog={() => setSowOpen(false)}
+            formId="nurserySowForm"
+            defaultNurseryId={selectedNurseryId}
+            defaultDate={defaultSowDate}
+            defaultVarietyId={pendingVarietyId}
+          />
+        </div>
+      </InlineCreateSheet>
+
+      <InlineCreateSheet
+        open={varietySheetOpen}
+        onOpenChange={setVarietySheetOpen}
+        title="Add crop variety"
+        description="Create a variety inline to keep your nursery flow moving."
+        primaryAction={{ label: 'Save variety', formId: 'inlineVarietyForm' }}
+        secondaryAction={{ label: 'Cancel', onClick: () => setVarietySheetOpen(false) }}
+        side="right"
+      >
+        <CropVarietyForm
+          formId="inlineVarietyForm"
+          closeDialog={() => setVarietySheetOpen(false)}
+          crops={crops}
+          cropVariety={null}
+          onCreated={(variety) => {
+            setCropVarietiesState((prev) =>
+              [...prev, variety].sort((a, b) => a.name.localeCompare(b.name))
+            );
+            setPendingVarietyId(variety.id);
+            setVarietySheetOpen(false);
+            setSowOpen(true);
+          }}
+        />
+      </InlineCreateSheet>
+
       {hasNurseries && isMobile ? (
         <StickyActionBar align="end" aria-label="Quick add nursery" position="fixed">
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
-            className="w-full sm:w-auto"
-          >
-            <Plus className="h-4 w-4 mr-2" aria-hidden />
-            Add Nursery
-          </Button>
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <Button
+              onClick={() => handleOpenSow(selectedNurseryId)}
+              className="w-full sm:w-auto"
+              variant="secondary"
+            >
+              <Sprout className="h-4 w-4 mr-2" aria-hidden />
+              Record sow
+            </Button>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+              className="w-full sm:w-auto"
+            >
+              <Plus className="h-4 w-4 mr-2" aria-hidden />
+              Add Nursery
+            </Button>
+          </div>
         </StickyActionBar>
       ) : null}
     </div>

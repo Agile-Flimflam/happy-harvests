@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useEffect } from 'react';
+import { startTransition, useEffect, useRef, useState } from 'react';
 import { useActionState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -37,6 +37,7 @@ interface Props {
   formId?: string;
   defaultDate?: string | null;
   defaultNurseryId?: string | null;
+  defaultVarietyId?: number | null;
 }
 
 export function NurserySowForm({
@@ -46,6 +47,7 @@ export function NurserySowForm({
   formId,
   defaultDate = null,
   defaultNurseryId = null,
+  defaultVarietyId = null,
 }: Props) {
   const initial: PlantingFormState = { message: '', errors: {}, planting: null };
   const [state, formAction] = useActionState(actionNurserySow, initial);
@@ -54,7 +56,7 @@ export function NurserySowForm({
     resolver: zodResolver(NurserySowSchema) as Resolver<z.input<typeof NurserySowSchema>>,
     mode: 'onSubmit',
     defaultValues: {
-      crop_variety_id: undefined,
+      crop_variety_id: defaultVarietyId ?? undefined,
       qty: undefined,
       nursery_id: defaultNurseryId ?? '',
       event_date: defaultDate || '',
@@ -73,12 +75,30 @@ export function NurserySowForm({
           : (errors as unknown as string) || 'Invalid value';
         form.setError(field as keyof NurserySowInput, { message: msg });
       });
+      if (state.errors.notes) {
+        const msg = Array.isArray(state.errors.notes) ? state.errors.notes[0] : state.errors.notes;
+        setAttachmentError(typeof msg === 'string' ? msg : null);
+      }
       toast.error(state.message);
     } else {
       toast.success(state.message);
       closeDialog();
     }
   }, [state, form, closeDialog]);
+
+  const attachmentRef = useRef<HTMLInputElement | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+
+  useEffect(() => {
+    form.reset({
+      crop_variety_id: defaultVarietyId ?? undefined,
+      qty: undefined,
+      nursery_id: defaultNurseryId ?? '',
+      event_date: defaultDate || '',
+      notes: '',
+      weight_grams: undefined,
+    });
+  }, [defaultDate, defaultNurseryId, defaultVarietyId, form]);
 
   const onSubmit = (values: unknown) => {
     const parsed: NurserySowInput = NurserySowSchema.parse(values);
@@ -89,6 +109,11 @@ export function NurserySowForm({
     fd.append('event_date', parsed.event_date);
     if (parsed.notes) fd.append('notes', parsed.notes);
     if (parsed.weight_grams != null) fd.append('weight_grams', String(parsed.weight_grams));
+    const attachment = attachmentRef.current?.files?.[0];
+    if (attachment) {
+      fd.append('attachment', attachment);
+    }
+    setAttachmentError(null);
     startTransition(() => formAction(fd));
   };
 
@@ -264,6 +289,20 @@ export function NurserySowForm({
             </FormItem>
           )}
         />
+
+        <div className="space-y-1">
+          <FormLabel>Attachment (optional)</FormLabel>
+          <Input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/avif"
+            ref={attachmentRef}
+            onChange={() => setAttachmentError(null)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Add a photo for traceability (max 5MB, jpeg/png/webp/avif).
+          </p>
+          {attachmentError ? <p className="text-sm text-destructive">{attachmentError}</p> : null}
+        </div>
       </form>
     </Form>
   );

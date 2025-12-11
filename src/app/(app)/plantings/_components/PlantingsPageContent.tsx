@@ -1,10 +1,47 @@
 'use client';
 
-import { useEffect, useState, useCallback, useActionState } from 'react';
+import { useActionState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import type { ReactNode } from 'react';
 import type { Tables } from '@/lib/supabase-server';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { FlowShell } from '@/components/ui/flow-shell';
+import { Stepper } from '@/components/ui/stepper';
+import { InlineCreateSheet } from '@/components/ui/inline-create-sheet';
+import { StickyActionBar } from '@/components/ui/sticky-action-bar';
+import { toast } from 'sonner';
+import { Leaf, MapPin, Layers, Sprout, Plus, Save, Trash2, Undo2, RefreshCcw } from 'lucide-react';
+import { CropVarietyForm } from '@/app/(app)/crop-varieties/_components/CropVarietyForm';
+import { LocationForm } from '@/app/(app)/locations/_components/LocationForm';
+import { PlotForm } from '@/app/(app)/plots/_components/PlotForm';
+import { BedForm } from '@/app/(app)/plots/_components/BedForm';
+import { actionCreateNursery, type NurseryFormState } from '@/app/(app)/nurseries/_actions';
+import {
+  actionDirectSeed,
+  actionNurserySow,
+  clearPlantingDraft,
+  savePlantingDraft,
+  bulkCreateDirectSeedPlantings,
+  savePlantingTemplateAction,
+  deletePlantingTemplateAction,
+  type BulkDirectSeedInput,
+  type BulkDirectSeedResult,
+  type PlantingDraft,
+} from '../_actions';
+import type { QuickActionContext } from '../../actions';
 import {
   Empty,
   EmptyContent,
@@ -13,1421 +50,1459 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import FormDialog from '@/components/dialogs/FormDialog';
-import { Card } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { deletePlanting, markPlantingAsPlanted } from '../_actions';
-import { NurserySowForm } from './NurserySowForm';
-import { DirectSeedForm } from './DirectSeedForm';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Stepper } from '@/components/ui/stepper';
-import { InlineCreateSheet } from '@/components/ui/inline-create-sheet';
-import {
-  Trash2,
-  Plus,
-  Sprout,
-  Leaf,
-  ShoppingBasket,
-  TrendingUp,
-  ArrowRightLeft,
-  Shovel,
-  Move,
-  History,
-  RotateCcw,
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { addDaysUtc, formatDateLocal } from '@/lib/date';
-import { positiveOrNull } from '@/lib/utils';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { FlowShell } from '@/components/ui/flow-shell';
-import { StickyActionBar } from '@/components/ui/sticky-action-bar';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { CropVarietyForm } from '@/app/(app)/crop-varieties/_components/CropVarietyForm';
-import { BedForm } from '@/app/(app)/plots/_components/BedForm';
-import { PlotForm } from '@/app/(app)/plots/_components/PlotForm';
-import { LocationForm } from '@/app/(app)/locations/_components/LocationForm';
-import { actionCreateNursery, type NurseryFormState } from '@/app/(app)/nurseries/_actions';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import type { PlantingDefaults, PlantingPrefs, PlantingTemplate } from '@/lib/planting-prefs';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import TransplantForm from './TransplantForm';
-import MoveForm from './MoveForm';
-import HarvestForm from './HarvestForm';
-import RemovePlantingForm from './RemovePlantingForm';
-import PlantingHistoryDialog from './PlantingHistoryDialog';
-import { PLANTING_STATUS } from '@/lib/plantings/constants';
-import StatusBadge from '@/components/plantings/StatusBadge';
-import type { QuickActionContext } from '../../actions';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
-type Planting = Tables<'plantings'>;
-type CropVariety = Pick<
-  Tables<'crop_varieties'>,
-  | 'id'
-  | 'name'
-  | 'latin_name'
-  | 'dtm_direct_seed_min'
-  | 'dtm_direct_seed_max'
-  | 'dtm_transplant_min'
-  | 'dtm_transplant_max'
-> & { crops?: { name: string } | null };
-type Bed = Pick<Tables<'beds'>, 'id' | 'length_inches' | 'width_inches'> & {
-  plots?: { locations: { name: string } | null } | null;
+type LocationOption = Pick<Tables<'locations'>, 'id' | 'name'>;
+type PlotOption = Pick<Tables<'plots'>, 'plot_id' | 'name' | 'location_id'>;
+type BedOption = Pick<Tables<'beds'>, 'id' | 'name' | 'plot_id'> & {
+  plots?: { location_id: string | null } | null;
+};
+type BedWithLocation = Tables<'beds'> & { plots?: { location_id: string | null } | null };
+type NurseryOption = { id: string; name: string };
+type VarietyOption = {
+  id: number;
+  name: string;
+  latin_name: string;
+  crops?: { name: string } | null;
 };
 
-type PlantingWithDetails = Planting & {
-  crop_varieties: {
-    name: string;
-    latin_name: string;
-    dtm_direct_seed_min?: number | null;
-    dtm_direct_seed_max?: number | null;
-    dtm_transplant_min?: number | null;
-    dtm_transplant_max?: number | null;
-    crops: { name: string } | null;
-  } | null;
-  beds: {
-    id: number;
-    length_inches: number | null;
-    width_inches: number | null;
-    plots: { locations: { name: string } | null } | null;
-  } | null;
-  nurseries: { name: string } | null;
-  planted_qty?: number | null;
-  planted_weight_grams?: number | null;
-  harvest_qty?: number | null;
-  harvest_weight_grams?: number | null;
-};
-
-const renderPlantingLocation = (planting: PlantingWithDetails): ReactNode => {
-  if (planting.status === PLANTING_STATUS.nursery) {
-    return planting.nurseries?.name ?? 'Nursery';
-  }
-  return (
-    <span>
-      Bed #{planting.beds?.id} @ {planting.beds?.plots?.locations?.name ?? 'N/A'}
-    </span>
-  );
-};
-
-const renderPlantingQuantity = (planting: PlantingWithDetails): ReactNode => {
-  if (planting.status === PLANTING_STATUS.harvested) {
-    return planting.harvest_qty ?? '-';
-  }
-  return planting.planted_qty ?? '-';
-};
-
-interface PlantingsMobileListProps {
-  plantings: PlantingWithDetails[];
-  computeProjectedHarvestWindow: (p: PlantingWithDetails) => {
-    start: string | null;
-    end: string | null;
-    awaitingTransplant: boolean;
-  };
-  onOpenActionDialog: (
-    dialog:
-      | { type: 'transplant' | 'move' | 'remove' | 'history'; plantingId: number }
-      | {
-          type: 'harvest';
-          plantingId: number;
-          defaultQty?: number | null;
-          defaultWeight?: number | null;
-        }
-  ) => void;
-  onOpenDelete: (id: number) => void;
-}
-
-interface PlantingActionsMenuProps {
-  planting: PlantingWithDetails;
-  onOpenActionDialog: (
-    dialog:
-      | { type: 'transplant' | 'move' | 'remove' | 'history'; plantingId: number }
-      | {
-          type: 'harvest';
-          plantingId: number;
-          defaultQty?: number | null;
-          defaultWeight?: number | null;
-        }
-  ) => void;
-}
-
-function PlantingActionsMenu({ planting, onOpenActionDialog }: PlantingActionsMenuProps) {
-  const canBeRemoved = (status: (typeof PLANTING_STATUS)[keyof typeof PLANTING_STATUS]) =>
-    status !== PLANTING_STATUS.removed;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="mr-2">
-          <ArrowRightLeft className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {planting.status === PLANTING_STATUS.nursery && (
-          <>
-            <DropdownMenuItem
-              onClick={() => onOpenActionDialog({ type: 'transplant', plantingId: planting.id })}
-            >
-              <Sprout className="mr-2 h-4 w-4" />
-              Transplant
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
-
-        {(planting.status === PLANTING_STATUS.planted ||
-          planting.status === PLANTING_STATUS.harvested) && (
-          <>
-            {!planting.nursery_started_date ? (
-              <>
-                <DropdownMenuItem
-                  onClick={() => onOpenActionDialog({ type: 'harvest', plantingId: planting.id })}
-                >
-                  <ShoppingBasket className="mr-2 h-4 w-4" />
-                  Harvest
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onOpenActionDialog({ type: 'move', plantingId: planting.id })}
-                >
-                  <Move className="mr-2 h-4 w-4" />
-                  Move
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            ) : (
-              <>
-                <DropdownMenuItem
-                  onClick={() => onOpenActionDialog({ type: 'move', plantingId: planting.id })}
-                >
-                  <Move className="mr-2 h-4 w-4" />
-                  Move
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => onOpenActionDialog({ type: 'harvest', plantingId: planting.id })}
-                >
-                  <ShoppingBasket className="mr-2 h-4 w-4" />
-                  Harvest
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            )}
-            {planting.status === PLANTING_STATUS.harvested && (
-              <>
-                <DropdownMenuItem
-                  onClick={async () => {
-                    const fd = new FormData();
-                    fd.append('planting_id', String(planting.id));
-                    const result = await markPlantingAsPlanted(fd);
-                    if ('ok' in result && result.ok === true) {
-                      toast.success('Status changed to Planted');
-                    } else if ('error' in result) {
-                      toast.error(result.error);
-                    } else {
-                      toast.error('Unknown error updating status.');
-                    }
-                  }}
-                >
-                  <Sprout className="mr-2 h-4 w-4" />
-                  Mark as Planted
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            )}
-          </>
-        )}
-
-        {canBeRemoved(planting.status) && (
-          <DropdownMenuItem
-            onClick={() => onOpenActionDialog({ type: 'remove', plantingId: planting.id })}
-          >
-            <Shovel className="mr-2 h-4 w-4" />
-            Remove
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function PlantingsMobileList({
-  plantings,
-  computeProjectedHarvestWindow,
-  onOpenActionDialog,
-  onOpenDelete,
-}: PlantingsMobileListProps) {
-  return (
-    <div className="sm:hidden space-y-3">
-      {plantings.map((p) => (
-        <Card key={p.id} className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-medium">{p.crop_varieties?.name ?? 'N/A'}</p>
-              <p className="text-sm text-muted-foreground">
-                {p.crop_varieties?.crops?.name ?? 'N/A'}
-              </p>
-            </div>
-            <div>
-              {p.status ? (
-                <StatusBadge status={p.status} />
-              ) : (
-                <Badge variant="secondary">Unknown</Badge>
-              )}
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-xs text-muted-foreground">Location</p>
-              <p className="text-sm">{renderPlantingLocation(p)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Type</p>
-              <p className="text-sm">{p.nursery_started_date ? 'Transplant' : 'Direct Seed'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Qty</p>
-              <p className="text-sm">{renderPlantingQuantity(p)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Planted</p>
-              <p className="text-sm">{p.planted_date ?? '-'}</p>
-            </div>
-          </div>
-          <div className="mt-3">
-            {(() => {
-              const proj = computeProjectedHarvestWindow(p);
-              return (
-                <p className="text-xs text-muted-foreground">
-                  {proj.start && proj.end ? (
-                    <>
-                      Projected harvest:{' '}
-                      <span className="text-foreground font-medium">{`${formatDateLocal(proj.start)} – ${formatDateLocal(proj.end)}`}</span>
-                    </>
-                  ) : proj.awaitingTransplant ? (
-                    'Projected harvest shown after transplant'
-                  ) : (
-                    'Projected harvest unavailable'
-                  )}
-                </p>
-              );
-            })()}
-          </div>
-          <div className="mt-3 flex items-center justify-end gap-2">
-            <PlantingActionsMenu planting={p} onOpenActionDialog={onOpenActionDialog} />
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onOpenActionDialog({ type: 'history', plantingId: p.id })}
-              className="mr-2"
-            >
-              <History className="h-4 w-4" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onOpenDelete(p.id)}
-              className="text-red-500 hover:text-red-700"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-interface PlantingsPageContentProps {
-  plantings: PlantingWithDetails[];
-  cropVarieties: CropVariety[];
-  beds: Bed[];
-  nurseries: { id: string; name: string }[];
+type PlantingsPageContentProps = {
+  locations: LocationOption[];
+  plots: PlotOption[];
+  beds: BedOption[];
+  nurseries: NurseryOption[];
+  cropVarieties: VarietyOption[];
   scheduleDate?: string;
-  defaultCreateMode?: 'nursery' | 'direct' | null;
   defaultBedId?: number | null;
   defaultNurseryId?: string | null;
   creationContext?: QuickActionContext;
-}
+  serverDraft?: PlantingDraft | null;
+  optionsError?: string | null;
+  prefs?: PlantingPrefs | null;
+  templates?: PlantingTemplate[];
+};
 
-const isResultWithMessage = (value: unknown): value is { message: string } =>
-  typeof value === 'object' &&
-  value !== null &&
-  typeof (value as { message?: unknown }).message === 'string';
+type WizardStep = 'location' | 'plot' | 'nursery' | 'variety' | 'schedule';
+type LocationRecord = Tables<'locations'>;
+type PlotRecord = Tables<'plots'>;
 
-const isResultWithError = (value: unknown): value is { error: string } =>
-  typeof value === 'object' &&
-  value !== null &&
-  typeof (value as { error?: unknown }).error === 'string';
+type WizardFieldErrors = {
+  locationId?: string;
+  plotId?: string;
+  bedId?: string;
+  nurseryId?: string;
+  varietyId?: string;
+  qty?: string;
+  date?: string;
+  weightGrams?: string;
+  notes?: string;
+  attachment?: string;
+};
 
 export function PlantingsPageContent({
-  plantings,
-  cropVarieties,
+  locations,
+  plots,
   beds,
-  nurseries: _nurseries,
+  nurseries,
+  cropVarieties,
   scheduleDate,
-  defaultCreateMode = null,
   defaultBedId = null,
   defaultNurseryId = null,
   creationContext,
+  serverDraft = null,
+  optionsError = null,
+  prefs = null,
+  templates = [],
 }: PlantingsPageContentProps) {
   const router = useRouter();
-  const [isDialogOpen, setIsDialogOpen] = useState(defaultCreateMode !== null);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [createMode, setCreateMode] = useState<'nursery' | 'direct' | null>(defaultCreateMode);
-  const [wizardStep, setWizardStep] = useState<'plan' | 'dependencies' | 'details'>('plan');
-  const [dependencySheet, setDependencySheet] = useState<
-    null | 'cropVariety' | 'nursery' | 'location' | 'plot' | 'bed'
-  >(null);
-  const [statusFilter, setStatusFilter] = useState<
-    'all' | 'active' | 'nursery' | 'planted' | 'harvested'
-  >('active');
-  const [actionDialog, setActionDialog] = useState<
-    | { type: 'transplant' | 'move' | 'remove' | 'history'; plantingId: number }
-    | {
-        type: 'harvest';
-        plantingId: number;
-        defaultQty?: number | null;
-        defaultWeight?: number | null;
+  const isMobile = useIsMobile();
+  const prefDefaults = prefs?.defaults;
+  const defaultPlotFromBed = useMemo(() => {
+    if (defaultBedId != null) {
+      const bedMatch = beds.find((b) => b.id === defaultBedId);
+      if (bedMatch?.plot_id) return bedMatch.plot_id;
+    }
+    return plots[0]?.plot_id ?? null;
+  }, [beds, defaultBedId, plots]);
+  const baseDefaults = useMemo(
+    (): PlantingDraft => ({
+      locationId:
+        prefDefaults?.locationId ?? creationContext?.locations?.[0]?.id ?? locations[0]?.id ?? null,
+      plotId: prefDefaults?.plotId ?? defaultPlotFromBed,
+      bedId: prefDefaults?.bedId ?? defaultBedId,
+      nurseryId: prefDefaults?.nurseryId ?? defaultNurseryId ?? nurseries[0]?.id ?? null,
+      varietyId: prefDefaults?.varietyId ?? cropVarieties[0]?.id ?? null,
+      qty: prefDefaults?.qty ?? null,
+      weightGrams: prefDefaults?.weightGrams ?? null,
+      date: prefDefaults?.date ?? scheduleDate ?? '',
+      notes: prefDefaults?.notes ?? '',
+    }),
+    [
+      creationContext?.locations,
+      cropVarieties,
+      defaultBedId,
+      defaultNurseryId,
+      defaultPlotFromBed,
+      locations,
+      prefDefaults?.bedId,
+      prefDefaults?.date,
+      prefDefaults?.locationId,
+      prefDefaults?.notes,
+      prefDefaults?.nurseryId,
+      prefDefaults?.plotId,
+      prefDefaults?.qty,
+      prefDefaults?.varietyId,
+      prefDefaults?.weightGrams,
+      nurseries,
+      scheduleDate,
+    ]
+  );
+  const [step, setStep] = useState<WizardStep>('location');
+  const [mode, setMode] = useState<'direct' | 'nursery'>(
+    prefDefaults?.mode ?? (defaultNurseryId ? 'nursery' : 'direct')
+  );
+  const [locationId, setLocationId] = useState<string | null>(baseDefaults.locationId ?? null);
+  const [plotId, setPlotId] = useState<number | null>(baseDefaults.plotId ?? null);
+  const [bedId, setBedId] = useState<number | null>(baseDefaults.bedId ?? null);
+  const [nurseryId, setNurseryId] = useState<string | null>(baseDefaults.nurseryId ?? null);
+  const [varietyId, setVarietyId] = useState<number | null>(baseDefaults.varietyId ?? null);
+  const [qty, setQty] = useState<string>(baseDefaults.qty != null ? String(baseDefaults.qty) : '');
+  const [weightGrams, setWeightGrams] = useState<string>(
+    baseDefaults.weightGrams != null ? String(baseDefaults.weightGrams) : ''
+  );
+  const [date, setDate] = useState<string>(baseDefaults.date ?? '');
+  const [notes, setNotes] = useState<string>(baseDefaults.notes ?? '');
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [isSubmitting, startSubmit] = useTransition();
+  const [fieldErrors, setFieldErrors] = useState<WizardFieldErrors>({});
+  const [hasDraft, setHasDraft] = useState(false);
+  const [resumeMessage, setResumeMessage] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [bulkBeds, setBulkBeds] = useState<number[]>([]);
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [pendingBulk, setPendingBulk] = useState<BulkDirectSeedInput | null>(null);
+  const [bulkResult, setBulkResult] = useState<BulkDirectSeedResult | null>(null);
+  const [lastBulkPayload, setLastBulkPayload] = useState<BulkDirectSeedInput | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [isSavingTemplate, startSaveTemplate] = useTransition();
+  const [templateList, setTemplateList] = useState<PlantingTemplate[]>(templates);
+
+  const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+  const [plotSheetOpen, setPlotSheetOpen] = useState(false);
+  const [bedSheetOpen, setBedSheetOpen] = useState(false);
+  const [nurserySheetOpen, setNurserySheetOpen] = useState(false);
+  const [varietySheetOpen, setVarietySheetOpen] = useState(false);
+
+  useEffect(() => {
+    setTemplateList(templates);
+  }, [templates]);
+
+  const nurseryInitial: NurseryFormState = { message: '', errors: {}, nursery: null };
+  const [nurseryCreateState, nurseryCreateAction] = useActionState<NurseryFormState, FormData>(
+    actionCreateNursery,
+    nurseryInitial
+  );
+
+  const locationRecords: LocationRecord[] = useMemo(
+    () =>
+      locations.map((loc) => ({
+        id: loc.id,
+        name: loc.name,
+        created_at: '',
+        city: null,
+        latitude: null,
+        longitude: null,
+        notes: null,
+        state: null,
+        street: null,
+        timezone: null,
+        zip: null,
+      })),
+    [locations]
+  );
+
+  const plotRecordsForBedForm: Array<PlotRecord & { locations?: LocationRecord | null }> = useMemo(
+    () =>
+      plots.map((p) => ({
+        plot_id: p.plot_id,
+        name: p.name,
+        location_id: p.location_id,
+        created_at: '',
+        locations: locationRecords.find((loc) => loc.id === p.location_id) ?? null,
+      })),
+    [locationRecords, plots]
+  );
+
+  const bedLookup = useMemo(() => {
+    const map = new Map<number, BedOption>();
+    beds.forEach((b) => map.set(b.id, b));
+    return map;
+  }, [beds]);
+
+  const recentBeds = prefs?.recents?.bedIds ?? [];
+  const recentNurseries = prefs?.recents?.nurseryIds ?? [];
+  const recentVarieties = prefs?.recents?.varietyIds ?? [];
+
+  useEffect(() => {
+    if (nurseryCreateState.message) {
+      if (nurseryCreateState.errors && Object.keys(nurseryCreateState.errors).length > 0) {
+        toast.error(nurseryCreateState.message);
+      } else if (nurseryCreateState.nursery) {
+        toast.success(nurseryCreateState.message);
+        setNurserySheetOpen(false);
+        setNurseryId(nurseryCreateState.nursery.id);
+        router.refresh();
       }
-    | null
-  >(null);
+    }
+  }, [nurseryCreateState, router]);
 
-  // Optimistic projections immediately after transplant
-  const [optimisticHarvest, setOptimisticHarvest] = useState<
-    Record<number, { start: string; end: string }>
-  >({});
+  const stepperItems = [
+    { id: 'location', label: 'Location', title: 'Location' },
+    { id: 'plot', label: 'Plot / Bed', title: 'Plot / Bed' },
+    { id: 'nursery', label: 'Nursery (optional)', title: 'Nursery (optional)' },
+    { id: 'variety', label: 'Variety', title: 'Variety' },
+    { id: 'schedule', label: 'Schedule & notes', title: 'Schedule & notes' },
+  ] as const;
 
-  const creationCrops = creationContext?.crops ?? [];
-  const creationLocations = creationContext?.locations ?? [];
-  const creationPlots = creationContext?.plots ?? [];
+  const plotsForLocation = useMemo(
+    () => plots.filter((p) => !locationId || p.location_id === locationId),
+    [plots, locationId]
+  );
+  const bedsForPlot = useMemo(
+    () =>
+      beds.filter(
+        (b) =>
+          (!plotId || b.plot_id === plotId) && (!locationId || b.plots?.location_id === locationId)
+      ),
+    [beds, plotId, locationId]
+  );
 
-  const closeDependencySheet = () => {
-    setDependencySheet(null);
+  useEffect(() => {
+    if (plotsForLocation.length > 0 && !plotsForLocation.find((p) => p.plot_id === plotId)) {
+      setPlotId(plotsForLocation[0]?.plot_id ?? null);
+    }
+  }, [plotsForLocation, plotId]);
+
+  useEffect(() => {
+    if (bedsForPlot.length > 0 && !bedsForPlot.find((b) => b.id === bedId)) {
+      setBedId(bedsForPlot[0]?.id ?? null);
+    }
+  }, [bedsForPlot, bedId]);
+
+  useEffect(() => {
+    if (!isBulkMode) return;
+    setBulkBeds((prev) => prev.filter((id) => bedsForPlot.some((b) => b.id === id)));
+  }, [bedsForPlot, isBulkMode]);
+
+  useEffect(() => {
+    if (mode === 'nursery') {
+      setIsBulkMode(false);
+      setBulkBeds([]);
+    }
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode === 'direct' && !isBulkMode) {
+      setBulkBeds(bedId ? [bedId] : []);
+    }
+  }, [bedId, isBulkMode, mode]);
+
+  const clearFieldError = (key: keyof WizardFieldErrors) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const validateStep = (currentStep: WizardStep): boolean => {
+    if (currentStep === 'location' && !locationId) {
+      setFieldErrors((prev) => ({ ...prev, locationId: 'Select a location to continue.' }));
+      toast.error('Select a location to continue.');
+      return false;
+    }
+    if (currentStep === 'plot') {
+      const hasPlot = Boolean(plotId);
+      const hasBed =
+        mode === 'nursery' ? true : Boolean(bedId) || (isBulkMode && bulkBeds.length > 0);
+      if (!hasPlot) {
+        setFieldErrors((prev) => ({ ...prev, plotId: 'Select a plot to continue.' }));
+        toast.error('Select a plot to continue.');
+        return false;
+      }
+      if (!hasBed) {
+        setFieldErrors((prev) => ({ ...prev, bedId: 'Select a bed for direct sow.' }));
+        toast.error('Select a bed for direct sow.');
+        return false;
+      }
+    }
+    if (currentStep === 'nursery' && mode === 'nursery' && !nurseryId) {
+      setFieldErrors((prev) => ({ ...prev, nurseryId: 'Select a nursery to continue.' }));
+      toast.error('Select a nursery to continue.');
+      return false;
+    }
+    if (currentStep === 'variety' && !varietyId) {
+      setFieldErrors((prev) => ({ ...prev, varietyId: 'Select a variety to continue.' }));
+      toast.error('Select a variety to continue.');
+      return false;
+    }
+    return true;
+  };
+
+  const handleLocationCreated = (created: LocationRecord) => {
+    setLocationId(created.id);
+    setPlotId(null);
+    setBedId(null);
+    setLocationSheetOpen(false);
     router.refresh();
   };
 
-  const selectNormalizedRange = useCallback(
-    (
-      primaryMin?: number | null,
-      primaryMax?: number | null,
-      secondaryMin?: number | null,
-      secondaryMax?: number | null
-    ): { min: number | null; max: number | null } => {
-      const pMin = positiveOrNull(primaryMin);
-      const pMax = positiveOrNull(primaryMax);
-      const sMin = positiveOrNull(secondaryMin);
-      const sMax = positiveOrNull(secondaryMax);
-
-      // Surface inconsistent data rather than silently correcting
-      if (process.env.NODE_ENV !== 'production') {
-        if (pMin != null && pMax != null && pMin > pMax) {
-          console.warn('[Plantings] Inconsistent primary DTM range: min > max', {
-            primaryMin: pMin,
-            primaryMax: pMax,
-            raw: { primaryMin, primaryMax },
-          });
-        }
-        if (sMin != null && sMax != null && sMin > sMax) {
-          console.warn('[Plantings] Inconsistent secondary DTM range: min > max', {
-            secondaryMin: sMin,
-            secondaryMax: sMax,
-            raw: { secondaryMin, secondaryMax },
-          });
-        }
-      }
-
-      // Only accept ranges where both min and max exist within the same category
-      const primaryHasPair = pMin != null && pMax != null;
-      const secondaryHasPair = sMin != null && sMax != null;
-
-      let minCandidate: number | null = null;
-      let maxCandidate: number | null = null;
-
-      if (primaryHasPair) {
-        minCandidate = pMin;
-        maxCandidate = pMax;
-      } else if (secondaryHasPair) {
-        minCandidate = sMin;
-        maxCandidate = sMax;
-      } else {
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn('[Plantings] Incomplete DTM range; refusing mixed-category fallbacks', {
-            primary: { min: pMin, max: pMax },
-            secondary: { min: sMin, max: sMax },
-          });
-        }
-        return { min: null, max: null };
-      }
-
-      return { min: minCandidate, max: maxCandidate };
-    },
-    []
-  );
-
-  useEffect(() => {
-    const isTransplantEvent = (
-      event: Event
-    ): event is CustomEvent<{ plantingId: number; eventDate: string }> => {
-      const detail = (event as CustomEvent<unknown>).detail;
-      if (!detail || typeof detail !== 'object') return false;
-      const d = detail as Record<string, unknown>;
-      return typeof d.plantingId === 'number' && typeof d.eventDate === 'string';
-    };
-
-    const handler = (event: Event) => {
-      if (!isTransplantEvent(event)) return;
-      const { plantingId, eventDate } = event.detail;
-      const planting = plantings.find((x) => x.id === plantingId);
-      const cv =
-        planting?.crop_varieties ?? cropVarieties.find((v) => v.id === planting?.crop_variety_id);
-      if (!planting || !cv) return;
-      const { min, max } = selectNormalizedRange(
-        cv.dtm_transplant_min,
-        cv.dtm_transplant_max,
-        cv.dtm_direct_seed_min,
-        cv.dtm_direct_seed_max
-      );
-      if (min == null || max == null) return;
-      setOptimisticHarvest((prev) => ({
-        ...prev,
-        [plantingId]: {
-          start: addDaysUtc(eventDate, min),
-          end: addDaysUtc(eventDate, max),
-        },
-      }));
-    };
-    window.addEventListener('planting:transplanted', handler);
-    return () => window.removeEventListener('planting:transplanted', handler);
-  }, [plantings, cropVarieties, selectNormalizedRange]);
-
-  // Cleanup optimistic harvest entries when they are no longer needed
-  useEffect(() => {
-    setOptimisticHarvest((prev) => {
-      const next: Record<number, { start: string; end: string }> = {};
-      let changed = false;
-      for (const [idString, windowRange] of Object.entries(prev)) {
-        const id = Number(idString);
-        const planting = plantings.find((x) => x.id === id);
-        if (!planting) {
-          changed = true;
-          continue;
-        }
-        if (planting.status === PLANTING_STATUS.removed) {
-          changed = true;
-          continue;
-        }
-        if (planting.planted_date) {
-          changed = true;
-          continue;
-        }
-        next[id] = windowRange;
-      }
-      return changed ? next : prev;
-    });
-  }, [plantings]);
-
-  const openNurserySow = () => {
-    setCreateMode('nursery');
-    setIsDialogOpen(true);
-    setWizardStep('plan');
-  };
-  const openDirectSeed = () => {
-    setCreateMode('direct');
-    setIsDialogOpen(true);
-    setWizardStep('plan');
-  };
-  const closeDialog = () => {
-    setIsDialogOpen(false);
-    setCreateMode(null);
-    setWizardStep('plan');
-    setDependencySheet(null);
-  };
-  const closeActionDialog = () => setActionDialog(null);
-
-  // removed: menu-level helper now handled in PlantingActionsMenu
-
-  const openDelete = (id: number) => setDeleteId(id);
-  const confirmDelete = async () => {
-    if (deleteId == null) return;
-    try {
-      setDeleting(true);
-      const result: unknown = await deletePlanting(deleteId);
-      if (isResultWithMessage(result)) {
-        if (result.message.startsWith('Database Error:') || result.message.startsWith('Error:')) {
-          toast.error(result.message);
-        } else {
-          toast.success(result.message);
-        }
-        return;
-      }
-      if (isResultWithError(result)) {
-        toast.error(result.error);
-        return;
-      }
-      toast.error('Failed to delete planting.');
-    } finally {
-      setDeleting(false);
-      setDeleteId(null);
+  const handlePlotCreated = (created: PlotRecord) => {
+    if (created.location_id) {
+      setLocationId(created.location_id);
     }
+    setPlotId(created.plot_id ?? null);
+    setBedId(null);
+    setPlotSheetOpen(false);
+    router.refresh();
   };
 
-  // Hide removed plantings from default view and stats
-  const visiblePlantings = plantings.filter((p) => p.status !== PLANTING_STATUS.removed);
+  const handleBedCreated = (created: BedWithLocation) => {
+    if (created.plots?.location_id) {
+      setLocationId(created.plots.location_id);
+    }
+    if (created.plot_id) {
+      setPlotId(created.plot_id);
+    }
+    setBedId(created.id);
+    setBedSheetOpen(false);
+    router.refresh();
+  };
 
-  const getStatusStats = () => {
-    const nurseryCount = visiblePlantings.filter(
-      (p) => p.status === PLANTING_STATUS.nursery
-    ).length;
-    const plantedCount = visiblePlantings.filter(
-      (p) => p.status === PLANTING_STATUS.planted
-    ).length;
-    const harvestedCount = visiblePlantings.filter(
-      (p) => p.status === PLANTING_STATUS.harvested
-    ).length;
-
+  const currentTemplatePayload = useMemo((): PlantingDefaults => {
+    const qtyNumber = qty ? Number(qty) : null;
+    const weightNumber = weightGrams ? Number(weightGrams) : null;
     return {
-      total: visiblePlantings.length,
-      nursery: nurseryCount,
-      planted: plantedCount,
-      harvested: harvestedCount,
+      locationId,
+      plotId,
+      bedId,
+      nurseryId,
+      varietyId,
+      mode,
+      qty: Number.isFinite(qtyNumber) ? qtyNumber : null,
+      weightGrams: Number.isFinite(weightNumber) ? weightNumber : null,
+      date: date || null,
+      notes: notes || null,
     };
+  }, [bedId, date, locationId, mode, notes, nurseryId, plotId, qty, varietyId, weightGrams]);
+
+  const handleApplyTemplate = (templateId: string) => {
+    const tpl = templateList.find((t) => t.id === templateId);
+    if (!tpl) return;
+    applyDraft(tpl.payload);
+    setSelectedTemplateId(templateId);
+    toast.success(`Applied template “${tpl.name}”.`);
   };
 
-  const stats = getStatusStats();
-
-  const computeProjectedHarvestWindow = useCallback(
-    (
-      p: PlantingWithDetails
-    ): { start: string | null; end: string | null; awaitingTransplant: boolean } => {
-      // If we have an optimistic projection (immediately after transplant), use it first
-      const opt = optimisticHarvest[p.id];
-      if (opt) return { start: opt.start, end: opt.end, awaitingTransplant: false };
-
-      // Prefer joined variety DTM; fallback to varieties list by crop_variety_id
-      const joined = p.crop_varieties;
-      const fallback = cropVarieties.find((v) => v.id === p.crop_variety_id);
-
-      const isTransplantPath = Boolean(p.nursery_started_date);
-      if (isTransplantPath) {
-        if (p.planted_date) {
-          const base = p.planted_date;
-          const { min, max } = selectNormalizedRange(
-            joined?.dtm_transplant_min ?? fallback?.dtm_transplant_min,
-            joined?.dtm_transplant_max ?? fallback?.dtm_transplant_max,
-            joined?.dtm_direct_seed_min ?? fallback?.dtm_direct_seed_min,
-            joined?.dtm_direct_seed_max ?? fallback?.dtm_direct_seed_max
-          );
-          if (min != null && max != null) {
-            return {
-              start: addDaysUtc(base, min),
-              end: addDaysUtc(base, max),
-              awaitingTransplant: false,
-            };
-          }
-          return { start: null, end: null, awaitingTransplant: false };
+  const handleSaveTemplate = (overwrite?: boolean) => {
+    if (!templateName.trim()) {
+      toast.error('Enter a template name first.');
+      return;
+    }
+    startSaveTemplate(() => {
+      savePlantingTemplateAction({
+        name: templateName,
+        payload: currentTemplatePayload,
+        overwrite: overwrite ?? false,
+      }).then((res) => {
+        if (!res.ok) {
+          toast.error(res.error);
+          return;
         }
-        // Not yet transplanted → we cannot project exact dates without a target nursery duration
-        return { start: null, end: null, awaitingTransplant: true };
+        setTemplateList(res.prefs.templates ?? []);
+        const saved = res.prefs.templates?.find(
+          (t) => t.name.trim().toLowerCase() === templateName.trim().toLowerCase()
+        );
+        setSelectedTemplateId(saved?.id ?? null);
+        toast.success(`Saved template “${templateName}”.`);
+      });
+    });
+  };
+
+  const handleDeleteTemplate = () => {
+    if (!selectedTemplateId) return;
+    startSaveTemplate(() => {
+      deletePlantingTemplateAction(selectedTemplateId).then((res) => {
+        if (!res.ok) {
+          toast.error(res.error);
+          return;
+        }
+        setTemplateList(res.prefs.templates ?? []);
+        setSelectedTemplateId(null);
+        toast.success('Template removed.');
+      });
+    });
+  };
+
+  const runBulkCreate = (payload: BulkDirectSeedInput) => {
+    setPendingBulk(null);
+    setBulkDialogOpen(false);
+    setLastBulkPayload(payload);
+    startSubmit(() => {
+      bulkCreateDirectSeedPlantings(payload).then((res) => {
+        setBulkResult(res);
+        if (res.successes.length) {
+          toast.success(res.message);
+          restoreDefaults();
+          setBulkBeds([]);
+        }
+        if (res.failures.length) {
+          toast.error(`Some beds failed: ${res.failures.map((f) => f.bedId).join(', ')}`);
+          setBulkBeds(res.failures.map((f) => f.bedId));
+        }
+        router.refresh();
+      });
+    });
+  };
+
+  const handleRetryBulkFailures = () => {
+    if (!bulkResult?.failures.length || !lastBulkPayload) return;
+    const failedIds = bulkResult.failures.map((f) => f.bedId);
+    const retryPayload: BulkDirectSeedInput = { ...lastBulkPayload, bedIds: failedIds };
+    setPendingBulk(retryPayload);
+    setBulkDialogOpen(true);
+  };
+
+  const LOCAL_STORAGE_KEY = 'plantingDraftV1';
+
+  const restoreDefaults = useCallback(() => {
+    setFieldErrors({});
+    setLocationId(baseDefaults.locationId ?? null);
+    setPlotId(baseDefaults.plotId ?? null);
+    setBedId(baseDefaults.bedId ?? null);
+    setNurseryId(baseDefaults.nurseryId ?? null);
+    setVarietyId(baseDefaults.varietyId ?? null);
+    setMode(prefDefaults?.mode ?? (defaultNurseryId ? 'nursery' : 'direct'));
+    setQty(baseDefaults.qty != null ? String(baseDefaults.qty) : '');
+    setWeightGrams(baseDefaults.weightGrams != null ? String(baseDefaults.weightGrams) : '');
+    setDate(baseDefaults.date ?? '');
+    setNotes(baseDefaults.notes ?? '');
+  }, [baseDefaults, defaultNurseryId, prefDefaults?.mode]);
+
+  const applyDraft = useCallback((draft: PlantingDraft) => {
+    setFieldErrors({});
+    if (draft.locationId !== undefined) setLocationId(draft.locationId ?? null);
+    if (draft.plotId !== undefined) setPlotId(draft.plotId ?? null);
+    if (draft.bedId !== undefined) setBedId(draft.bedId ?? null);
+    if (draft.nurseryId !== undefined) setNurseryId(draft.nurseryId ?? null);
+    if (draft.varietyId !== undefined) setVarietyId(draft.varietyId ?? null);
+    if (draft.mode) setMode(draft.mode);
+    if (draft.qty !== undefined) setQty(draft.qty != null ? String(draft.qty) : '');
+    if (draft.weightGrams !== undefined) {
+      setWeightGrams(draft.weightGrams != null ? String(draft.weightGrams) : '');
+    }
+    if (draft.date !== undefined) setDate(draft.date ?? '');
+    if (draft.notes !== undefined) setNotes(draft.notes ?? '');
+    setHasDraft(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as PlantingDraft;
+        applyDraft(parsed);
+        setResumeMessage('Draft restored from this device.');
+        return;
+      } catch {
+        // ignore parse errors
       }
-      // Direct seed path
-      const base = p.planted_date ?? null;
-      const { min, max } = selectNormalizedRange(
-        joined?.dtm_direct_seed_min ?? fallback?.dtm_direct_seed_min,
-        joined?.dtm_direct_seed_max ?? fallback?.dtm_direct_seed_max,
-        undefined,
-        undefined
-      );
-      if (base && min != null && max != null) {
-        return {
-          start: addDaysUtc(base, min),
-          end: addDaysUtc(base, max),
-          awaitingTransplant: false,
-        };
+    }
+    if (serverDraft) {
+      applyDraft(serverDraft);
+      setResumeMessage('Draft restored from your account.');
+    }
+  }, [applyDraft, serverDraft]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const qtyNumber = qty ? Number(qty) : null;
+    const weightNumber = weightGrams ? Number(weightGrams) : null;
+    const draftPayload: PlantingDraft = {
+      locationId,
+      plotId,
+      bedId,
+      nurseryId,
+      varietyId,
+      mode,
+      qty: Number.isFinite(qtyNumber) ? qtyNumber : null,
+      weightGrams: Number.isFinite(weightNumber) ? weightNumber : null,
+      date: date || null,
+      notes: notes || null,
+    };
+    const timer = window.setTimeout(() => {
+      setHasDraft(true);
+      try {
+        window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(draftPayload));
+      } catch {
+        // ignore storage errors
       }
-      return { start: null, end: null, awaitingTransplant: false };
-    },
-    [optimisticHarvest, cropVarieties, selectNormalizedRange]
+      savePlantingDraft(draftPayload)
+        .then((res) => {
+          if ('error' in res && res.error) {
+            setSaveError(res.error);
+            return;
+          }
+          setSaveError(null);
+          setLastSavedAt(new Date());
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : 'Unable to save draft.';
+          setSaveError(message);
+        });
+    }, 800);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [date, bedId, locationId, mode, notes, nurseryId, plotId, qty, weightGrams, varietyId]);
+
+  const handleDiscardDraft = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+    }
+    setHasDraft(false);
+    setResumeMessage(null);
+    setLastSavedAt(null);
+    setSaveError(null);
+    restoreDefaults();
+    clearPlantingDraft();
+    toast.success('Draft discarded.');
+  };
+
+  const canContinueLocation = Boolean(locationId);
+  const canContinuePlot =
+    mode === 'nursery' ? true : Boolean(bedId) || (isBulkMode && bulkBeds.length > 0);
+  const canContinueNursery = mode === 'direct' ? true : Boolean(nurseryId);
+  const canContinueVariety = Boolean(varietyId);
+  const canSubmit = Boolean(
+    date &&
+    qty &&
+    varietyId &&
+    (mode === 'nursery' ? nurseryId : isBulkMode ? bulkBeds.length > 0 : bedId)
   );
 
-  const filteredPlantings = (() => {
-    switch (statusFilter) {
-      case 'all':
-        return visiblePlantings;
-      case 'active':
-        return visiblePlantings.filter(
-          (p) => p.status === PLANTING_STATUS.nursery || p.status === PLANTING_STATUS.planted
-        );
-      case 'nursery':
-        return visiblePlantings.filter((p) => p.status === PLANTING_STATUS.nursery);
-      case 'planted':
-        return visiblePlantings.filter((p) => p.status === PLANTING_STATUS.planted);
-      case 'harvested':
-        return visiblePlantings.filter((p) => p.status === PLANTING_STATUS.harvested);
-      default:
-        return visiblePlantings;
+  const selectedLocation = useMemo(
+    () => locations.find((l) => l.id === locationId),
+    [locationId, locations]
+  );
+  const selectedPlot = useMemo(() => plots.find((p) => p.plot_id === plotId), [plotId, plots]);
+  const selectedBed = useMemo(() => beds.find((b) => b.id === bedId), [bedId, beds]);
+  const selectedNursery = useMemo(
+    () => nurseries.find((n) => n.id === nurseryId),
+    [nurseryId, nurseries]
+  );
+  const selectedVariety = useMemo(
+    () => cropVarieties.find((v) => v.id === varietyId),
+    [cropVarieties, varietyId]
+  );
+
+  const goNext = () => {
+    const order: WizardStep[] = ['location', 'plot', 'nursery', 'variety', 'schedule'];
+    const idx = order.indexOf(step);
+    if (idx < order.length - 1 && validateStep(step)) setStep(order[idx + 1]);
+  };
+  const goPrev = () => {
+    const order: WizardStep[] = ['location', 'plot', 'nursery', 'variety', 'schedule'];
+    const idx = order.indexOf(step);
+    if (idx > 0) setStep(order[idx - 1]);
+  };
+
+  const handleSubmit = () => {
+    const missingQty = !qty;
+    const missingDate = !date;
+    const qtyNumber = Number(qty);
+    const weightNumber = weightGrams ? Number(weightGrams) : null;
+    if (!validateStep('variety')) return;
+    if (missingQty || missingDate) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        qty: missingQty ? 'Enter a quantity.' : prev.qty,
+        date: missingDate ? 'Choose a date.' : prev.date,
+      }));
+      toast.error('Please complete required fields.');
+      return;
     }
-  })();
+    setFieldErrors({});
+    if (!Number.isFinite(qtyNumber) || qtyNumber <= 0) {
+      setFieldErrors((prev) => ({ ...prev, qty: 'Quantity must be a positive number.' }));
+      toast.error('Quantity must be a positive number.');
+      return;
+    }
+    const parsedWeight =
+      weightNumber != null && Number.isFinite(weightNumber) ? weightNumber : null;
+    if (mode === 'direct' && isBulkMode) {
+      const targets = bulkBeds.length ? bulkBeds : bedId ? [bedId] : [];
+      if (!targets.length) {
+        setFieldErrors((prev) => ({ ...prev, bedId: 'Select at least one bed.' }));
+        toast.error('Select at least one bed.');
+        return;
+      }
+      if (!varietyId) {
+        setFieldErrors((prev) => ({ ...prev, varietyId: 'Pick a variety.' }));
+        toast.error('Select a variety before bulk creating.');
+        return;
+      }
+      setBulkResult(null);
+      const payload: BulkDirectSeedInput = {
+        bedIds: targets,
+        crop_variety_id: varietyId ?? 0,
+        qty: qtyNumber,
+        event_date: date,
+        notes: notes || undefined,
+        weight_grams: parsedWeight,
+      };
+      setPendingBulk(payload);
+      setBulkDialogOpen(true);
+      return;
+    }
+    const fd = new FormData();
+    fd.append('crop_variety_id', String(varietyId));
+    fd.append('qty', String(qtyNumber));
+    fd.append('event_date', date);
+    if (notes) fd.append('notes', notes);
+    if (parsedWeight != null) fd.append('weight_grams', String(parsedWeight));
+    if (attachment) fd.append('attachment', attachment);
 
-  const hasPlantings = visiblePlantings.length > 0;
-  const isMobile = useIsMobile();
-  const activeCreateMode = createMode ?? 'nursery';
-  const createFormId = activeCreateMode === 'direct' ? 'directSeedForm' : 'nurserySowForm';
-  const createPrimaryLabel =
-    activeCreateMode === 'direct' ? 'Create Direct Seed Planting' : 'Create Nursery Planting';
+    startSubmit(() => {
+      if (mode === 'nursery') {
+        fd.append('nursery_id', String(nurseryId));
+        actionNurserySow({ message: '' }, fd).then((res) => {
+          if (res.errors && Object.keys(res.errors).length > 0) {
+            const mapped: WizardFieldErrors = {
+              varietyId: res.errors.crop_variety_id?.[0],
+              qty: res.errors.qty?.[0],
+              nurseryId: res.errors.nursery_id?.[0],
+              date: res.errors.event_date?.[0],
+              weightGrams: res.errors.weight_grams?.[0],
+              notes: res.errors.notes?.[0],
+            };
+            setFieldErrors(mapped);
+            toast.error(res.message);
+            return;
+          }
+          toast.success(res.message);
+          router.refresh();
+        });
+      } else {
+        fd.append('bed_id', String(bedId));
+        actionDirectSeed({ message: '' }, fd).then((res) => {
+          if (res.errors && Object.keys(res.errors).length > 0) {
+            const mapped: WizardFieldErrors = {
+              varietyId: res.errors.crop_variety_id?.[0],
+              qty: res.errors.qty?.[0],
+              bedId: res.errors.bed_id?.[0],
+              date: res.errors.event_date?.[0],
+              weightGrams: res.errors.weight_grams?.[0],
+            };
+            setFieldErrors(mapped);
+            toast.error(res.message);
+            return;
+          }
+          toast.success(res.message);
+          router.refresh();
+        });
+      }
+    });
+  };
 
-  return (
-    <div>
-      <FlowShell
-        title="Plantings"
-        description="Track nursery starts, direct seeds, and harvest windows."
-        icon={<Sprout className="h-5 w-5" aria-hidden />}
-        actions={
-          hasPlantings && !isMobile ? (
-            <Button
-              size="sm"
-              className="w-full sm:w-auto"
-              onClick={() => {
-                setCreateMode('nursery');
-                setIsDialogOpen(true);
+  const renderStepContent = () => {
+    switch (step) {
+      case 'location':
+        return (
+          <div className="space-y-3">
+            <Label>Select location</Label>
+            <Select
+              value={locationId ?? ''}
+              onValueChange={(v) => {
+                clearFieldError('locationId');
+                setLocationId(v || null);
               }}
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Planting
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a location" />
+              </SelectTrigger>
+              <SelectContent>
+                {locations.map((loc) => (
+                  <SelectItem key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldErrors.locationId ? (
+              <p className="text-xs text-destructive">{fieldErrors.locationId}</p>
+            ) : null}
+            <Button variant="outline" size="sm" onClick={() => setLocationSheetOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" aria-hidden />
+              Add location
+            </Button>
+          </div>
+        );
+      case 'plot':
+        return (
+          <div className="space-y-3">
+            <Label>Plot</Label>
+            <Select
+              value={plotId ? String(plotId) : ''}
+              onValueChange={(v) => {
+                clearFieldError('plotId');
+                setPlotId(Number(v));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a plot" />
+              </SelectTrigger>
+              <SelectContent>
+                {plotsForLocation.map((plot) => (
+                  <SelectItem key={plot.plot_id} value={String(plot.plot_id)}>
+                    {plot.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldErrors.plotId ? (
+              <p className="text-xs text-destructive">{fieldErrors.plotId}</p>
+            ) : null}
+            <div className="flex items-center gap-2">
+              <Label>Bed (required for direct plantings)</Label>
+              {prefDefaults?.bedId ? <Badge variant="outline">Default</Badge> : null}
+            </div>
+            <Select
+              value={bedId ? String(bedId) : ''}
+              onValueChange={(v) => {
+                clearFieldError('bedId');
+                setBedId(Number(v));
+              }}
+              disabled={mode === 'nursery'}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={mode === 'nursery' ? 'Not required for nursery' : 'Select a bed'}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {bedsForPlot.map((bed) => (
+                  <SelectItem key={bed.id} value={String(bed.id)}>
+                    {bed.name ?? `Bed #${bed.id}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldErrors.bedId ? (
+              <p className="text-xs text-destructive">{fieldErrors.bedId}</p>
+            ) : null}
+            {recentBeds.length ? (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span>Recents:</span>
+                {recentBeds.map((id) => {
+                  const bed = bedLookup.get(id);
+                  if (!bed) return null;
+                  return (
+                    <Button
+                      key={id}
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setPlotId(bed.plot_id ?? plotId ?? null);
+                        setBedId(id);
+                        setIsBulkMode(false);
+                      }}
+                    >
+                      {bed.name ?? `Bed #${id}`}
+                    </Button>
+                  );
+                })}
+              </div>
+            ) : null}
+            {mode === 'direct' ? (
+              <div className="flex items-center justify-between rounded-md border bg-muted/40 p-3">
+                <div>
+                  <p className="text-sm font-medium">Bulk to multiple beds</p>
+                  <p className="text-xs text-muted-foreground">
+                    Select multiple beds to create matching plantings.
+                  </p>
+                </div>
+                <Switch
+                  checked={isBulkMode}
+                  onCheckedChange={(checked) => {
+                    setIsBulkMode(Boolean(checked));
+                    if (!checked && bedId) {
+                      setBulkBeds([bedId]);
+                    }
+                  }}
+                  aria-label="Toggle bulk bed selection"
+                />
+              </div>
+            ) : null}
+            {mode === 'direct' && isBulkMode ? (
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm font-medium">Select beds for this planting</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {bedsForPlot.map((bed) => (
+                    <label key={bed.id} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={bulkBeds.includes(bed.id)}
+                        onCheckedChange={(checked) =>
+                          setBulkBeds((prev) =>
+                            checked ? [...prev, bed.id] : prev.filter((id) => id !== bed.id)
+                          )
+                        }
+                        aria-label={`Add ${bed.name ?? `Bed #${bed.id}`}`}
+                      />
+                      <span>{bed.name ?? `Bed #${bed.id}`}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {bulkBeds.length} bed{bulkBeds.length === 1 ? '' : 's'} selected
+                </p>
+              </div>
+            ) : null}
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setPlotSheetOpen(true)}>
+                <Layers className="h-4 w-4 mr-2" aria-hidden />
+                Add plot
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setBedSheetOpen(true)}>
+                <MapPin className="h-4 w-4 mr-2" aria-hidden />
+                Add bed
+              </Button>
+            </div>
+          </div>
+        );
+      case 'nursery':
+        return (
+          <div className="space-y-3">
+            <Label>Propagation method</Label>
+            <div className="flex gap-2">
+              <Button
+                variant={mode === 'direct' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setMode('direct')}
+              >
+                Direct to bed
+              </Button>
+              <Button
+                variant={mode === 'nursery' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setMode('nursery')}
+              >
+                Nursery sow
+              </Button>
+            </div>
+            {mode === 'nursery' ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>Nursery</Label>
+                  {prefDefaults?.nurseryId ? <Badge variant="outline">Default</Badge> : null}
+                </div>
+                <Select
+                  value={nurseryId ?? ''}
+                  onValueChange={(v) => {
+                    clearFieldError('nurseryId');
+                    setNurseryId(v || null);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a nursery" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {nurseries.map((n) => (
+                      <SelectItem key={n.id} value={n.id}>
+                        {n.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {fieldErrors.nurseryId ? (
+                  <p className="text-xs text-destructive">{fieldErrors.nurseryId}</p>
+                ) : null}
+                {recentNurseries.length ? (
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>Recents:</span>
+                    {recentNurseries.map((id) => {
+                      const nursery = nurseries.find((n) => n.id === id);
+                      if (!nursery) return null;
+                      return (
+                        <Button
+                          key={id}
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setNurseryId(nursery.id)}
+                        >
+                          {nursery.name}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                <Button variant="outline" size="sm" onClick={() => setNurserySheetOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" aria-hidden />
+                  Add nursery
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        );
+      case 'variety':
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Label>Crop variety</Label>
+              {prefDefaults?.varietyId ? <Badge variant="outline">Default</Badge> : null}
+            </div>
+            <Select
+              value={varietyId ? String(varietyId) : ''}
+              onValueChange={(v) => {
+                clearFieldError('varietyId');
+                setVarietyId(Number(v));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a variety" />
+              </SelectTrigger>
+              <SelectContent>
+                {cropVarieties.map((v) => (
+                  <SelectItem key={v.id} value={String(v.id)}>
+                    {v.crops?.name ? `${v.crops.name} – ${v.name}` : v.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldErrors.varietyId ? (
+              <p className="text-xs text-destructive">{fieldErrors.varietyId}</p>
+            ) : null}
+            {recentVarieties.length ? (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span>Recents:</span>
+                {recentVarieties.map((id) => {
+                  const v = cropVarieties.find((cv) => cv.id === id);
+                  if (!v) return null;
+                  return (
+                    <Button key={id} variant="secondary" size="sm" onClick={() => setVarietyId(id)}>
+                      {v.crops?.name ? `${v.crops.name} – ${v.name}` : v.name}
+                    </Button>
+                  );
+                })}
+              </div>
+            ) : null}
+            <Button variant="outline" size="sm" onClick={() => setVarietySheetOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" aria-hidden />
+              Add variety
+            </Button>
+          </div>
+        );
+      case 'schedule':
+        return (
+          <div className="space-y-3">
+            <div className="rounded-lg border bg-muted/50 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-sm">Review summary</p>
+                  <p className="text-xs text-muted-foreground">
+                    Confirm details before creating this planting.
+                  </p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setStep('location')}>
+                  Edit steps
+                </Button>
+              </div>
+              <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Location / Plot</p>
+                  <p className="font-medium">
+                    {selectedLocation?.name ?? 'Location not set'} •{' '}
+                    {selectedPlot?.name ?? 'Plot not set'}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {mode === 'nursery'
+                      ? 'Propagation: Nursery sow'
+                      : `Propagation: Direct to bed ${selectedBed?.name ?? bedId ?? 'Not set'}`}
+                  </p>
+                  {mode === 'nursery' ? (
+                    <p className="text-muted-foreground">
+                      Nursery: {selectedNursery?.name ?? 'Not set'}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Variety & schedule</p>
+                  <p className="font-medium">
+                    {selectedVariety
+                      ? selectedVariety.crops?.name
+                        ? `${selectedVariety.crops.name} – ${selectedVariety.name}`
+                        : selectedVariety.name
+                      : 'Variety not set'}
+                  </p>
+                  <p className="text-muted-foreground">
+                    Qty: {qty || '—'} · Date: {date || '—'} · Weight(g): {weightGrams || '—'}
+                  </p>
+                  <p className="text-muted-foreground">Attachment: {attachment?.name ?? 'None'}</p>
+                  {mode === 'direct' && isBulkMode ? (
+                    <p className="text-muted-foreground">
+                      Bulk selection: {bulkBeds.length} bed{bulkBeds.length === 1 ? '' : 's'}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Duplicate/conflict checks run on save; adjust date or location if warned.
+              </p>
+            </div>
+            <div className="space-y-2 rounded-md border p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium">Templates</p>
+                  <p className="text-xs text-muted-foreground">
+                    Load defaults or save this setup as a reusable template.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Select
+                  value={selectedTemplateId ?? ''}
+                  onValueChange={(value) => {
+                    setSelectedTemplateId(value);
+                    handleApplyTemplate(value);
+                  }}
+                >
+                  <SelectTrigger className="sm:w-72">
+                    <SelectValue placeholder="Load template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templateList.map((tpl) => (
+                      <SelectItem key={tpl.id} value={tpl.id}>
+                        {tpl.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDeleteTemplate}
+                    disabled={!selectedTemplateId || isSavingTemplate}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  placeholder="Template name"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  className="sm:w-64"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => handleSaveTemplate(false)}
+                    disabled={isSavingTemplate}
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => handleSaveTemplate(true)}
+                    disabled={isSavingTemplate}
+                  >
+                    <RefreshCcw className="mr-2 h-4 w-4" />
+                    Overwrite
+                  </Button>
+                </div>
+              </div>
+            </div>
+            {bulkResult && (bulkResult.successes.length || bulkResult.failures.length) ? (
+              <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                <p className="font-medium">{bulkResult.message}</p>
+                {bulkResult.failures.length ? (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-muted-foreground">
+                      Failed beds: {bulkResult.failures.map((f) => f.bedId).join(', ')}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRetryBulkFailures}
+                      disabled={isSubmitting}
+                    >
+                      <Undo2 className="mr-2 h-4 w-4" />
+                      Retry failed
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Quantity</Label>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={qty}
+                  onChange={(e) => {
+                    clearFieldError('qty');
+                    setQty(e.target.value);
+                  }}
+                />
+                {fieldErrors.qty ? (
+                  <p className="text-xs text-destructive">{fieldErrors.qty}</p>
+                ) : null}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={date}
+                  onChange={(e) => {
+                    clearFieldError('date');
+                    setDate(e.target.value);
+                  }}
+                />
+                {fieldErrors.date ? (
+                  <p className="text-xs text-destructive">{fieldErrors.date}</p>
+                ) : null}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Weight (g) optional</Label>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={weightGrams}
+                  onChange={(e) => {
+                    clearFieldError('weightGrams');
+                    setWeightGrams(e.target.value);
+                  }}
+                />
+                {fieldErrors.weightGrams ? (
+                  <p className="text-xs text-destructive">{fieldErrors.weightGrams}</p>
+                ) : null}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notes</Label>
+              <Textarea
+                rows={3}
+                value={notes}
+                onChange={(e) => {
+                  clearFieldError('notes');
+                  setNotes(e.target.value);
+                }}
+              />
+              {fieldErrors.notes ? (
+                <p className="text-xs text-destructive">{fieldErrors.notes}</p>
+              ) : null}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Attachment (optional)</Label>
+              <Input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif"
+                onChange={(e) => {
+                  clearFieldError('attachment');
+                  setAttachment(e.target.files?.[0] ?? null);
+                }}
+              />
+              <p className="text-xs text-muted-foreground">Max 5MB; jpeg/png/webp/avif.</p>
+              {fieldErrors.attachment ? (
+                <p className="text-xs text-destructive">{fieldErrors.attachment}</p>
+              ) : null}
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const isLastStep = step === 'schedule';
+  const nextDisabled =
+    (step === 'location' && !canContinueLocation) ||
+    (step === 'plot' && !canContinuePlot) ||
+    (step === 'nursery' && !canContinueNursery) ||
+    (step === 'variety' && !canContinueVariety) ||
+    isSubmitting;
+
+  return (
+    <div className="space-y-4">
+      <FlowShell
+        title="Guided planting"
+        description="Select location, plot/bed or nursery, variety, and schedule in one flow."
+        icon={<Leaf className="h-5 w-5" aria-hidden />}
+        actions={
+          !isMobile ? (
+            <Button onClick={() => setStep('location')} size="sm">
+              <Sprout className="h-4 w-4 mr-2" aria-hidden />
+              Start planning
             </Button>
           ) : undefined
         }
       >
-        <InlineCreateSheet
-          open={isDialogOpen}
-          onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) closeDialog();
-          }}
-          title={
-            wizardStep === 'plan'
-              ? 'Create planting'
-              : activeCreateMode === 'direct'
-                ? 'Direct seed'
-                : 'Nursery sow'
-          }
-          description={
-            wizardStep === 'plan'
-              ? 'Choose the flow and prepare dependencies, then enter planting details.'
-              : activeCreateMode === 'direct'
-                ? 'Seed directly in field'
-                : 'Start seeds in nursery'
-          }
-          primaryAction={
-            wizardStep === 'details'
-              ? {
-                  label: createPrimaryLabel,
-                  formId: createFormId,
-                }
-              : {
-                  label: 'Next',
-                  onClick: () =>
-                    setWizardStep((prev) => (prev === 'plan' ? 'dependencies' : 'details')),
-                }
-          }
-          secondaryAction={
-            wizardStep === 'plan'
-              ? {
-                  label: 'Cancel',
-                  onClick: closeDialog,
-                }
-              : {
-                  label: 'Back',
-                  onClick: () =>
-                    setWizardStep((prev) => (prev === 'details' ? 'dependencies' : 'plan')),
-                }
-          }
-          side="right"
-        >
-          <div className="space-y-6">
-            <Stepper
-              steps={[
-                { id: 'plan', title: 'Choose flow', description: 'Nursery vs direct seed' },
-                {
-                  id: 'dependencies',
-                  title: 'Prep dependencies',
-                  description: 'Create varieties, beds, nurseries, locations',
-                },
-                { id: 'details', title: 'Enter details', description: 'Fill planting form' },
-              ]}
-              currentStepId={wizardStep}
-              onStepChange={(id) => setWizardStep(id as typeof wizardStep)}
-            />
-
-            {wizardStep === 'plan' ? (
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Pick the flow you want to complete. You can still switch later.
-                </p>
-                <Tabs
-                  value={activeCreateMode}
-                  onValueChange={(v) => setCreateMode(v as 'nursery' | 'direct')}
-                >
-                  <TabsList className="grid grid-cols-2">
-                    <TabsTrigger value="nursery">Nursery Sow</TabsTrigger>
-                    <TabsTrigger value="direct">Direct Seed</TabsTrigger>
-                  </TabsList>
-                </Tabs>
+        <div className="space-y-4">
+          {optionsError ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {optionsError}. Some lists may be incomplete until reloaded.
+            </div>
+          ) : null}
+          {(resumeMessage || hasDraft || saveError) && (
+            <div className="flex flex-col gap-2 rounded-md border bg-muted/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-foreground">
+                {resumeMessage ?? 'Draft will autosave as you edit.'}
+                {saveError ? (
+                  <span className="block text-destructive sm:inline sm:ml-2">{saveError}</span>
+                ) : null}
+                {!saveError && lastSavedAt ? (
+                  <span className="block text-xs text-muted-foreground sm:inline sm:ml-2">
+                    Autosaved at {lastSavedAt.toLocaleTimeString()}
+                  </span>
+                ) : null}
               </div>
-            ) : null}
-
-            {wizardStep === 'dependencies' ? (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Card className="p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Crop & variety</p>
-                      <p className="text-xs text-muted-foreground">
-                        Add varieties (or crops) before planting.
-                      </p>
-                    </div>
-                    <Badge variant="secondary">{cropVarieties.length} available</Badge>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full sm:w-auto"
-                    onClick={() => setDependencySheet('cropVariety')}
-                  >
-                    Create crop variety
-                  </Button>
-                </Card>
-
-                {activeCreateMode === 'nursery' ? (
-                  <Card className="p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Nursery & location</p>
-                        <p className="text-xs text-muted-foreground">
-                          Create nursery or a new location before sowing.
-                        </p>
-                      </div>
-                      <Badge variant="secondary">{_nurseries.length} nurseries</Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDependencySheet('nursery')}
-                      >
-                        Create nursery
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDependencySheet('location')}
-                      >
-                        Create location
-                      </Button>
-                    </div>
-                  </Card>
-                ) : (
-                  <Card className="p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Beds & plots</p>
-                        <p className="text-xs text-muted-foreground">
-                          Add a bed (or plot) to assign plantings.
-                        </p>
-                      </div>
-                      <Badge variant="secondary">{beds.length} beds</Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setDependencySheet('bed')}>
-                        Create bed
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setDependencySheet('plot')}>
-                        Create plot
-                      </Button>
-                    </div>
-                  </Card>
-                )}
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={handleDiscardDraft}>
+                  Discard draft
+                </Button>
               </div>
-            ) : null}
-
-            {wizardStep === 'details' ? (
-              <Tabs
-                value={activeCreateMode}
-                onValueChange={(v) => setCreateMode(v as 'nursery' | 'direct')}
-              >
-                <TabsList>
-                  <TabsTrigger value="nursery">Nursery Sow</TabsTrigger>
-                  <TabsTrigger value="direct">Direct Seed</TabsTrigger>
-                </TabsList>
-                <TabsContent value="nursery">
-                  <NurserySowForm
-                    cropVarieties={cropVarieties}
-                    nurseries={_nurseries}
-                    closeDialog={closeDialog}
-                    formId="nurserySowForm"
-                    defaultDate={scheduleDate}
-                    defaultNurseryId={defaultNurseryId ?? undefined}
-                  />
-                </TabsContent>
-                <TabsContent value="direct">
-                  <DirectSeedForm
-                    cropVarieties={cropVarieties}
-                    beds={beds}
-                    closeDialog={closeDialog}
-                    formId="directSeedForm"
-                    defaultDate={scheduleDate}
-                    defaultBedId={defaultBedId ?? undefined}
-                  />
-                </TabsContent>
-              </Tabs>
-            ) : null}
-          </div>
-        </InlineCreateSheet>
-
-        <InlineCreateSheet
-          title="Create crop variety"
-          description="Add a crop and variety to use in the planting form."
-          open={dependencySheet === 'cropVariety'}
-          onOpenChange={(open) => {
-            if (!open) closeDependencySheet();
-            else setDependencySheet('cropVariety');
-          }}
-          primaryAction={{ label: 'Save variety', formId: 'depCropVarietyForm' }}
-          secondaryAction={{ label: 'Cancel', onClick: closeDependencySheet, variant: 'ghost' }}
-          side="right"
-        >
-          <CropVarietyForm
-            crops={creationCrops}
-            closeDialog={closeDependencySheet}
-            formId="depCropVarietyForm"
-          />
-        </InlineCreateSheet>
-
-        <InlineCreateSheet
-          title="Create nursery"
-          description="Set up a nursery to record sowings."
-          open={dependencySheet === 'nursery'}
-          onOpenChange={(open) => {
-            if (!open) closeDependencySheet();
-            else setDependencySheet('nursery');
-          }}
-          primaryAction={{ label: 'Save nursery', formId: 'depNurseryForm' }}
-          secondaryAction={{ label: 'Cancel', onClick: closeDependencySheet, variant: 'ghost' }}
-          side="right"
-        >
-          <QuickNurseryForm
-            locations={creationLocations}
-            onCompleted={closeDependencySheet}
-            onRequestLocation={() => setDependencySheet('location')}
-          />
-        </InlineCreateSheet>
-
-        <InlineCreateSheet
-          title="Create location"
-          description="Add a location for plots or nurseries."
-          open={dependencySheet === 'location'}
-          onOpenChange={(open) => {
-            if (!open) closeDependencySheet();
-            else setDependencySheet('location');
-          }}
-          primaryAction={{ label: 'Save location', formId: 'depLocationForm' }}
-          secondaryAction={{ label: 'Cancel', onClick: closeDependencySheet, variant: 'ghost' }}
-          side="right"
-        >
-          <LocationForm closeDialog={closeDependencySheet} formId="depLocationForm" />
-        </InlineCreateSheet>
-
-        <InlineCreateSheet
-          title="Create plot"
-          description="Create a plot with a location to add beds."
-          open={dependencySheet === 'plot'}
-          onOpenChange={(open) => {
-            if (!open) closeDependencySheet();
-            else setDependencySheet('plot');
-          }}
-          primaryAction={{ label: 'Save plot', formId: 'depPlotForm' }}
-          secondaryAction={{ label: 'Cancel', onClick: closeDependencySheet, variant: 'ghost' }}
-          side="right"
-        >
-          <PlotForm
-            locations={creationLocations}
-            closeDialog={closeDependencySheet}
-            formId="depPlotForm"
-          />
-        </InlineCreateSheet>
-
-        <InlineCreateSheet
-          title="Create bed"
-          description="Add a bed inside an existing plot."
-          open={dependencySheet === 'bed'}
-          onOpenChange={(open) => {
-            if (!open) closeDependencySheet();
-            else setDependencySheet('bed');
-          }}
-          primaryAction={{ label: 'Save bed', formId: 'depBedForm' }}
-          secondaryAction={{ label: 'Cancel', onClick: closeDependencySheet, variant: 'ghost' }}
-          side="right"
-        >
-          <BedForm
-            plots={creationPlots}
-            closeDialog={closeDependencySheet}
-            formId="depBedForm"
-            initialPlotId={creationPlots[0]?.plot_id ?? null}
-          />
-        </InlineCreateSheet>
-
-        {actionDialog && (
-          <FormDialog
-            open={actionDialog != null}
-            onOpenChange={(open) => {
-              if (!open) closeActionDialog();
-            }}
-            title={
-              actionDialog.type === 'transplant'
-                ? 'Transplant'
-                : actionDialog.type === 'move'
-                  ? 'Move Planting'
-                  : actionDialog.type === 'harvest'
-                    ? 'Harvest'
-                    : actionDialog.type === 'history'
-                      ? 'Planting History'
-                      : 'Remove Planting'
-            }
-            description={
-              actionDialog.type === 'transplant'
-                ? 'Move from nursery to field bed'
-                : actionDialog.type === 'move'
-                  ? 'Move between beds'
-                  : actionDialog.type === 'harvest'
-                    ? 'Enter final harvest metrics'
-                    : actionDialog.type === 'history'
-                      ? 'Event timeline and table'
-                      : 'Remove this planting (no harvest)'
-            }
-            submitLabel={
-              actionDialog.type === 'transplant'
-                ? 'Transplant'
-                : actionDialog.type === 'move'
-                  ? 'Move'
-                  : actionDialog.type === 'harvest'
-                    ? 'Harvest'
-                    : actionDialog.type === 'history'
-                      ? undefined
-                      : 'Remove Planting'
-            }
-            formId={
-              actionDialog.type === 'transplant'
-                ? 'transplantForm'
-                : actionDialog.type === 'move'
-                  ? 'moveForm'
-                  : actionDialog.type === 'harvest'
-                    ? 'harvestForm'
-                    : actionDialog.type === 'history'
-                      ? undefined
-                      : 'removeForm'
-            }
-            className={actionDialog.type === 'history' ? 'sm:max-w-2xl' : 'sm:max-w-md'}
-          >
-            {actionDialog.type === 'transplant' && (
-              <TransplantForm
-                plantingId={actionDialog.plantingId}
-                beds={beds}
-                closeDialog={closeActionDialog}
-                formId="transplantForm"
-              />
-            )}
-            {actionDialog.type === 'move' && (
-              <MoveForm
-                plantingId={actionDialog.plantingId}
-                beds={beds}
-                closeDialog={closeActionDialog}
-                formId="moveForm"
-              />
-            )}
-            {actionDialog && actionDialog.type === 'harvest' && (
-              <HarvestForm
-                plantingId={actionDialog.plantingId}
-                closeDialog={closeActionDialog}
-                formId="harvestForm"
-                defaultQty={actionDialog.defaultQty ?? undefined}
-                defaultWeight={actionDialog.defaultWeight ?? undefined}
-              />
-            )}
-            {actionDialog.type === 'history' && (
-              <PlantingHistoryDialog
-                plantingId={actionDialog.plantingId}
-                varietyName={
-                  plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.name
-                }
-                cropName={
-                  plantings.find((x) => x.id === actionDialog.plantingId)?.crop_varieties?.crops
-                    ?.name ?? null
-                }
-                status={plantings.find((x) => x.id === actionDialog.plantingId)?.status ?? null}
-              />
-            )}
-            {actionDialog.type === 'remove' && (
-              <RemovePlantingForm
-                plantingId={actionDialog.plantingId}
-                closeDialog={closeActionDialog}
-                formId="removeForm"
-              />
-            )}
-          </FormDialog>
-        )}
-
-        <ConfirmDialog
-          open={deleteId != null}
-          onOpenChange={(open) => {
-            if (!open) setDeleteId(null);
-          }}
-          title="Delete planting?"
-          description="This action cannot be undone."
-          confirmText="Delete"
-          confirmVariant="destructive"
-          confirming={deleting}
-          onConfirm={confirmDelete}
-        />
-
-        {!hasPlantings ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Sprout className="size-10" />
-              </EmptyMedia>
-              <EmptyTitle>No plantings yet</EmptyTitle>
-              <EmptyDescription>Add your first planting to get started.</EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="lg" onClick={() => setIsDialogOpen(true)}>
-                    <Plus className="h-5 w-5 mr-2" />
-                    Add Your First Planting
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="center">
-                  <DropdownMenuItem onClick={openNurserySow}>Nursery sow</DropdownMenuItem>
-                  <DropdownMenuItem onClick={openDirectSeed}>Direct seed</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </EmptyContent>
-          </Empty>
-        ) : (
-          <div className="space-y-6">
-            <div className="flex sm:justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setStatusFilter('active')}
-                aria-label="Reset filter to default view"
-                className="w-full sm:w-auto"
-              >
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Default view
-              </Button>
             </div>
-            {/* Summary Stats */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Card
-                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${statusFilter === 'nursery' ? 'ring-2 ring-inset ring-blue-500' : 'hover:shadow-sm'}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => setStatusFilter('nursery')}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setStatusFilter('nursery');
-                  }
-                }}
-                aria-pressed={statusFilter === 'nursery'}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950">
-                    <Leaf className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.nursery}</p>
-                    <p className="text-sm text-muted-foreground">In Nursery</p>
-                  </div>
-                </div>
-              </Card>
-              <Card
-                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${statusFilter === 'planted' ? 'ring-2 ring-inset ring-green-500' : 'hover:shadow-sm'}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => setStatusFilter('planted')}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setStatusFilter('planted');
-                  }
-                }}
-                aria-pressed={statusFilter === 'planted'}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-green-50 dark:bg-green-950">
-                    <Sprout className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.planted}</p>
-                    <p className="text-sm text-muted-foreground">Planted</p>
-                  </div>
-                </div>
-              </Card>
-              <Card
-                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${statusFilter === 'harvested' ? 'ring-2 ring-inset ring-orange-500' : 'hover:shadow-sm'}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => setStatusFilter('harvested')}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setStatusFilter('harvested');
-                  }
-                }}
-                aria-pressed={statusFilter === 'harvested'}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-950">
-                    <ShoppingBasket className="h-5 w-5 text-orange-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.harvested}</p>
-                    <p className="text-sm text-muted-foreground">Harvested</p>
-                  </div>
-                </div>
-              </Card>
-              <Card
-                className={`p-4 cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${statusFilter === 'all' ? 'ring-2 ring-inset ring-gray-400' : 'hover:shadow-sm'}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => setStatusFilter('all')}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setStatusFilter('all');
-                  }
-                }}
-                aria-pressed={statusFilter === 'all'}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-gray-50 dark:bg-gray-950">
-                    <TrendingUp className="h-5 w-5 text-gray-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.total}</p>
-                    <p className="text-sm text-muted-foreground">All</p>
-                  </div>
-                </div>
-              </Card>
-            </div>
-
-            {/* Mobile List */}
-            <PlantingsMobileList
-              plantings={filteredPlantings}
-              computeProjectedHarvestWindow={computeProjectedHarvestWindow}
-              onOpenActionDialog={setActionDialog}
-              onOpenDelete={openDelete}
-            />
-
-            {/* Plantings Table */}
-            <div className="hidden sm:block border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Variety</TableHead>
-                    <TableHead>Crop</TableHead>
-                    <TableHead>Bed</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead>Planted</TableHead>
-                    <TableHead>Harvest Window</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPlantings.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">
-                        {p.crop_varieties?.name ?? 'N/A'}
-                      </TableCell>
-                      <TableCell>{p.crop_varieties?.crops?.name ?? 'N/A'}</TableCell>
-                      <TableCell>{renderPlantingLocation(p)}</TableCell>
-                      <TableCell>{p.nursery_started_date ? 'Transplant' : 'Direct Seed'}</TableCell>
-                      <TableCell>{renderPlantingQuantity(p)}</TableCell>
-                      <TableCell>{p.planted_date ?? '-'}</TableCell>
-                      <TableCell>
-                        {(() => {
-                          const proj = computeProjectedHarvestWindow(p);
-                          return (
-                            <span className="whitespace-nowrap">
-                              {proj.start && proj.end
-                                ? `${formatDateLocal(proj.start)} – ${formatDateLocal(proj.end)}`
-                                : proj.awaitingTransplant
-                                  ? 'Shown after transplant'
-                                  : 'Projected harvest unavailable'}
-                            </span>
-                          );
-                        })()}
-                      </TableCell>
-                      <TableCell>
-                        {p.status ? (
-                          <StatusBadge status={p.status} />
-                        ) : (
-                          <Badge variant="secondary">Unknown</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <PlantingActionsMenu planting={p} onOpenActionDialog={setActionDialog} />
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setActionDialog({ type: 'history', plantingId: p.id })}
-                          className="mr-2"
-                        >
-                          <History className="h-4 w-4" />
-                        </Button>
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openDelete(p.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        )}
+          )}
+          <Stepper
+            currentStepId={step}
+            steps={stepperItems.map((s) => ({ id: s.id, title: s.label, description: s.label }))}
+            onStepChange={(id) => setStep(id as WizardStep)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Steps above are clickable—tap any label to jump.
+          </p>
+          {renderStepContent()}
+        </div>
       </FlowShell>
 
-      {hasPlantings && isMobile ? (
-        <StickyActionBar align="end" aria-label="Quick add planting" position="fixed">
-          <Button
-            onClick={() => {
-              setCreateMode('nursery');
-              setIsDialogOpen(true);
-            }}
-            className="w-full sm:w-auto"
-          >
-            <Plus className="h-4 w-4 mr-2" aria-hidden />
-            Add Planting
-          </Button>
-        </StickyActionBar>
+      {!locations.length ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Leaf className="size-10" />
+            </EmptyMedia>
+            <EmptyTitle>No locations yet</EmptyTitle>
+            <EmptyDescription>Add a location to start planning plantings.</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button onClick={() => setLocationSheetOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" aria-hidden />
+              Add location
+            </Button>
+          </EmptyContent>
+        </Empty>
       ) : null}
+
+      <StickyActionBar align="end" aria-label="Planting wizard actions" position="fixed">
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-muted-foreground">
+            {isLastStep ? 'Review and create planting' : 'Step through to schedule'}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={goPrev}
+              disabled={step === 'location' || isSubmitting}
+            >
+              Back
+            </Button>
+            {!isLastStep ? (
+              <Button onClick={goNext} disabled={nextDisabled}>
+                Next
+              </Button>
+            ) : (
+              <Button onClick={handleSubmit} disabled={!canSubmit || isSubmitting}>
+                {isSubmitting ? 'Saving…' : 'Create planting'}
+              </Button>
+            )}
+          </div>
+        </div>
+      </StickyActionBar>
+
+      <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm bulk creation</DialogTitle>
+            <DialogDescription>
+              Create {pendingBulk?.bedIds.length ?? 0} plantings for {pendingBulk?.event_date ?? ''}
+              . Review targets before proceeding.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Beds</p>
+            <ul className="grid gap-1 text-sm sm:grid-cols-2">
+              {pendingBulk?.bedIds.map((id) => {
+                const bed = bedLookup.get(id);
+                return (
+                  <li key={id} className="rounded-md border bg-muted/50 p-2">
+                    {bed?.name ?? `Bed #${id}`}
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="text-sm text-muted-foreground">
+              Variety ID: {pendingBulk?.crop_variety_id} · Qty: {pendingBulk?.qty}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (pendingBulk) runBulkCreate(pendingBulk);
+              }}
+              disabled={!pendingBulk || isSubmitting}
+            >
+              {isSubmitting ? 'Creating…' : 'Create plantings'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <InlineCreateSheet
+        open={locationSheetOpen}
+        onOpenChange={setLocationSheetOpen}
+        title="Add location"
+        description="Create a location to hold plots and beds."
+        primaryAction={{ label: 'Save location', formId: 'locationFormWizard' }}
+        secondaryAction={{ label: 'Cancel', onClick: () => setLocationSheetOpen(false) }}
+        side="right"
+      >
+        <LocationForm
+          formId="locationFormWizard"
+          closeDialog={() => setLocationSheetOpen(false)}
+          onCreated={handleLocationCreated}
+        />
+      </InlineCreateSheet>
+
+      <InlineCreateSheet
+        open={plotSheetOpen}
+        onOpenChange={setPlotSheetOpen}
+        title="Add plot"
+        description="Create a plot within a location."
+        primaryAction={{ label: 'Save plot', formId: 'plotFormWizard' }}
+        secondaryAction={{ label: 'Cancel', onClick: () => setPlotSheetOpen(false) }}
+        side="right"
+      >
+        <PlotForm
+          formId="plotFormWizard"
+          closeDialog={() => setPlotSheetOpen(false)}
+          locations={locationRecords}
+          defaultLocationId={locationId ?? undefined}
+          onCreated={handlePlotCreated}
+        />
+      </InlineCreateSheet>
+
+      <InlineCreateSheet
+        open={bedSheetOpen}
+        onOpenChange={setBedSheetOpen}
+        title="Add bed"
+        description="Create a bed inside a plot."
+        primaryAction={{ label: 'Save bed', formId: 'bedFormWizard' }}
+        secondaryAction={{ label: 'Cancel', onClick: () => setBedSheetOpen(false) }}
+        side="right"
+      >
+        <BedForm
+          formId="bedFormWizard"
+          closeDialog={() => setBedSheetOpen(false)}
+          plots={plotRecordsForBedForm}
+          initialPlotId={plotId}
+          onCreated={handleBedCreated}
+        />
+      </InlineCreateSheet>
+
+      <InlineCreateSheet
+        open={nurserySheetOpen}
+        onOpenChange={setNurserySheetOpen}
+        title="Add nursery"
+        description="Create a nursery for sowing."
+        primaryAction={{ label: 'Save nursery', formId: 'nurseryFormWizard' }}
+        secondaryAction={{ label: 'Cancel', onClick: () => setNurserySheetOpen(false) }}
+        side="right"
+      >
+        <form id="nurseryFormWizard" className="space-y-3" action={nurseryCreateAction} noValidate>
+          <div className="space-y-1.5">
+            <Label>Name</Label>
+            <Input name="name" required />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Location</Label>
+            <Select name="location_id" defaultValue={locationId ?? locations[0]?.id ?? ''}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a location" />
+              </SelectTrigger>
+              <SelectContent>
+                {locations.map((loc) => (
+                  <SelectItem key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Notes (optional)</Label>
+            <Textarea name="notes" rows={3} />
+          </div>
+          {nurseryCreateState.errors?.name ? (
+            <p className="text-sm text-destructive">{nurseryCreateState.errors.name[0]}</p>
+          ) : null}
+        </form>
+      </InlineCreateSheet>
+
+      <InlineCreateSheet
+        open={varietySheetOpen}
+        onOpenChange={setVarietySheetOpen}
+        title="Add crop variety"
+        description="Create a new variety and return to the flow."
+        primaryAction={{ label: 'Save variety', formId: 'varietyFormWizard' }}
+        secondaryAction={{ label: 'Cancel', onClick: () => setVarietySheetOpen(false) }}
+        side="right"
+      >
+        <CropVarietyForm
+          formId="varietyFormWizard"
+          closeDialog={() => setVarietySheetOpen(false)}
+          crops={creationContext?.crops ?? []}
+          onCreated={(variety) => {
+            setVarietyId(variety.id);
+            setVarietySheetOpen(false);
+            router.refresh();
+          }}
+        />
+      </InlineCreateSheet>
     </div>
-  );
-}
-
-type QuickNurseryFormProps = {
-  locations: Array<Pick<Tables<'locations'>, 'id' | 'name'>>;
-  onCompleted: () => void;
-  onRequestLocation?: () => void;
-};
-
-function QuickNurseryForm({ locations, onCompleted, onRequestLocation }: QuickNurseryFormProps) {
-  const initial: NurseryFormState = { message: '' };
-  const [state, submitAction] = useActionState<NurseryFormState, FormData>(
-    actionCreateNursery,
-    initial
-  );
-  const [name, setName] = useState('');
-  const [locationId, setLocationId] = useState<string>('');
-  const [notes, setNotes] = useState('');
-
-  useEffect(() => {
-    if (!state?.message) return;
-    if (state.message === 'Nursery created.') {
-      toast.success(state.message);
-      onCompleted();
-    } else {
-      toast.error(state.message);
-    }
-  }, [state, onCompleted]);
-
-  const onSubmit = (evt: React.FormEvent<HTMLFormElement>) => {
-    evt.preventDefault();
-    const fd = new FormData();
-    fd.append('name', name.trim());
-    fd.append('location_id', locationId);
-    if (notes.trim()) fd.append('notes', notes.trim());
-    submitAction(fd);
-  };
-
-  return (
-    <form id="depNurseryForm" onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="wizardNurseryName">Name</Label>
-        <Input
-          id="wizardNurseryName"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          minLength={2}
-          placeholder="Propagation house"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="wizardNurseryLocation">Location</Label>
-        <Select value={locationId} onValueChange={setLocationId}>
-          <SelectTrigger id="wizardNurseryLocation">
-            <SelectValue placeholder="Select a location" />
-          </SelectTrigger>
-          <SelectContent>
-            {locations.map((loc) => (
-              <SelectItem key={loc.id} value={loc.id}>
-                {loc.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="px-0 text-left text-primary"
-          onClick={onRequestLocation}
-        >
-          Need a new location? Create one
-        </Button>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="wizardNurseryNotes">Notes (optional)</Label>
-        <Input
-          id="wizardNurseryNotes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Light, cover, bench details..."
-        />
-      </div>
-    </form>
   );
 }

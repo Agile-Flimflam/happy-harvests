@@ -5,7 +5,7 @@ import { useActionState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { RemoveSchema, type RemoveInput } from '@/lib/validation/plantings/remove';
-import { actionRemove, type PlantingFormState } from '../_actions';
+import { actionRemove, undoRemovePlanting, type PlantingFormState } from '../_actions';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Input } from '@/components/ui/input';
@@ -43,12 +43,30 @@ export default function RemovePlantingForm({ plantingId, closeDialog, formId }: 
     if (!state.message) return;
     if (state.errors && Object.keys(state.errors).length > 0) {
       Object.entries(state.errors).forEach(([field, errors]) => {
-        const msg = Array.isArray(errors) ? errors[0] : (errors as unknown as string) || 'Invalid value';
+        const msg = Array.isArray(errors)
+          ? errors[0]
+          : (errors as unknown as string) || 'Invalid value';
         form.setError(field as keyof RemoveInput, { message: msg });
       });
       toast.error(state.message);
     } else {
-      toast.success(state.message);
+      toast.success(state.message, {
+        action:
+          state.undoId != null
+            ? {
+                label: 'Undo',
+                onClick: () => {
+                  undoRemovePlanting(state.undoId ?? 0).then((res) => {
+                    if (!res.ok) {
+                      toast.error(res.message);
+                      return;
+                    }
+                    toast.success(res.message);
+                  });
+                },
+              }
+            : undefined,
+      });
       closeDialog();
     }
   }, [state, form, closeDialog]);
@@ -91,7 +109,12 @@ export default function RemovePlantingForm({ plantingId, closeDialog, formId }: 
             <FormItem>
               <FormLabel>Reason (optional)</FormLabel>
               <FormControl>
-                <Textarea className="mt-1" rows={3} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value)} />
+                <Textarea
+                  className="mt-1"
+                  rows={3}
+                  value={field.value ?? ''}
+                  onChange={(e) => field.onChange(e.target.value)}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

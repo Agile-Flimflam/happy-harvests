@@ -91,11 +91,7 @@ export async function createPlot(
   };
 
   try {
-    const { data, error } = await supabase
-      .from('plots')
-      .insert(plotData)
-      .select('plot_id, location_id')
-      .single();
+    const { data, error } = await supabase.from('plots').insert(plotData).select('*').single();
     if (error) {
       return { message: dbErrorMessage('createPlot', error) };
     }
@@ -106,7 +102,7 @@ export async function createPlot(
       await rememberLastPlot(data.plot_id);
     }
     revalidatePath('/plots');
-    return { message: 'Plot created successfully.', plot: null, errors: {} };
+    return { message: 'Plot created successfully.', plot: data as Plot, errors: {} };
   } catch (e) {
     return { message: dbErrorMessage('createPlot unexpected', e) };
   }
@@ -234,11 +230,12 @@ export async function getPlotsWithBeds(): Promise<{ plots?: PlotWithBeds[]; erro
 
 type BedInsert = Database['public']['Tables']['beds']['Insert'];
 type BedUpdate = Database['public']['Tables']['beds']['Update'];
+type BedWithLocation = Bed & { plots?: { location_id: string | null } | null };
 
 export type BedFormState = {
   message: string;
   errors?: Record<string, string[] | undefined>;
-  bed?: Bed | null;
+  bed?: BedWithLocation | null;
 };
 
 type BedSizeErrors = {
@@ -286,7 +283,7 @@ export async function createBed(
     const { data, error } = await supabase
       .from('beds')
       .insert(bedData)
-      .select('id, plot_id, length_inches, width_inches')
+      .select('id, name, plot_id, length_inches, width_inches, plots(location_id)')
       .single();
     if (error) {
       if (error.code === '23503') {
@@ -311,7 +308,11 @@ export async function createBed(
       }
     }
     revalidatePath('/plots');
-    return { message: 'Bed created successfully.', bed: null, errors: {} };
+    return {
+      message: 'Bed created successfully.',
+      bed: data as BedWithLocation,
+      errors: {},
+    };
   } catch (e) {
     return { message: dbErrorMessage('createBed unexpected', e) };
   }

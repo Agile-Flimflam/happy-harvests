@@ -36,6 +36,7 @@ interface PlotFormProps {
   closeDialog: () => void;
   formId?: string;
   defaultLocationId?: string | null;
+  onCreated?: (plot: Plot) => void;
 }
 
 // Submit button is owned by parent dialog footer
@@ -46,6 +47,7 @@ export function PlotForm({
   closeDialog,
   formId,
   defaultLocationId,
+  onCreated,
 }: PlotFormProps) {
   const plotId = typeof plot?.plot_id === 'number' ? plot.plot_id : undefined;
   const isEditing = Boolean(plotId);
@@ -90,10 +92,13 @@ export function PlotForm({
         toast.error(state.message);
       } else {
         toast.success(state.message);
+        if (!isEditing && state.plot) {
+          onCreated?.(state.plot);
+        }
         closeDialog();
       }
     }
-  }, [state, closeDialog, form]);
+  }, [state, closeDialog, form, isEditing, onCreated]);
 
   // Ensure form.control exists to satisfy aggressive browser extensions
   useLayoutEffect(() => {

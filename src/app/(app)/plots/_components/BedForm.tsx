@@ -30,17 +30,18 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 
-type Bed = Tables<'beds'>;
+type BedWithLocation = Tables<'beds'> & { plots?: { location_id: string | null } | null };
 type Location = Tables<'locations'>;
 type PlotForSelect = Tables<'plots'> & { locations?: Location | null };
 
 interface BedFormProps {
-  bed?: Bed | null;
+  bed?: BedWithLocation | null;
   plots: PlotForSelect[]; // Need list of plots for the dropdown
   closeDialog: () => void;
   formId?: string;
   initialPlotId?: number | null;
   defaultSize?: { lengthInches?: number; widthInches?: number } | null;
+  onCreated?: (bed: BedWithLocation) => void;
 }
 
 export function BedForm({
@@ -50,6 +51,7 @@ export function BedForm({
   formId,
   initialPlotId,
   defaultSize,
+  onCreated,
 }: BedFormProps) {
   const isEditing = Boolean(bed?.id);
   const action = isEditing ? updateBed : createBed;
@@ -83,10 +85,13 @@ export function BedForm({
         toast.error(state.message);
       } else {
         toast.success(state.message);
+        if (!isEditing && state.bed) {
+          onCreated?.(state.bed);
+        }
         closeDialog();
       }
     }
-  }, [state, closeDialog, form]);
+  }, [state, closeDialog, form, isEditing, onCreated]);
 
   // Ensure plot is preselected when creating from a specific plot
   useEffect(() => {

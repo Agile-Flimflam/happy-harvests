@@ -87,9 +87,7 @@ export function Stepper({
           <li
             key={step.id}
             className={cn(
-              'relative flex min-w-0 flex-1 items-start gap-3 rounded-lg px-3 py-2',
-              isCurrent ? 'bg-muted/50' : 'bg-transparent',
-              step.disabled ? 'opacity-60' : '',
+              'relative min-w-0 flex-1',
               showVertical ? 'border border-transparent' : ''
             )}
           >
@@ -99,61 +97,72 @@ export function Stepper({
                 aria-hidden
               />
             ) : null}
-            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
-              <div
-                className={cn(
-                  'flex h-9 w-9 items-center justify-center rounded-full border transition',
-                  isCurrent
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : isComplete
-                      ? 'border-primary/60 bg-primary/10 text-primary'
-                      : isError
-                        ? 'border-destructive/60 bg-destructive/10 text-destructive'
-                        : 'border-muted-foreground/30 text-muted-foreground'
-                )}
-              >
-                {step.icon ?? statusIconMap[status]}
-              </div>
-              {showVertical && !isLast ? (
-                <div
-                  className="absolute left-1/2 top-11 h-full w-px -translate-x-1/2 bg-border"
-                  aria-hidden
-                />
-              ) : null}
-            </div>
 
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  ref={(node) => {
-                    itemRefs.current[step.id] = node;
-                  }}
-                  type="button"
-                  onClick={() => onStepChange?.(step.id)}
+            <button
+              ref={(node) => {
+                itemRefs.current[step.id] = node;
+              }}
+              type="button"
+              onClick={() => onStepChange?.(step.id)}
+              className={cn(
+                'group relative flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                isCurrent ? 'bg-muted/70 shadow-sm' : 'bg-transparent',
+                step.disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-muted/60'
+              )}
+              aria-current={isCurrent ? 'step' : undefined}
+              aria-disabled={step.disabled}
+              disabled={step.disabled}
+            >
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
+                <div
                   className={cn(
-                    'text-left text-base font-medium leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                    'flex h-9 w-9 items-center justify-center rounded-full border transition',
                     isCurrent
-                      ? 'text-foreground'
+                      ? 'border-primary bg-primary/10 text-primary'
                       : isComplete
-                        ? 'text-foreground'
-                        : 'text-muted-foreground',
-                    step.disabled ? 'pointer-events-none' : ''
+                        ? 'border-primary/60 bg-primary/10 text-primary'
+                        : isError
+                          ? 'border-destructive/60 bg-destructive/10 text-destructive'
+                          : 'border-muted-foreground/30 text-muted-foreground group-hover:border-foreground/50 group-hover:text-foreground'
                   )}
-                  aria-current={isCurrent ? 'step' : undefined}
-                  aria-disabled={step.disabled}
                 >
-                  {step.title}
-                </button>
-                {step.optional ? (
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                    Optional
-                  </span>
+                  {step.icon ?? statusIconMap[status]}
+                </div>
+                {showVertical && !isLast ? (
+                  <div
+                    className="absolute left-1/2 top-11 h-full w-px -translate-x-1/2 bg-border"
+                    aria-hidden
+                  />
                 ) : null}
               </div>
-              {step.description ? (
-                <p className="text-sm text-muted-foreground">{step.description}</p>
-              ) : null}
-            </div>
+
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={cn(
+                      'text-base font-medium leading-none transition',
+                      isCurrent
+                        ? 'text-foreground'
+                        : isComplete
+                          ? 'text-foreground'
+                          : 'text-muted-foreground group-hover:text-foreground'
+                    )}
+                  >
+                    {step.title}
+                  </span>
+                  {step.optional ? (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      Optional
+                    </span>
+                  ) : null}
+                </div>
+                {step.description ? (
+                  <p className="text-sm text-muted-foreground group-hover:text-foreground/80">
+                    {step.description}
+                  </p>
+                ) : null}
+              </div>
+            </button>
           </li>
         );
       })}

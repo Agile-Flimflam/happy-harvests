@@ -82,7 +82,7 @@ export async function createLocation(
       console.error('OpenWeather timezone fetch failed on create:', e);
     }
   }
-  const { data, error } = await supabase.from('locations').insert(payload).select('id').single();
+  const { data, error } = await supabase.from('locations').insert(payload).select('*').single();
   if (error) {
     return { message: `Database Error: ${error.message}` };
   }
@@ -90,7 +90,7 @@ export async function createLocation(
     await rememberLastLocation(data.id);
   }
   revalidatePath('/locations');
-  return { message: 'Location created successfully.', location: null, errors: {} };
+  return { message: 'Location created successfully.', location: data as Location, errors: {} };
 }
 
 export async function updateLocation(

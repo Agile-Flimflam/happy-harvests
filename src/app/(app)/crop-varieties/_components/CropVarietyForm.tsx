@@ -61,6 +61,9 @@ interface CropVarietyFormProps {
   crops?: Crop[];
   closeDialog: () => void;
   formId?: string;
+  defaultCropId?: number | null;
+  defaultIsOrganic?: boolean;
+  onCreated?: (variety: CropVariety) => void;
 }
 
 /**
@@ -144,6 +147,9 @@ export function CropVarietyForm({
   crops = [],
   closeDialog,
   formId,
+  defaultCropId = null,
+  defaultIsOrganic = false,
+  onCreated,
 }: CropVarietyFormProps) {
   const isEditing = Boolean(cropVariety?.id);
   // Update action functions
@@ -189,10 +195,10 @@ export function CropVarietyForm({
 
   const defaultValues: Partial<CropVarietyFormValues> = {
     id: cropVariety?.id,
-    crop_id: cropVariety?.crop_id ?? undefined,
+    crop_id: cropVariety?.crop_id ?? defaultCropId ?? undefined,
     name: cropVariety?.name ?? '',
     latin_name: cropVariety?.latin_name ?? '',
-    is_organic: cropVariety?.is_organic ?? false,
+    is_organic: cropVariety?.is_organic ?? defaultIsOrganic ?? false,
     notes: cropVariety?.notes ?? '',
     dtm_direct_seed_min: cropVariety?.dtm_direct_seed_min ?? undefined,
     dtm_direct_seed_max: cropVariety?.dtm_direct_seed_max ?? undefined,
@@ -249,10 +255,13 @@ export function CropVarietyForm({
       } else {
         // Success toast
         toast.success(state.message);
+        if (!isEditing && state.cropVariety && onCreated) {
+          onCreated(state.cropVariety);
+        }
         closeDialog(); // Close dialog on success
       }
     }
-  }, [state, closeDialog, form]);
+  }, [state, closeDialog, form, isEditing, onCreated]);
 
   useEffect(() => {
     setCropsLocal(crops ?? []);

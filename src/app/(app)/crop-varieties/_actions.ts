@@ -5,6 +5,14 @@ import type { Database } from '@/lib/database.types';
 // Refactored to new schema: remove DaysToMaturity JSON
 import { revalidatePath } from 'next/cache';
 import { CropVarietySchema, SimpleCropSchema } from '@/lib/validation/crop-varieties';
+import {
+  getCropVarietyPrefs,
+  pushRecentCrop,
+  rememberVarietyDefaults,
+  toggleFavoriteCropPref,
+  type CropVarietyDefaults,
+  type CropVarietyPrefs,
+} from '@/lib/crop-variety-prefs';
 
 // Schema now centralized in src/lib/validation/crop-varieties
 
@@ -20,6 +28,12 @@ export type CropVarietyFormState = {
 };
 
 // No JSON helper needed in new schema
+
+const DUPLICATE_MESSAGE = 'A variety with this crop and name already exists.';
+const DUPLICATE_LATIN_MESSAGE = 'A variety with this crop and Latin name already exists.';
+const DUPLICATE_CROP_MESSAGE = 'A crop with this name already exists.';
+
+const normalizeText = (value: string) => value.trim().toLocaleLowerCase();
 
 const STORAGE_BUCKET = 'crop_variety_images';
 function getPublicImageUrl(
@@ -58,6 +72,81 @@ function isFileLike(value: unknown): value is File {
   return typeof File !== 'undefined' && value instanceof File;
 }
 
+async function assertUniqueCrop(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  name: string
+): Promise<{ ok: true } | { ok: false; message: string; errors: Record<string, string[]> }> {
+  const normalizedName = normalizeText(name);
+  const { data, error } = await supabase
+    .from('crops')
+    .select('id, name')
+    .ilike('name', normalizedName);
+  if (error) {
+    return {
+      ok: false,
+      message: `Database Error: ${error.message}`,
+      errors: { name: [`${error.message}`] },
+    };
+  }
+  if (data && data.length > 0) {
+    return {
+      ok: false,
+      message: DUPLICATE_CROP_MESSAGE,
+      errors: { name: [DUPLICATE_CROP_MESSAGE] },
+    };
+  }
+  return { ok: true };
+}
+
+async function assertUniqueVariety(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  payload: { cropId: number; name: string; latinName: string; excludeId?: number }
+): Promise<{ ok: true } | { ok: false; message: string; errors: Record<string, string[]> }> {
+  const { cropId, name, latinName, excludeId } = payload;
+  const normalizedName = normalizeText(name);
+  const normalizedLatin = normalizeText(latinName);
+  const query = supabase
+    .from('crop_varieties')
+    .select('id, name, latin_name')
+    .eq('crop_id', cropId)
+    .or(`name.ilike.${normalizedName},latin_name.ilike.${normalizedLatin}`);
+  const { data, error } = await query;
+  if (error) {
+    return {
+      ok: false,
+      message: `Database Error: ${error.message}`,
+      errors: { name: [error.message] },
+    };
+  }
+  const duplicates = (data ?? []).filter((row) => row.id !== excludeId);
+  if (duplicates.length > 0) {
+    const errors: Record<string, string[]> = {
+      name: [DUPLICATE_MESSAGE],
+    };
+    if (
+      duplicates.some((row) => normalizeText(row.latin_name ?? '') === normalizeText(latinName))
+    ) {
+      errors.latin_name = [DUPLICATE_LATIN_MESSAGE];
+    }
+    return {
+      ok: false,
+      message: DUPLICATE_MESSAGE,
+      errors,
+    };
+  }
+  return { ok: true };
+}
+
+async function rememberVarietyPrefsAfterSave(
+  cropId: number,
+  defaults?: CropVarietyDefaults
+): Promise<void> {
+  await pushRecentCrop(cropId, defaults);
+  if (defaults) {
+    await rememberVarietyDefaults(defaults);
+  }
+}
+
 export async function createCropVariety(
   prevState: CropVarietyFormState,
   formData: FormData
@@ -84,6 +173,14 @@ export async function createCropVariety(
       message: 'Validation failed. Could not create crop variety.',
       errors: validatedFields.error.flatten().fieldErrors,
     };
+  }
+  const duplicateCheck = await assertUniqueVariety(supabase, {
+    cropId: validatedFields.data.crop_id,
+    name: validatedFields.data.name,
+    latinName: validatedFields.data.latin_name,
+  });
+  if (!duplicateCheck.ok) {
+    return { message: duplicateCheck.message, errors: duplicateCheck.errors };
   }
   const cropVarietyData: CropVarietyInsert = {
     crop_id: validatedFields.data.crop_id,
@@ -158,6 +255,10 @@ export async function createCropVariety(
     }
 
     revalidatePath('/crop-varieties');
+    await rememberVarietyPrefsAfterSave(validatedFields.data.crop_id, {
+      cropId: validatedFields.data.crop_id,
+      isOrganic: validatedFields.data.is_organic,
+    });
     const imageUrl = getPublicImageUrl(supabase, imagePath);
     return {
       message: 'Crop variety created successfully.',
@@ -222,6 +323,19 @@ export async function updateCropVariety(
     };
   }
   const v = validatedFields.data;
+  const duplicateCheck = await assertUniqueVariety(supabase, {
+    cropId: v.crop_id,
+    name: v.name,
+    latinName: v.latin_name,
+    excludeId: id,
+  });
+  if (!duplicateCheck.ok) {
+    return {
+      message: duplicateCheck.message,
+      errors: duplicateCheck.errors,
+      cropVariety: prevState.cropVariety,
+    };
+  }
   const cropVarietyDataToUpdate: CropVarietyUpdate = {
     crop_id: v.crop_id,
     name: v.name,
@@ -315,6 +429,7 @@ export async function updateCropVariety(
     }
     const imageUrl = getPublicImageUrl(supabase, imagePath ?? updatedRow.image_path ?? null);
     revalidatePath('/crop-varieties');
+    await rememberVarietyPrefsAfterSave(v.crop_id, { cropId: v.crop_id, isOrganic: v.is_organic });
     return {
       message: 'Crop variety updated successfully.',
       cropVariety: { ...updatedRow, image_url: imageUrl },
@@ -401,6 +516,10 @@ export async function createCropSimple(
       errors: validated.error.flatten().fieldErrors,
     };
   }
+  const duplicateCheck = await assertUniqueCrop(supabase, validated.data.name);
+  if (!duplicateCheck.ok) {
+    return { message: duplicateCheck.message, errors: duplicateCheck.errors };
+  }
   const insertData: CropInsert = {
     name: validated.data.name,
     crop_type: validated.data.crop_type,
@@ -412,6 +531,7 @@ export async function createCropSimple(
   }
   // Invalidate cached crop lists so dropdowns render the new crop without a manual refresh.
   revalidatePath('/crop-varieties');
+  await rememberVarietyPrefsAfterSave(data.id ?? 0);
   return { message: 'Crop created successfully.', crop: data, errors: {} };
 }
 
@@ -450,4 +570,42 @@ export async function getCropVarieties(): Promise<{
       error: 'An unexpected error occurred while fetching crop varieties.',
     };
   }
+}
+
+export type CropWithMinimalFields = Pick<Crop, 'id' | 'name' | 'crop_type' | 'created_at'>;
+
+export type CropVarietyContext = {
+  cropVarieties: CropVarietyWithCropName[];
+  crops: CropWithMinimalFields[];
+  prefs: CropVarietyPrefs | null;
+  error?: string;
+};
+
+export async function getCropVarietyContext(): Promise<CropVarietyContext> {
+  const supabase = await createSupabaseServerClient();
+  const [{ cropVarieties, error }, { data: crops, error: cropError }, prefs] = await Promise.all([
+    getCropVarieties(),
+    supabase
+      .from('crops')
+      .select('id, name, crop_type, created_at')
+      .order('name', { ascending: true })
+      .returns<CropWithMinimalFields[]>(),
+    getCropVarietyPrefs(),
+  ]);
+
+  return {
+    cropVarieties,
+    crops: crops ?? [],
+    prefs: prefs ?? null,
+    error: error ?? cropError?.message,
+  };
+}
+
+export async function toggleFavoriteCrop(cropId: number): Promise<CropVarietyPrefs | null> {
+  const result = await toggleFavoriteCropPref(cropId);
+  if (!result.ok) {
+    console.error('Failed to toggle favorite crop', result.error);
+    return null;
+  }
+  return result.prefs;
 }

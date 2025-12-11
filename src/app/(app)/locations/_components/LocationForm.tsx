@@ -40,6 +40,7 @@ interface LocationFormProps {
   location?: Location | null;
   closeDialog: () => void;
   formId?: string;
+  onCreated?: (location: Location) => void;
 }
 
 const usStates = new UsaStates();
@@ -64,7 +65,7 @@ const VALID_LOCATION_FIELDS: Array<keyof LocationFormValues> = [
 // The staggered retry pattern keeps the property available even when React or the browser schedules rendering work asynchronously.
 const FORM_CONTROL_SETUP_DELAYS = [0, 10, 50] as const;
 
-export function LocationForm({ location, closeDialog, formId }: LocationFormProps) {
+export function LocationForm({ location, closeDialog, formId, onCreated }: LocationFormProps) {
   const isEditing = Boolean(location?.id);
   const action = isEditing ? updateLocation : createLocation;
   const initialState: LocationFormState = { message: '', errors: {}, location };
@@ -172,10 +173,13 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
         toast.error(state.message);
       } else {
         toast.success(state.message);
+        if (!isEditing && state.location) {
+          onCreated?.(state.location);
+        }
         closeDialog();
       }
     }
-  }, [state, closeDialog, form]);
+  }, [state, closeDialog, form, isEditing, onCreated]);
 
   // Watch form values for address preview and clear functionality
   const street = form.watch('street');
