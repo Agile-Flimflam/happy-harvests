@@ -1,4 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import {
+  type GenerateContentResponse,
+  type GenerativeModel,
+  type Part,
+  VertexAI,
+} from '@google-cloud/vertexai';
 import * as github from '@actions/github';
 import { Octokit } from '@octokit/rest';
 import * as fs from 'node:fs';
@@ -78,15 +83,57 @@ export function ensureCombinedPromptLength(
   }
 }
 
-/**
- * Initialize Gemini API client
- */
-export function initGeminiClient(): GoogleGenerativeAI {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey.trim() === '') {
-    throw new Error('GEMINI_API_KEY is required');
+function requireEnv(name: 'GCP_PROJECT_ID' | 'GCP_LOCATION'): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} is required for Vertex AI authentication`);
   }
-  return new GoogleGenerativeAI(apiKey.trim());
+  return value;
+}
+
+export interface VertexModelContext {
+  model: GenerativeModel;
+  projectId: string;
+  location: string;
+}
+
+export function initVertexModel(modelName: string): VertexModelContext {
+  const projectId = requireEnv('GCP_PROJECT_ID');
+  const location = requireEnv('GCP_LOCATION');
+  const vertexAi = new VertexAI({ project: projectId, location });
+
+  return {
+    model: vertexAi.getGenerativeModel({ model: modelName }),
+    projectId,
+    location,
+  };
+}
+
+function isTextPart(part: Part): part is Part & { text: string } {
+  return typeof (part as { text?: unknown }).text === 'string';
+}
+
+export function extractTextFromResponse(response: GenerateContentResponse): string {
+  const text = (response.candidates ?? [])
+    .flatMap((candidate) => candidate.content?.parts ?? [])
+    .filter(isTextPart)
+    .map((part) => part.text)
+    .join('')
+    .trim();
+
+  if (!text) {
+    throw new Error('Vertex AI response did not include text content');
+  }
+
+  return text;
+}
+
+export function getServiceAccountEmail(): string | null {
+  const email = process.env.GCP_SA_EMAIL?.trim();
+  if (!email || !email.includes('@')) {
+    return null;
+  }
+  return email;
 }
 
 /**

@@ -1,7 +1,8 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as core from '@actions/core';
 import {
-  initGeminiClient,
+  extractTextFromResponse,
+  getServiceAccountEmail,
+  initVertexModel,
   initGitHubClient,
   getPRContext,
   getChangedCodeFiles,
@@ -9,6 +10,7 @@ import {
   prepareForPrompt,
 } from './utils';
 import { z } from 'zod';
+import type { GenerativeModel } from '@google-cloud/vertexai';
 
 const REVIEW_FOCUS_OPTIONS = ['critical-only', 'high-only', 'all'] as const;
 type ReviewFocus = (typeof REVIEW_FOCUS_OPTIONS)[number];
@@ -108,12 +110,10 @@ function escapeBoundary(value: string, boundary: string): string {
 }
 
 async function reviewCodeWithGemini(
-  gemini: GoogleGenerativeAI,
+  model: GenerativeModel,
   filePath: string,
   fileContent: string
 ): Promise<ReviewResult> {
-  const model = gemini.getGenerativeModel({ model: 'gemini-3-pro-preview' });
-
   const safeFilePath: string = escapeBoundary(prepareForPrompt(filePath), FILE_CONTENT_BOUNDARY);
   const safeFileContent: string = escapeBoundary(
     prepareForPrompt(fileContent),
@@ -149,9 +149,15 @@ ${FILE_CONTENT_BOUNDARY}
 Respond with valid JSON only (optionally wrapped in a \`\`\`json\`\`\` fence), with no extra commentary.`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    const text = response.text();
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: prompt }],
+        },
+      ],
+    });
+    const text = extractTextFromResponse(result.response);
 
     // Clean up the response - remove a single outer markdown code block wrapper if present.
     // Uses exact backticks (no zero-width characters) and guards against mismatched fences.
@@ -259,7 +265,12 @@ async function run(): Promise<void> {
   try {
     core.info('Starting Gemini code review...');
 
-    const gemini = initGeminiClient();
+    const { model, projectId, location } = initVertexModel('gemini-3-pro-preview');
+    const serviceAccount = getServiceAccountEmail();
+    core.info(
+      `Using Vertex AI model gemini-3-pro-preview in project ${projectId} (${location})` +
+        (serviceAccount ? ` via ${serviceAccount}` : '')
+    );
     const octokit = initGitHubClient();
     const prContext = getPRContext();
 
@@ -299,7 +310,7 @@ async function run(): Promise<void> {
         continue;
       }
 
-      const reviewResult = await reviewCodeWithGemini(gemini, file.filename, content);
+      const reviewResult = await reviewCodeWithGemini(model, file.filename, content);
 
       if (!reviewResult.success) {
         core.warning(

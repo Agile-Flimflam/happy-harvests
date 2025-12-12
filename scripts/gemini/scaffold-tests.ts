@@ -1,8 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as core from '@actions/core';
 import * as github from '@actions/github';
 import {
-  initGeminiClient,
+  extractTextFromResponse,
+  getServiceAccountEmail,
+  initVertexModel,
   initGitHubClient,
   getPRContext,
   getChangedCodeFiles,
@@ -15,6 +16,7 @@ import {
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import type { GenerativeModel } from '@google-cloud/vertexai';
 
 const SAFE_PATH = '/usr/bin:/bin';
 const ALLOWED_GIT_DIRS: string[] = ['/usr/bin', '/bin'];
@@ -287,12 +289,10 @@ interface TestScaffold {
 }
 
 async function generateTestScaffold(
-  gemini: GoogleGenerativeAI,
+  model: GenerativeModel,
   sourceFilePath: string,
   sourceCode: string
 ): Promise<string> {
-  const model = gemini.getGenerativeModel({ model: 'gemini-3-pro-preview' });
-
   // Ensure the path cannot break prompt structure by stripping newlines after prepareForPrompt.
   const safeSourceFilePath: string = prepareForPrompt(sourceFilePath).replace(/\r?\n/g, ' ');
   // Escape any embedded fences in user-controlled source to avoid breaking the prompt envelope.
@@ -375,9 +375,15 @@ ${CODE_FENCE}
 Generate the complete, runnable TypeScript test file code. You may respond either with raw TypeScript test code or with a single fenced ${CODE_FENCE_TS} code block, but do not include any non-code commentary or explanations.`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    const rawText: string = response.text();
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: prompt }],
+        },
+      ],
+    });
+    const rawText: string = extractTextFromResponse(result.response);
 
     // First, attempt to strip an outer fence on the raw response (handles zero-width prefixed fences).
     const withoutOuterFence: string = stripSingleOuterFence(rawText);
@@ -481,7 +487,7 @@ async function identifyFilesNeedingTests(
 }
 
 async function generateScaffolds(
-  gemini: GoogleGenerativeAI,
+  model: GenerativeModel,
   octokit: ReturnType<typeof initGitHubClient>,
   prContext: { owner: string; repo: string; headSha: string },
   filesNeedingTests: Array<{ sourcePath: string; testPath: string }>
@@ -505,7 +511,7 @@ async function generateScaffolds(
     }
 
     try {
-      const testCode = await generateTestScaffold(gemini, sourcePath, sourceCode);
+      const testCode = await generateTestScaffold(model, sourcePath, sourceCode);
       scaffolds.push({
         filePath: testPath,
         testCode,
@@ -892,7 +898,12 @@ async function run() {
   try {
     core.info('Starting test scaffolding...');
 
-    const gemini = initGeminiClient();
+    const { model, projectId, location } = initVertexModel('gemini-3-pro-preview');
+    const serviceAccount = getServiceAccountEmail();
+    core.info(
+      `Using Vertex AI model gemini-3-pro-preview in project ${projectId} (${location})` +
+        (serviceAccount ? ` via ${serviceAccount}` : '')
+    );
     const octokit = initGitHubClient();
     const prContext = await resolvePRContext(octokit);
 
@@ -905,7 +916,7 @@ async function run() {
     } else {
       core.info(`Generating test scaffolds for ${filesNeedingTests.length} files`);
 
-      const scaffolds = await generateScaffolds(gemini, octokit, prContext, filesNeedingTests);
+      const scaffolds = await generateScaffolds(model, octokit, prContext, filesNeedingTests);
 
       if (scaffolds.length === 0) {
         core.info('No test scaffolds generated.');

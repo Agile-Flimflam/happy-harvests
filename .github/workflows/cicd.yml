@@ -21,6 +21,40 @@ env:
   PNPM_VERSION: 9.15.0
 
 jobs:
+  vertex-ai-smoke:
+    name: Vertex AI Smoke Check
+    runs-on: ubuntu-latest
+    # Run on pushes and on trusted PRs only (forks do not have access to GCP secrets).
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo != null && github.event.pull_request.head.repo.fork != true)
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_LOCATION: ${{ secrets.GCP_LOCATION }}
+      GCP_SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Authenticate to Google Cloud (Vertex AI)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/784492879380/locations/global/workloadIdentityPools/github-pool-v2/providers/github-provider-cicd
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+          token_format: access_token
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          pnpm-version: ${{ env.PNPM_VERSION }}
+
+      - name: Verify Vertex AI authentication
+        run: pnpm exec tsx scripts/gemini/vertex-smoke.ts
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
