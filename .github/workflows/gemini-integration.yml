@@ -45,8 +45,10 @@ jobs:
       github.event.pull_request.head.repo.fork != true
     env:
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GCP_LOCATION: ${{ secrets.GCP_LOCATION }}
+      # Gemini publisher models (e.g., gemini-3-pro-preview) are served from the global location.
+      GCP_LOCATION: ${{ secrets.GCP_LOCATION || 'global' }}
       GCP_SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
+      GEMINI_MODEL: gemini-3-pro-preview
     steps:
       # Safe: this job only runs on non-fork pull requests (see job-level "if" condition),
       # so we never execute code from untrusted forks.

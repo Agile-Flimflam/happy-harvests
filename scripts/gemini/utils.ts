@@ -83,7 +83,7 @@ export function ensureCombinedPromptLength(
   }
 }
 
-function requireEnv(name: 'GCP_PROJECT_ID' | 'GCP_LOCATION'): string {
+function requireEnv(name: 'GCP_PROJECT_ID'): string {
   const value = process.env[name]?.trim();
   if (!value) {
     throw new Error(`${name} is required for Vertex AI authentication`);
@@ -91,21 +91,37 @@ function requireEnv(name: 'GCP_PROJECT_ID' | 'GCP_LOCATION'): string {
   return value;
 }
 
+function resolveLocation(): string {
+  const location = process.env.GCP_LOCATION?.trim();
+  // Publisher models (e.g., gemini-3-pro-preview) are served from the global location.
+  if (!location) return 'global';
+  return location;
+}
+
+function resolveModelId(): string {
+  const model = process.env.GEMINI_MODEL?.trim();
+  if (model) return model;
+  return 'gemini-3-pro-preview';
+}
+
 export interface VertexModelContext {
   model: GenerativeModel;
   projectId: string;
   location: string;
+  modelId: string;
 }
 
-export function initVertexModel(modelName: string): VertexModelContext {
+export function initVertexModel(modelName?: string): VertexModelContext {
   const projectId = requireEnv('GCP_PROJECT_ID');
-  const location = requireEnv('GCP_LOCATION');
+  const location = resolveLocation();
+  const modelId = modelName?.trim() || resolveModelId();
   const vertexAi = new VertexAI({ project: projectId, location });
 
   return {
-    model: vertexAi.getGenerativeModel({ model: modelName }),
+    model: vertexAi.getGenerativeModel({ model: modelId }),
     projectId,
     location,
+    modelId,
   };
 }
 

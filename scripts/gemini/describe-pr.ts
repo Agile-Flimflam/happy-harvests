@@ -187,10 +187,10 @@ async function run(): Promise<void> {
   try {
     core.info('Starting PR description generation...');
 
-    const { model, projectId, location } = initVertexModel('gemini-3-pro-preview');
+    const { model, projectId, location, modelId } = initVertexModel('gemini-3-pro-preview');
     const serviceAccount = getServiceAccountEmail();
     core.info(
-      `Using Vertex AI model gemini-3-pro-preview in project ${projectId} (${location})` +
+      `Using Vertex AI model ${modelId} in project ${projectId} (${location})` +
         (serviceAccount ? ` via ${serviceAccount}` : '')
     );
     const octokit = initGitHubClient();

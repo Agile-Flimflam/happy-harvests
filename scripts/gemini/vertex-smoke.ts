@@ -3,11 +3,11 @@ import { initVertexModel, getServiceAccountEmail } from './utils';
 
 async function main(): Promise<void> {
   try {
-    const { model, projectId, location } = initVertexModel('gemini-3-pro-preview');
+    const { model, projectId, location, modelId } = initVertexModel('gemini-3-pro-preview');
     const serviceAccount = getServiceAccountEmail();
 
     core.info(
-      `Running Vertex AI smoke test for project ${projectId} (${location})` +
+      `Running Vertex AI smoke test for project ${projectId} (${location}) using ${modelId}` +
         (serviceAccount ? ` via ${serviceAccount}` : '')
     );
 
