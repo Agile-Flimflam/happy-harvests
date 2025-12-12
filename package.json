@@ -21,7 +21,8 @@
     "analyze": "ANALYZE=true next build",
     "gemini:review": "tsx --env-file=.env.local scripts/gemini/review.ts",
     "gemini:describe": "tsx --env-file=.env.local scripts/gemini/describe-pr.ts",
-    "gemini:scaffold": "tsx --env-file=.env.local scripts/gemini/scaffold-tests.ts"
+    "gemini:scaffold": "tsx --env-file=.env.local scripts/gemini/scaffold-tests.ts",
+    "gemini:verify": "tsx --env-file=.env.local scripts/gemini/vertex-smoke.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -52,6 +53,7 @@
     "mapbox-gl": "^3.17.0",
     "next": "15.4.8",
     "next-themes": "^0.4.6",
+    "posthog-js": "^1.304.0",
     "react": "^19.2.1",
     "react-day-picker": "^9.11.3",
     "react-dom": "^19.2.1",
@@ -68,7 +70,7 @@
     "@actions/core": "^1.11.1",
     "@actions/github": "^6.0.1",
     "@eslint/eslintrc": "^3.3.3",
-    "@google/generative-ai": "^0.24.1",
+    "@google-cloud/vertexai": "^1.10.0",
     "@next/bundle-analyzer": "15.4.8",
     "@octokit/rest": "^22.0.1",
     "@playwright/test": "^1.57.0",
@@ -134,6 +136,9 @@
       "sharp",
       "supabase",
       "unrs-resolver"
+    ],
+    "ignoredBuiltDependencies": [
+      "core-js"
     ]
   }
 }

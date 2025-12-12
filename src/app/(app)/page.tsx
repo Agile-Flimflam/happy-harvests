@@ -1,12 +1,30 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { Leaf, Sprout, Tractor } from 'lucide-react';
 import CalendarHeaderWeather from './calendar/CalendarHeaderWeather';
-import { getDashboardOverview } from './actions';
+import { getDashboardOverview, getQuickActionContext } from './actions';
 import { sanitizeErrorMessage } from '@/lib/sanitize';
+import { QuickActionsHub } from '@/components/ui/quick-actions-hub';
+import { fetchWeatherByCoords } from '@/lib/openweather';
+import type { WeatherSnapshot } from './locations/actions';
 
 export default async function DashboardPage() {
+  const [overviewResult, quickActionsResult] = await Promise.all([
+    getDashboardOverview(),
+    getQuickActionContext(),
+  ]);
+
+  if (!overviewResult.ok) {
+    const safeMessage = sanitizeErrorMessage(overviewResult.message);
+    return (
+      <div>
+        <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+        <p className="text-sm text-red-500">{safeMessage}</p>
+      </div>
+    );
+  }
+
+  const overview = overviewResult.data;
   const {
     cropVarietyCount,
     plotCount,
@@ -15,21 +33,33 @@ export default async function DashboardPage() {
     cropVarietyError,
     plotError,
     plantingError,
-  } = await getDashboardOverview();
+  } = overview;
+  let primaryWeather: WeatherSnapshot | null = null;
+  if (primaryLocation?.latitude != null && primaryLocation.longitude != null) {
+    try {
+      primaryWeather = await fetchWeatherByCoords(
+        primaryLocation.latitude,
+        primaryLocation.longitude,
+        {
+          units: 'imperial',
+        }
+      );
+    } catch (error) {
+      console.error('[Dashboard] Failed to fetch weather for primary location', { error });
+      primaryWeather = null;
+    }
+  }
   const safeCropVarietyError = cropVarietyError ? sanitizeErrorMessage(cropVarietyError) : null;
   const safePlotError = plotError ? sanitizeErrorMessage(plotError) : null;
   const safePlantingError = plantingError ? sanitizeErrorMessage(plantingError) : null;
+  const quickContext = quickActionsResult.ok ? quickActionsResult.data : null;
 
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
       {primaryLocation ? (
         <div className="mb-4">
-          <CalendarHeaderWeather
-            id={primaryLocation.id}
-            latitude={primaryLocation.latitude}
-            longitude={primaryLocation.longitude}
-          />
+          <CalendarHeaderWeather weather={primaryWeather} />
         </div>
       ) : null}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -71,21 +101,11 @@ export default async function DashboardPage() {
             </CardContent>
           </Link>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild>
-                <Link href="/activities/new">Track an Activity</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/activities">View Activities</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {quickContext ? (
+          <div className="lg:col-span-2 xl:col-span-3">
+            <QuickActionsHub context={quickContext} />
+          </div>
+        ) : null}
       </div>
     </div>
   );

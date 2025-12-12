@@ -15,6 +15,14 @@ This is a Next.js application for managing garden plots, beds, plants, and crops
 - **Hooks:** Husky (pre-commit)
 - **Package Manager:** pnpm
 
+## Quality gates (CI)
+
+- `pnpm lint`
+- `pnpm type-check`
+- `pnpm test`
+
+CI runs these checks on every PR and blocks merges on failure.
+
 ## Local Development Setup
 
 1.  **Clone the repository:**
@@ -180,14 +188,16 @@ This project includes helper scripts that use Google's Gemini API for code revie
 - `pnpm gemini:describe` – generates a PR description based on code changes
 - `pnpm gemini:scaffold` – generates Jest test scaffolding for new TypeScript/TSX files
 
-These commands require the following environment variables to be set (locally or in CI):
+These commands now use Vertex AI with workload identity (no API keys). Set the following environment variables locally or in CI:
 
 ```bash
-export GEMINI_API_KEY="your-gemini-api-key"
+export GCP_PROJECT_ID="your-gcp-project-id"
+export GCP_LOCATION="your-vertex-location" # e.g., us-central1
+export GCP_SA_EMAIL="workload-identity-sa@your-project.iam.gserviceaccount.com"
 export GITHUB_TOKEN="your-github-token"
 ```
 
-If either variable is missing or empty, the Gemini scripts will fail with a clear error message.
+If required values are missing, the Gemini scripts will fail with a clear error message. In GitHub Actions, authentication is handled via workload identity federation (`google-github-actions/auth@v2`); the scripts rely on Application Default Credentials produced by that step.
 
 ## Row Level Security (RLS)
 

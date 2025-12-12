@@ -2,8 +2,6 @@
 
 import { useActionState, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import PageHeader from '@/components/page-header';
-import PageContent from '@/components/page-content';
 import {
   Table,
   TableBody,
@@ -12,7 +10,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import FormDialog from '@/components/dialogs/FormDialog';
 import { upsertSeed, deleteSeed, type SeedFormState } from '../_actions';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,6 +31,10 @@ import {
 } from '@/components/ui/empty';
 import { Bean, Plus } from 'lucide-react';
 import { setupFormControlProperty } from '@/lib/form-utils';
+import { FlowShell } from '@/components/ui/flow-shell';
+import { InlineCreateSheet } from '@/components/ui/inline-create-sheet';
+import { StickyActionBar } from '@/components/ui/sticky-action-bar';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 type Variety = { id: number; name: string; latin_name: string; crops?: { name: string } | null };
 type Seed = Tables<'seeds'>;
@@ -55,6 +56,7 @@ export function SeedsPageContent({ seeds, varieties }: { seeds: Seed[]; varietie
     setOpen(true);
   };
   const hasSeeds = seeds.length > 0;
+  const isMobile = useIsMobile();
 
   // Avoid browser extension crashes by ensuring form.control exists
   useLayoutEffect(() => {
@@ -72,17 +74,18 @@ export function SeedsPageContent({ seeds, varieties }: { seeds: Seed[]; varietie
 
   return (
     <div>
-      <PageHeader
+      <FlowShell
         title="Seeds"
-        action={
-          hasSeeds ? (
+        description="Track purchased or acquired seeds with vendors and LOT details."
+        icon={<Bean className="h-5 w-5" aria-hidden />}
+        actions={
+          hasSeeds && !isMobile ? (
             <Button size="sm" onClick={startCreate}>
               Add Seed
             </Button>
           ) : undefined
         }
-      />
-      <PageContent>
+      >
         {!hasSeeds ? (
           <Empty>
             <EmptyHeader>
@@ -149,15 +152,17 @@ export function SeedsPageContent({ seeds, varieties }: { seeds: Seed[]; varietie
             </Table>
           </div>
         )}
-      </PageContent>
+      </FlowShell>
 
-      <FormDialog
+      <InlineCreateSheet
         open={open}
         onOpenChange={setOpen}
         title={editing ? 'Edit Seed' : 'Add Seed'}
         description="Log seeds purchased or acquired"
-        submitLabel="Save"
-        formId="seedForm"
+        primaryAction={{ label: 'Save', formId: 'seedForm' }}
+        secondaryAction={{ label: 'Cancel', onClick: () => setOpen(false) }}
+        footerContent="Sheets respect mobile safe areas for actions."
+        side="bottom"
       >
         <form id="seedForm" ref={formRef} action={formAction} className="space-y-3">
           {editing ? <input type="hidden" name="id" value={editing.id} /> : null}
@@ -243,7 +248,16 @@ export function SeedsPageContent({ seeds, varieties }: { seeds: Seed[]; varietie
             <div className="text-sm text-muted-foreground">{state.message}</div>
           ) : null}
         </form>
-      </FormDialog>
+      </InlineCreateSheet>
+
+      {hasSeeds && isMobile ? (
+        <StickyActionBar align="end" aria-label="Quick add seed" position="fixed">
+          <Button onClick={startCreate} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4 mr-2" aria-hidden />
+            Add Seed
+          </Button>
+        </StickyActionBar>
+      ) : null}
     </div>
   );
 }

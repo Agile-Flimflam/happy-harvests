@@ -4,13 +4,19 @@ import { useEffect, startTransition } from 'react';
 import { useActionState } from 'react';
 import { createBed, updateBed, type BedFormState } from '../_actions';
 import type { Tables } from '@/lib/supabase-server';
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Select for plot_id
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'; // Select for plot_id
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatSquareFeet, formatAcres, squareFeetToAcres } from '@/lib/utils';
 // Notes removed in new schema; Textarea not needed
-import { toast } from "sonner";
+import { toast } from 'sonner';
 // (Dialog footer handled by parent FormDialog)
 import { useForm, type Resolver, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,20 +30,33 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 
-type Bed = Tables<'beds'>;
+type BedWithLocation = Tables<'beds'> & { plots?: { location_id: string | null } | null };
 type Location = Tables<'locations'>;
 type PlotForSelect = Tables<'plots'> & { locations?: Location | null };
 
 interface BedFormProps {
-  bed?: Bed | null;
+  bed?: BedWithLocation | null;
   plots: PlotForSelect[]; // Need list of plots for the dropdown
   closeDialog: () => void;
   formId?: string;
   initialPlotId?: number | null;
+  defaultSize?: { lengthInches?: number; widthInches?: number } | null;
+  onCreated?: (bed: BedWithLocation) => void;
+  onResultTelemetry?: (outcome: 'success' | 'error', code?: string) => void;
+  onSubmitTelemetry?: () => void;
 }
 
-
-export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedFormProps) {
+export function BedForm({
+  bed,
+  plots,
+  closeDialog,
+  formId,
+  initialPlotId,
+  defaultSize,
+  onCreated,
+  onResultTelemetry,
+  onSubmitTelemetry,
+}: BedFormProps) {
   const isEditing = Boolean(bed?.id);
   const action = isEditing ? updateBed : createBed;
   const initialState: BedFormState = { message: '', errors: {}, bed: bed };
@@ -47,9 +66,11 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
     mode: 'onSubmit',
     defaultValues: {
       id: bed?.id,
-      plot_id: bed?.plot_id ?? (initialPlotId ?? ('' as unknown as number)),
-      length_inches: bed?.length_inches ?? ('' as unknown as number | null),
-      width_inches: bed?.width_inches ?? ('' as unknown as number | null),
+      plot_id: bed?.plot_id ?? initialPlotId ?? ('' as unknown as number),
+      length_inches:
+        bed?.length_inches ?? defaultSize?.lengthInches ?? ('' as unknown as number | null),
+      width_inches:
+        bed?.width_inches ?? defaultSize?.widthInches ?? ('' as unknown as number | null),
       name: bed?.name ?? null,
     },
   });
@@ -59,17 +80,24 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
   useEffect(() => {
     if (state.message) {
       if (state.errors && Object.keys(state.errors).length > 0) {
+        onResultTelemetry?.('error', 'validation');
         Object.entries(state.errors).forEach(([field, errors]) => {
-          const message = Array.isArray(errors) ? errors[0] : (errors as unknown as string) || 'Invalid value';
+          const message = Array.isArray(errors)
+            ? errors[0]
+            : (errors as unknown as string) || 'Invalid value';
           form.setError(field as keyof BedFormValues, { message });
         });
         toast.error(state.message);
       } else {
+        onResultTelemetry?.('success');
         toast.success(state.message);
+        if (!isEditing && state.bed) {
+          onCreated?.(state.bed);
+        }
         closeDialog();
       }
     }
-  }, [state, closeDialog, form]);
+  }, [state, closeDialog, form, isEditing, onCreated, onResultTelemetry]);
 
   // Ensure plot is preselected when creating from a specific plot
   useEffect(() => {
@@ -78,6 +106,16 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
     }
   }, [isEditing, initialPlotId, form]);
 
+  useEffect(() => {
+    if (isEditing) return;
+    if (defaultSize?.lengthInches) {
+      form.setValue('length_inches', defaultSize.lengthInches);
+    }
+    if (defaultSize?.widthInches) {
+      form.setValue('width_inches', defaultSize.widthInches);
+    }
+  }, [defaultSize, form, isEditing]);
+
   const onSubmit: SubmitHandler<BedFormValues> = async (values) => {
     const fd = new FormData();
     if (isEditing && bed?.id) fd.append('id', String(bed.id));
@@ -85,6 +123,7 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
     fd.append('length_inches', values.length_inches != null ? String(values.length_inches) : '');
     fd.append('width_inches', values.width_inches != null ? String(values.width_inches) : '');
     if (values.name != null) fd.append('name', values.name);
+    onSubmitTelemetry?.();
     startTransition(() => {
       dispatch(fd);
     });
@@ -94,11 +133,16 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
   const currentLength = watch('length_inches');
   const currentWidth = watch('width_inches');
 
-  const effectiveFormId = formId ?? 'bedFormSubmit'
+  const effectiveFormId = formId ?? 'bedFormSubmit';
 
   return (
     <Form {...form}>
-      <form id={effectiveFormId} onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+      <form
+        id={effectiveFormId}
+        onSubmit={form.handleSubmit(onSubmit)}
+        noValidate
+        className="space-y-4"
+      >
         {isEditing && <input type="hidden" name="id" value={bed?.id} />}
 
         {/* Plot Select Field */}
@@ -109,13 +153,20 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
             <FormItem>
               <FormLabel>Plot</FormLabel>
               <FormControl>
-                <Select value={field.value ? String(field.value) : ''} onValueChange={(val) => field.onChange(parseInt(val, 10))}>
+                <Select
+                  value={field.value ? String(field.value) : ''}
+                  onValueChange={(val) => field.onChange(parseInt(val, 10))}
+                >
                   <SelectTrigger className="mt-1 py-2" style={{ height: 44 }}>
                     <SelectValue placeholder="Select a plot" />
                   </SelectTrigger>
                   <SelectContent>
                     {plots.map((plot) => (
-                      <SelectItem key={plot.plot_id} value={String(plot.plot_id)} textValue={plot.name}>
+                      <SelectItem
+                        key={plot.plot_id}
+                        value={String(plot.plot_id)}
+                        textValue={plot.name}
+                      >
                         <span className="flex flex-col items-start text-left leading-tight">
                           <span className="font-medium">{plot.name}</span>
                           <span className="text-xs text-muted-foreground">
@@ -140,7 +191,12 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
             <FormItem>
               <FormLabel>Bed Name (optional)</FormLabel>
               <FormControl>
-                <Input type="text" className="mt-1" value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value || null)} />
+                <Input
+                  type="text"
+                  className="mt-1"
+                  value={field.value ?? ''}
+                  onChange={(e) => field.onChange(e.target.value || null)}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -165,7 +221,9 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
                       type="number"
                       className="mt-1"
                       value={field.value != null ? String(field.value) : ''}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                      onChange={(e) =>
+                        field.onChange(e.target.value ? Number(e.target.value) : null)
+                      }
                     />
                   </FormControl>
                   <FormMessage />
@@ -185,7 +243,9 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
                       type="number"
                       className="mt-1"
                       value={field.value != null ? String(field.value) : ''}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                      onChange={(e) =>
+                        field.onChange(e.target.value ? Number(e.target.value) : null)
+                      }
                     />
                   </FormControl>
                   <FormMessage />
@@ -201,8 +261,14 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
               <Label>Calculated Area</Label>
               <p className="text-sm text-muted-foreground mt-1">
                 {(() => {
-                  const lengthNum = typeof currentLength === 'number' ? currentLength : parseFloat(String(currentLength ?? ''));
-                  const widthNum = typeof currentWidth === 'number' ? currentWidth : parseFloat(String(currentWidth ?? ''));
+                  const lengthNum =
+                    typeof currentLength === 'number'
+                      ? currentLength
+                      : parseFloat(String(currentLength ?? ''));
+                  const widthNum =
+                    typeof currentWidth === 'number'
+                      ? currentWidth
+                      : parseFloat(String(currentWidth ?? ''));
                   if (!isNaN(lengthNum) && !isNaN(widthNum) && lengthNum > 0 && widthNum > 0) {
                     const areaSqIn = lengthNum * widthNum;
                     const areaSqFt = areaSqIn / 144;
@@ -227,8 +293,14 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
               <Label>Calculated Acreage</Label>
               <p className="text-sm text-muted-foreground mt-1">
                 {(() => {
-                  const lengthNum = typeof currentLength === 'number' ? currentLength : parseFloat(String(currentLength ?? ''));
-                  const widthNum = typeof currentWidth === 'number' ? currentWidth : parseFloat(String(currentWidth ?? ''));
+                  const lengthNum =
+                    typeof currentLength === 'number'
+                      ? currentLength
+                      : parseFloat(String(currentLength ?? ''));
+                  const widthNum =
+                    typeof currentWidth === 'number'
+                      ? currentWidth
+                      : parseFloat(String(currentWidth ?? ''));
                   if (!isNaN(lengthNum) && !isNaN(widthNum) && lengthNum > 0 && widthNum > 0) {
                     const areaSqIn = lengthNum * widthNum;
                     const areaSqFt = areaSqIn / 144;
@@ -241,9 +313,7 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
                         <TooltipTrigger asChild>
                           <span className="cursor-help">{display} ac</span>
                         </TooltipTrigger>
-                        {exact && (
-                          <TooltipContent>{exact} ac</TooltipContent>
-                        )}
+                        {exact && <TooltipContent>{exact} ac</TooltipContent>}
                       </Tooltip>
                     );
                   }
@@ -261,5 +331,3 @@ export function BedForm({ bed, plots, closeDialog, formId, initialPlotId }: BedF
     </Form>
   );
 }
-
-

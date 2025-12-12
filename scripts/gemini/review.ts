@@ -1,7 +1,8 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as core from '@actions/core';
 import {
-  initGeminiClient,
+  extractTextFromResponse,
+  getServiceAccountEmail,
+  initVertexModel,
   initGitHubClient,
   getPRContext,
   getChangedCodeFiles,
@@ -9,6 +10,7 @@ import {
   prepareForPrompt,
 } from './utils';
 import { z } from 'zod';
+import type { GenerativeModel } from '@google-cloud/vertexai';
 
 const REVIEW_FOCUS_OPTIONS = ['critical-only', 'high-only', 'all'] as const;
 type ReviewFocus = (typeof REVIEW_FOCUS_OPTIONS)[number];
@@ -45,6 +47,16 @@ const reviewIssueArraySchema = z.array(
     category: z.enum(['type-safety', 'tailwind', 'security', 'other']),
   })
 );
+
+function filterIssuesByFocus(issues: ReviewIssue[], focus: ReviewFocus): ReviewIssue[] {
+  if (focus === 'critical-only') {
+    return issues.filter((issue) => issue.severity === 'error');
+  }
+  if (focus === 'high-only') {
+    return issues.filter((issue) => issue.severity === 'error' || issue.severity === 'warning');
+  }
+  return issues;
+}
 
 function sanitizeEnvPromptValue(envValue: string | undefined, fallback: string): string {
   const trimmed = envValue?.trim();
@@ -98,12 +110,10 @@ function escapeBoundary(value: string, boundary: string): string {
 }
 
 async function reviewCodeWithGemini(
-  gemini: GoogleGenerativeAI,
+  model: GenerativeModel,
   filePath: string,
   fileContent: string
 ): Promise<ReviewResult> {
-  const model = gemini.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
   const safeFilePath: string = escapeBoundary(prepareForPrompt(filePath), FILE_CONTENT_BOUNDARY);
   const safeFileContent: string = escapeBoundary(
     prepareForPrompt(fileContent),
@@ -139,9 +149,15 @@ ${FILE_CONTENT_BOUNDARY}
 Respond with valid JSON only (optionally wrapped in a \`\`\`json\`\`\` fence), with no extra commentary.`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    const text = response.text();
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: prompt }],
+        },
+      ],
+    });
+    const text = extractTextFromResponse(result.response);
 
     // Clean up the response - remove a single outer markdown code block wrapper if present.
     // Uses exact backticks (no zero-width characters) and guards against mismatched fences.
@@ -249,7 +265,12 @@ async function run(): Promise<void> {
   try {
     core.info('Starting Gemini code review...');
 
-    const gemini = initGeminiClient();
+    const { model, projectId, location, modelId } = initVertexModel('gemini-3-pro-preview');
+    const serviceAccount = getServiceAccountEmail();
+    core.info(
+      `Using Vertex AI model ${modelId} in project ${projectId} (${location})` +
+        (serviceAccount ? ` via ${serviceAccount}` : '')
+    );
     const octokit = initGitHubClient();
     const prContext = getPRContext();
 
@@ -289,7 +310,7 @@ async function run(): Promise<void> {
         continue;
       }
 
-      const reviewResult = await reviewCodeWithGemini(gemini, file.filename, content);
+      const reviewResult = await reviewCodeWithGemini(model, file.filename, content);
 
       if (!reviewResult.success) {
         core.warning(
@@ -301,17 +322,19 @@ async function run(): Promise<void> {
       allIssues.push(...reviewResult.issues);
     }
 
-    const criticalIssues: ReviewIssue[] = allIssues.filter((issue) => issue.severity === 'error');
+    const focusedIssues: ReviewIssue[] = filterIssuesByFocus(allIssues, reviewFocus);
 
     await postReviewSummary(
       octokit,
       prContext.owner,
       prContext.repo,
       prContext.prNumber,
-      criticalIssues
+      focusedIssues
     );
 
-    core.info(`Review complete. Found ${criticalIssues.length} critical issues.`);
+    core.info(
+      `Review complete. Focus="${reviewFocus}". Reported ${focusedIssues.length} issue(s) after filtering.`
+    );
   } catch (error: unknown) {
     const message: string = error instanceof Error ? error.message : String(error);
     core.setFailed(`Code review failed: ${message}`);

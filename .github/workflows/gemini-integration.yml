@@ -32,6 +32,7 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
+      id-token: write
     # Run only for PRs from this repository (not forks) to avoid executing untrusted code with secrets.
     # Only run for PR open/reopen/new commits. Skip label events to avoid
     # duplicate/irrelevant analysis when labels (e.g., generate-tests) change.
@@ -42,6 +43,12 @@ jobs:
        github.event.action == 'synchronize') &&
       github.event.pull_request.head.repo != null &&
       github.event.pull_request.head.repo.fork != true
+    env:
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      # Gemini publisher models (e.g., gemini-3-pro-preview) are served from the global location.
+      GCP_LOCATION: ${{ secrets.GCP_LOCATION || 'global' }}
+      GCP_SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
+      GEMINI_MODEL: gemini-3-pro-preview
     steps:
       # Safe: this job only runs on non-fork pull requests (see job-level "if" condition),
       # so we never execute code from untrusted forks.
@@ -50,13 +57,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Authenticate to Google Cloud (Vertex AI)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/784492879380/locations/global/workloadIdentityPools/github-pool-v2/providers/github-provider-cicd
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+          token_format: access_token
+          create_credentials_file: true
+          export_environment_variables: true
+
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
+
+      - name: Verify Vertex AI authentication
+        run: pnpm exec tsx scripts/gemini/vertex-smoke.ts
 
       - name: Run Gemini code review
         run: pnpm exec tsx scripts/gemini/review.ts
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_REVIEW_FOCUS: critical-only
           GEMINI_COMMENT_MODE: summary
@@ -65,7 +83,6 @@ jobs:
         if: github.event.action == 'opened'
         run: pnpm exec tsx scripts/gemini/describe-pr.ts
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   gemini-scaffold:
@@ -83,6 +100,11 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_LOCATION: ${{ secrets.GCP_LOCATION }}
+      GCP_SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
     steps:
       - name: Checkout repository (pull_request)
         if: github.event_name == 'pull_request'
@@ -139,6 +161,15 @@ jobs:
           # (which use the branch name) have an upstream to update.
           ref: ${{ steps.resolve_pr_head.outputs.head_ref }}
 
+      - name: Authenticate to Google Cloud (Vertex AI)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/784492879380/locations/global/workloadIdentityPools/github-pool-v2/providers/github-provider-cicd
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+          token_format: access_token
+          create_credentials_file: true
+          export_environment_variables: true
+
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
 
@@ -150,7 +181,6 @@ jobs:
       - name: Generate and commit test scaffolds
         run: pnpm exec tsx scripts/gemini/scaffold-tests.ts
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # For label-based runs, always commit; for manual workflow_dispatch, respect the
           # commit_changes input (defaulting to false).

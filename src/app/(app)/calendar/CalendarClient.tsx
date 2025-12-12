@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CalendarEvent, CalendarFilter, CalendarLocation } from './types';
+import type { WeatherSnapshot } from '../locations/actions';
 import { Dialog } from '@/components/ui/dialog';
 import { DayCell } from './_components/DayCell';
 import { DayDetailDialog } from './_components/DayDetailDialog';
@@ -117,14 +118,16 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 export default function CalendarClient({
   events,
   locations = [],
+  weatherByLocation = {},
 }: {
   events: CalendarEvent[];
   locations?: Array<CalendarLocation>;
+  weatherByLocation?: Record<string, WeatherSnapshot>;
 }) {
-  // Today in UTC ISO (kept fresh by periodic checks that detect UTC day rollover)
+  // Today in local ISO (kept fresh by periodic checks that detect local day rollover)
   const [todayISO, setTodayISO] = React.useState<string>(() => {
     const nowInit = new Date();
-    return isoFromYMD(nowInit.getUTCFullYear(), nowInit.getUTCMonth() + 1, nowInit.getUTCDate());
+    return isoFromYMD(nowInit.getFullYear(), nowInit.getMonth() + 1, nowInit.getDate());
   });
   const [current, setCurrent] = React.useState<{ y: number; m: number }>(() => {
     const { y, m1 } = parseISO(todayISO);
@@ -168,11 +171,11 @@ export default function CalendarClient({
   }, []);
 
   // Keep todayISO fresh using a single interval (no recursive timers)
-  // Checks every 1 minute and updates when the UTC date rolls over.
+  // Checks every 1 minute and updates when the local date rolls over.
   React.useEffect(() => {
     const update = () => {
       const now = new Date();
-      const iso = isoFromYMD(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate());
+      const iso = isoFromYMD(now.getFullYear(), now.getMonth() + 1, now.getDate());
       setTodayISO((prev) => (prev === iso ? prev : iso));
     };
     update();
@@ -369,9 +372,7 @@ export default function CalendarClient({
         {/* Mobile weather display */}
         <div className="w-full">
           <CalendarHeaderWeather
-            id={primaryLocation?.id ?? null}
-            latitude={primaryLocation?.latitude ?? null}
-            longitude={primaryLocation?.longitude ?? null}
+            weather={primaryLocation ? weatherByLocation[primaryLocation.id] : null}
           />
         </div>
         {/* Mobile compact filter menu */}
@@ -494,12 +495,12 @@ export default function CalendarClient({
             <Button variant="secondary" size="sm" className="text-xs" onClick={handleTodayClick}>
               <CalendarDays className="h-3 w-3 mr-1" /> Today
             </Button>
-            <div className="flex items-center gap-0.5" role="tablist" aria-label="Range">
+            <div className="flex items-center gap-0.5" aria-label="Range">
               {(['month', 'week', 'today'] as const).map((v) => (
                 <button
                   key={v}
-                  role="tab"
-                  aria-selected={range === v}
+                  type="button"
+                  aria-pressed={range === v}
                   className={`rounded px-1.5 py-1 text-xs whitespace-nowrap border transition-colors active:scale-95 ${range === v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`}
                   onClick={() => setRange(v)}
                 >
@@ -512,7 +513,7 @@ export default function CalendarClient({
         {/* Row 2: Filters, Weather, and Legend */}
         <div className="flex items-center justify-between gap-2 mt-2 flex-wrap">
           {/* Filter toggles */}
-          <div className="flex items-center gap-0.5 flex-wrap" role="tablist" aria-label="Filter">
+          <div className="flex items-center gap-0.5 flex-wrap" aria-label="Filter">
             {(['all', 'activity', 'planting', 'harvest'] as const).map((v) => {
               const fullLabel =
                 v === 'all'
@@ -525,8 +526,8 @@ export default function CalendarClient({
               return (
                 <button
                   key={v}
-                  role="tab"
-                  aria-selected={filter === v}
+                  type="button"
+                  aria-pressed={filter === v}
                   className={`rounded px-1.5 py-1 text-xs whitespace-nowrap border transition-colors active:scale-95 ${filter === v ? 'bg-accent text-accent-foreground' : 'bg-background hover:bg-accent/40'} focus-visible:ring-2 focus-visible:ring-ring/40`}
                   onClick={() => setFilter(v)}
                 >
@@ -538,9 +539,7 @@ export default function CalendarClient({
           {/* Right Group: Weather and Legend */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <CalendarHeaderWeather
-              id={primaryLocation?.id ?? null}
-              latitude={primaryLocation?.latitude ?? null}
-              longitude={primaryLocation?.longitude ?? null}
+              weather={primaryLocation ? weatherByLocation[primaryLocation.id] : null}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

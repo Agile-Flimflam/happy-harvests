@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import type { Database } from '@/lib/supabase-server';
+import type { Database } from '@/lib/database.types';
 import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 
 export async function GET(request: NextRequest) {
@@ -44,11 +44,19 @@ export async function GET(request: NextRequest) {
 
     // Optional: ensure a profile row exists for the authenticated user
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
         const metadata = (user.user_metadata || {}) as Record<string, unknown>;
-        const fullName = (metadata['full_name'] as string | undefined) || (metadata['name'] as string | undefined) || null;
-        const avatarUrl = (metadata['avatar_url'] as string | undefined) || (metadata['picture'] as string | undefined) || null;
+        const fullName =
+          (metadata['full_name'] as string | undefined) ||
+          (metadata['name'] as string | undefined) ||
+          null;
+        const avatarUrl =
+          (metadata['avatar_url'] as string | undefined) ||
+          (metadata['picture'] as string | undefined) ||
+          null;
         // Upsert minimal profile; RLS should allow insert where auth.uid() = new.id
         const payload: Database['public']['Tables']['profiles']['Insert'] = {
           id: user.id,
@@ -56,9 +64,7 @@ export async function GET(request: NextRequest) {
           avatar_url: avatarUrl,
         };
         const admin = createSupabaseAdminClient();
-        await admin
-          .from('profiles')
-          .upsert(payload, { onConflict: 'id' });
+        await admin.from('profiles').upsert(payload, { onConflict: 'id' });
       }
     } catch (profileErr) {
       console.error('Auth callback profile upsert error:', profileErr);

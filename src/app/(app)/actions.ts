@@ -1,6 +1,12 @@
 'use server';
 
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient, type Tables } from '@/lib/supabase-server';
+import {
+  asActionError,
+  asActionSuccess,
+  createCorrelationId,
+  type ActionResult,
+} from '@/lib/action-result';
 
 type RawDashboardLocation = {
   id: string;
@@ -61,7 +67,10 @@ function redactDbError(context: string, err: unknown): string {
   return 'Unable to load data right now.';
 }
 
-export async function getDashboardOverview(): Promise<DashboardOverview> {
+export type DashboardOverviewResult = ActionResult<DashboardOverview>;
+
+export async function getDashboardOverview(): Promise<DashboardOverviewResult> {
+  const correlationId = createCorrelationId();
   const supabase = await createSupabaseServerClient();
 
   const [cropVarietyRes, plotRes, plantingRes, locationsRes] = await Promise.all([
@@ -93,7 +102,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     (loc): loc is DashboardLocation => isLatitude(loc.latitude) && isLongitude(loc.longitude)
   );
 
-  return {
+  const overview: DashboardOverview = {
     cropVarietyCount: cropVarietyRes.count ?? null,
     plotCount: plotRes.count ?? null,
     plantingCount: plantingRes.count ?? null,
@@ -103,4 +112,105 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     plantingError,
     error: errors.length ? 'Unable to load dashboard data.' : undefined,
   };
+
+  if (errors.length) {
+    return asActionError({
+      code: 'server',
+      message: overview.error ?? 'Unable to load dashboard data.',
+      correlationId,
+    });
+  }
+
+  return asActionSuccess(overview, undefined, correlationId);
+}
+
+export type QuickActionContext = {
+  cropVarieties: Tables<'crop_varieties'>[];
+  crops: Tables<'crops'>[];
+  plots: Array<Tables<'plots'> & { locations?: Tables<'locations'> | null }>;
+  locations: Tables<'locations'>[];
+  nurseries: Tables<'nurseries'>[];
+  beds: Tables<'beds'>[];
+  counts: {
+    cropVarieties: number;
+    plots: number;
+    beds: number;
+    nurseries: number;
+  };
+};
+
+export type QuickActionContextResult = ActionResult<QuickActionContext>;
+
+export async function getQuickActionContext(): Promise<QuickActionContextResult> {
+  const correlationId = createCorrelationId();
+  const supabase = await createSupabaseServerClient();
+
+  const [
+    cropVarietyRes,
+    cropRes,
+    plotRes,
+    locationRes,
+    nurseryRes,
+    bedRes,
+    cropVarietyCountRes,
+    plotCountRes,
+    bedCountRes,
+    nurseryCountRes,
+  ] = await Promise.all([
+    supabase.from('crop_varieties').select('*').order('created_at', { ascending: true }).limit(15),
+    supabase.from('crops').select('*').order('name', { ascending: true }).limit(25),
+    supabase
+      .from('plots')
+      .select('*, locations(*)')
+      .order('created_at', { ascending: true })
+      .limit(15),
+    supabase.from('locations').select('*').order('created_at', { ascending: true }).limit(25),
+    supabase.from('nurseries').select('*').order('created_at', { ascending: true }).limit(15),
+    supabase.from('beds').select('*').order('created_at', { ascending: true }).limit(25),
+    supabase.from('crop_varieties').select('*', { head: true, count: 'exact' }),
+    supabase.from('plots').select('*', { head: true, count: 'exact' }),
+    supabase.from('beds').select('*', { head: true, count: 'exact' }),
+    supabase.from('nurseries').select('*', { head: true, count: 'exact' }),
+  ]);
+
+  const errors = [
+    cropVarietyRes.error,
+    cropRes.error,
+    plotRes.error,
+    locationRes.error,
+    nurseryRes.error,
+    bedRes.error,
+    cropVarietyCountRes.error,
+    plotCountRes.error,
+    bedCountRes.error,
+    nurseryCountRes.error,
+  ].filter(Boolean);
+
+  if (errors.length) {
+    console.error('[QuickActions] Failed to load context', errors);
+    return asActionError({
+      code: 'server',
+      message: 'Unable to load quick actions context.',
+      correlationId,
+    });
+  }
+
+  return asActionSuccess(
+    {
+      cropVarieties: cropVarietyRes.data ?? [],
+      crops: cropRes.data ?? [],
+      plots: plotRes.data ?? [],
+      locations: locationRes.data ?? [],
+      nurseries: nurseryRes.data ?? [],
+      beds: bedRes.data ?? [],
+      counts: {
+        cropVarieties: cropVarietyCountRes.count ?? 0,
+        plots: plotCountRes.count ?? 0,
+        beds: bedCountRes.count ?? 0,
+        nurseries: nurseryCountRes.count ?? 0,
+      },
+    },
+    undefined,
+    correlationId
+  );
 }

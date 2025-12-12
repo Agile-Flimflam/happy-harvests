@@ -24,6 +24,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty';
+import { FlowShell } from '@/components/ui/flow-shell';
 
 type ActivityRow = Tables<'activities'> & { locations?: { name?: string | null } | null };
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -109,10 +110,12 @@ export default async function ActivitiesPage({
     : '/api/activities/export';
   const hasActivities = types.length > 0;
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Activities</h1>
-        {hasActivities ? (
+    <FlowShell
+      title="Activities"
+      description="Filter by type, location, or date and export when needed."
+      icon={<Droplets className="h-5 w-5" aria-hidden />}
+      actions={
+        hasActivities ? (
           <div className="flex items-center gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -128,26 +131,27 @@ export default async function ActivitiesPage({
               <Link href="/activities/new">Track an Activity</Link>
             </Button>
           </div>
-        ) : null}
-      </div>
+        ) : undefined
+      }
+    >
       {locationsError ? (
         <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           {locationsError}
         </div>
       ) : null}
-      <ActivitiesFilters
-        locations={locations ?? []}
-        initial={{
-          type: type || '',
-          location_id: locationId ?? '',
-          from: from ?? '',
-          to: to ?? '',
-        }}
-      />
-      <div>
+      <div className="space-y-6">
+        <ActivitiesFilters
+          locations={locations ?? []}
+          initial={{
+            type: type || '',
+            location_id: locationId ?? '',
+            from: from ?? '',
+            to: to ?? '',
+          }}
+        />
         {hasActivities ? (
           <Tabs defaultValue="all">
-            <TabsList>
+            <TabsList className="w-full overflow-x-auto">
               <TabsTrigger value="all">
                 All{' '}
                 <Badge className="ml-2" variant="secondary">
@@ -236,6 +240,6 @@ export default async function ActivitiesPage({
           </Empty>
         )}
       </div>
-    </div>
+    </FlowShell>
   );
 }

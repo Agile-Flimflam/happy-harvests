@@ -40,6 +40,7 @@ interface LocationFormProps {
   location?: Location | null;
   closeDialog: () => void;
   formId?: string;
+  onCreated?: (location: Location) => void;
 }
 
 const usStates = new UsaStates();
@@ -64,7 +65,7 @@ const VALID_LOCATION_FIELDS: Array<keyof LocationFormValues> = [
 // The staggered retry pattern keeps the property available even when React or the browser schedules rendering work asynchronously.
 const FORM_CONTROL_SETUP_DELAYS = [0, 10, 50] as const;
 
-export function LocationForm({ location, closeDialog, formId }: LocationFormProps) {
+export function LocationForm({ location, closeDialog, formId, onCreated }: LocationFormProps) {
   const isEditing = Boolean(location?.id);
   const action = isEditing ? updateLocation : createLocation;
   const initialState: LocationFormState = { message: '', errors: {}, location };
@@ -155,6 +156,8 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
     };
   }, []);
 
+  const { setError } = form;
+
   useEffect(() => {
     if (state.message) {
       if (state.errors && Object.keys(state.errors).length > 0) {
@@ -167,15 +170,18 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
             return;
           }
           const message = Array.isArray(errors) ? errors[0] : errors || 'Invalid value';
-          form.setError(fieldKey, { message });
+          setError(fieldKey, { message });
         });
         toast.error(state.message);
       } else {
         toast.success(state.message);
+        if (!isEditing && state.location) {
+          onCreated?.(state.location);
+        }
         closeDialog();
       }
     }
-  }, [state, closeDialog, form]);
+  }, [state, closeDialog, isEditing, onCreated, setError]);
 
   // Watch form values for address preview and clear functionality
   const street = form.watch('street');
@@ -220,8 +226,12 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
     fd.append('city', (values.city ?? '').toString());
     fd.append('state', (values.state ?? '').toString());
     fd.append('zip', (values.zip ?? '').toString());
-    fd.append('latitude', values.latitude != null ? String(values.latitude) : '');
-    fd.append('longitude', values.longitude != null ? String(values.longitude) : '');
+    if (values.latitude != null && Number.isFinite(values.latitude)) {
+      fd.append('latitude', String(values.latitude));
+    }
+    if (values.longitude != null && Number.isFinite(values.longitude)) {
+      fd.append('longitude', String(values.longitude));
+    }
     fd.append('notes', (values.notes ?? '').toString());
     startTransition(() => {
       dispatch(fd);
@@ -240,7 +250,9 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
         ref={(el) => {
           formRef.current = el;
           // Set up form control property as soon as form is available
-          setupFormControlOnRef(el);
+          if (el) {
+            setupFormControlOnRef(el);
+          }
         }}
         onSubmit={form.handleSubmit(onSubmit)}
         noValidate
@@ -270,6 +282,7 @@ export function LocationForm({ location, closeDialog, formId }: LocationFormProp
                 size="sm"
                 onClick={handleClearAddress}
                 className="h-7 text-xs"
+                aria-label="Clear address"
               >
                 <X className="h-3 w-3" />
                 Clear address

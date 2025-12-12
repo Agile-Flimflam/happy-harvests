@@ -35,11 +35,24 @@ interface PlotFormProps {
   locations: Location[];
   closeDialog: () => void;
   formId?: string;
+  defaultLocationId?: string | null;
+  onCreated?: (plot: Plot) => void;
+  onResultTelemetry?: (outcome: 'success' | 'error', code?: string) => void;
+  onSubmitTelemetry?: () => void;
 }
 
 // Submit button is owned by parent dialog footer
 
-export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps) {
+export function PlotForm({
+  plot,
+  locations,
+  closeDialog,
+  formId,
+  defaultLocationId,
+  onCreated,
+  onResultTelemetry,
+  onSubmitTelemetry,
+}: PlotFormProps) {
   const plotId = typeof plot?.plot_id === 'number' ? plot.plot_id : undefined;
   const isEditing = Boolean(plotId);
   const action = isEditing ? updatePlot : createPlot;
@@ -53,7 +66,12 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
     defaultValues: {
       plot_id: plotId,
       name: plot?.name ?? '',
-      location_id: plot?.location_id != null ? plot.location_id.toString() : '',
+      location_id:
+        plot?.location_id != null
+          ? plot.location_id.toString()
+          : defaultLocationId != null
+            ? defaultLocationId
+            : '',
     },
   });
 
@@ -61,6 +79,7 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
     if (state.message) {
       const fieldErrors = state.errors;
       if (fieldErrors && Object.keys(fieldErrors).length > 0) {
+        onResultTelemetry?.('error', 'validation');
         const validFields: Array<keyof PlotFormValues> = ['plot_id', 'name', 'location_id'];
         Object.entries(fieldErrors).forEach(([field, errors]) => {
           const message = Array.isArray(errors)
@@ -77,22 +96,35 @@ export function PlotForm({ plot, locations, closeDialog, formId }: PlotFormProps
         });
         toast.error(state.message);
       } else {
+        onResultTelemetry?.('success');
         toast.success(state.message);
+        if (!isEditing && state.plot) {
+          onCreated?.(state.plot);
+        }
         closeDialog();
       }
     }
-  }, [state, closeDialog, form]);
+  }, [state, closeDialog, form, isEditing, onCreated, onResultTelemetry]);
 
   // Ensure form.control exists to satisfy aggressive browser extensions
   useLayoutEffect(() => {
     setupFormControlProperty(formRef.current);
   }, []);
 
+  useEffect(() => {
+    if (isEditing) return;
+    if (!defaultLocationId) return;
+    const exists = locations.some((loc) => String(loc.id) === defaultLocationId);
+    if (!exists) return;
+    form.setValue('location_id', defaultLocationId);
+  }, [defaultLocationId, form, isEditing, locations]);
+
   const onSubmit: SubmitHandler<PlotFormValues> = async (values) => {
     const fd = new FormData();
     if (isEditing && plotId !== undefined) fd.append('plot_id', String(plotId));
     fd.append('name', values.name);
     fd.append('location_id', values.location_id ?? '');
+    onSubmitTelemetry?.();
     startTransition(() => {
       dispatch(fd);
     });

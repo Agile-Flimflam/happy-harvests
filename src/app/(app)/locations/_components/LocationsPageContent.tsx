@@ -1,18 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
-import { Pencil, Trash2, Sunrise, Sunset, Droplet, MapPin, Plus } from 'lucide-react';
+import { Pencil, Trash2, Sunrise, Sunset, Droplet, MapPin, Plus, Building2 } from 'lucide-react';
 
-import PageHeader from '@/components/page-header';
-import PageContent from '@/components/page-content';
 import { WeatherBadge } from '@/components/weather/WeatherBadge';
-// Dialog header/footer handled by FormDialog
-import FormDialog from '@/components/dialogs/FormDialog';
-
-// UI components
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardFooter, CardHeader } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
@@ -29,34 +23,99 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty';
+import { FlowShell, OneHandGrid } from '@/components/ui/flow-shell';
+import { InlineCreateSheet } from '@/components/ui/inline-create-sheet';
+import {
+  EntitySummaryCard,
+  type EntityMetaItem,
+  type EntityTag,
+} from '@/components/ui/entity-summary-card';
+import { RecentChips } from '@/components/ui/recent-chips';
+import { StateBlock } from '@/components/ui/state-block';
+import { StickyActionBar } from '@/components/ui/sticky-action-bar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 import type { Tables } from '@/lib/supabase-server';
 import { LocationForm } from './LocationForm';
-import { deleteLocation, type DeleteLocationResult } from '../_actions';
+import { deleteLocation, type DeleteLocationResult, rememberLocationSelection } from '../_actions';
+import type { WeatherSnapshot } from '../actions';
+import type { QuickCreatePrefs } from '@/lib/quick-create-prefs';
 
 type Location = Tables<'locations'>;
 
 interface LocationsPageContentProps {
   locations: Location[];
+  weatherByLocation?: Record<string, WeatherSnapshot>;
+  quickCreatePrefs?: QuickCreatePrefs | null;
 }
 
-export function LocationsPageContent({ locations }: LocationsPageContentProps) {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+export function LocationsPageContent({
+  locations,
+  weatherByLocation = {},
+  quickCreatePrefs = null,
+}: LocationsPageContentProps) {
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
+    quickCreatePrefs?.lastLocationId ?? null
+  );
+  const [persistingLocation, startPersistLocation] = useTransition();
   const hasLocations = locations.length > 0;
+  const safeLocations = useMemo(
+    () =>
+      selectedLocationId ? locations.filter((loc) => loc.id === selectedLocationId) : locations,
+    [locations, selectedLocationId]
+  );
+  const recentChips = useMemo(() => {
+    const candidates = locations.slice(0, 6).map((loc) => ({
+      label: loc.name ?? 'Unnamed location',
+      value: loc.id,
+    }));
+    const lastLocation =
+      quickCreatePrefs?.lastLocationId != null
+        ? locations.find((loc) => loc.id === quickCreatePrefs.lastLocationId)
+        : null;
+    if (lastLocation) {
+      const existingIndex = candidates.findIndex((chip) => chip.value === lastLocation.id);
+      if (existingIndex > 0) {
+        candidates.splice(existingIndex, 1);
+      }
+      if (existingIndex !== 0) {
+        candidates.unshift({
+          label: lastLocation.name ?? 'Recent location',
+          value: lastLocation.id,
+        });
+      }
+    }
+    return candidates;
+  }, [locations, quickCreatePrefs?.lastLocationId]);
+
+  useEffect(() => {
+    if (!selectedLocationId) return;
+    const exists = locations.some((loc) => loc.id === selectedLocationId);
+    if (!exists) {
+      setSelectedLocationId(null);
+    }
+  }, [locations, selectedLocationId]);
 
   const handleAdd = () => {
     setEditingLocation(null);
-    setIsDialogOpen(true);
+    setIsSheetOpen(true);
+  };
+
+  const handleSelectLocation = (value: string | null) => {
+    setSelectedLocationId(value);
+    if (value) {
+      startPersistLocation(() => rememberLocationSelection(value));
+    }
   };
 
   const handleEdit = (loc: Location) => {
     setEditingLocation(loc);
-    setIsDialogOpen(true);
+    setIsSheetOpen(true);
   };
 
   const openDelete = (id: string) => setDeleteId(id);
@@ -77,7 +136,7 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
   };
 
   const closeDialog = () => {
-    setIsDialogOpen(false);
+    setIsSheetOpen(false);
     setEditingLocation(null);
   };
 
@@ -88,121 +147,149 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
 
   return (
     <>
-      <PageHeader
+      <FlowShell
         title="Locations"
-        action={
-          hasLocations ? (
-            <Button onClick={handleAdd} size="sm" className="w-full sm:w-auto">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Location
-            </Button>
-          ) : undefined
-        }
-      />
-
-      <FormDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        title={editingLocation ? 'Edit Location' : 'Add New Location'}
-        description={
-          editingLocation
-            ? 'Update the details of the location.'
-            : 'Enter the details for the new location.'
-        }
-        submitLabel={editingLocation ? 'Update Location' : 'Create Location'}
-        formId="locationFormSubmit"
-        className="sm:max-w-[540px]"
+        description="Mobile-first summaries with quick weather context."
+        icon={<Building2 className="h-5 w-5" aria-hidden />}
       >
-        <LocationForm
-          location={editingLocation}
-          closeDialog={closeDialog}
-          formId="locationFormSubmit"
-        />
-      </FormDialog>
+        <InlineCreateSheet
+          open={isSheetOpen}
+          onOpenChange={setIsSheetOpen}
+          title={editingLocation ? 'Edit Location' : 'Add New Location'}
+          description={
+            editingLocation
+              ? 'Update the details of the location.'
+              : 'Enter the details for the new location.'
+          }
+          primaryAction={{
+            label: editingLocation ? 'Update Location' : 'Create Location',
+            formId: 'locationFormSubmit',
+          }}
+          secondaryAction={{
+            label: 'Cancel',
+            onClick: closeDialog,
+          }}
+          footerContent="Sheets respect safe areas for thumbs and keyboards."
+        >
+          <LocationForm
+            location={editingLocation}
+            closeDialog={closeDialog}
+            formId="locationFormSubmit"
+          />
+        </InlineCreateSheet>
 
-      <PageContent>
-        {!hasLocations ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <MapPin className="size-10" />
-              </EmptyMedia>
-              <EmptyTitle>No locations yet</EmptyTitle>
-              <EmptyDescription>Add your farm, field, or garden to get started.</EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button onClick={handleAdd}>
-                <span className="flex items-center gap-1">
-                  <Plus className="w-4 h-4" />
-                  Add Location
-                </span>
-              </Button>
-            </EmptyContent>
-          </Empty>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {locations.map((loc) => {
-              const street = loc.street ?? '';
-              const cityState = [loc.city, loc.state].filter(Boolean).join(', ');
-              const cityStateZip = [cityState, loc.zip ?? ''].filter(Boolean).join(' ');
-              const addressInline = [street, cityStateZip].filter(Boolean).join(', ');
-              const locationName = loc.name ?? 'Unnamed Location';
-              return (
-                <Card key={loc.id} className="flex flex-col h-full overflow-hidden">
-                  <CardHeader className="flex w-full flex-row items-start justify-between gap-3 overflow-hidden">
-                    <div className="space-y-1.5 flex-1 min-w-0">
-                      <h3 className="text-lg sm:text-xl font-semibold tracking-tight leading-snug break-words">
-                        {locationName}
-                      </h3>
-                      <CardDescription>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
-                              <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                              <span className="truncate">
-                                {addressInline || 'Address not provided'}
-                              </span>
-                            </div>
-                          </TooltipTrigger>
-                          {addressInline ? <TooltipContent>{addressInline}</TooltipContent> : null}
-                        </Tooltip>
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-1 ml-2 shrink-0">
-                      <Button
-                        aria-label={`Edit ${locationName}`}
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(loc)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        aria-label={`Delete ${locationName}`}
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openDelete(loc.id)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardFooter className="mt-auto">
-                    <div className="w-full">
-                      <WeatherCell
-                        id={loc.id}
-                        locationName={locationName}
-                        latitude={loc.latitude}
-                        longitude={loc.longitude}
-                      />
-                    </div>
-                  </CardFooter>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+        <div className="space-y-4">
+          {recentChips.length > 1 ? (
+            <RecentChips
+              items={recentChips}
+              activeValue={selectedLocationId}
+              onSelect={handleSelectLocation}
+              ariaLabel="Filter locations"
+              clearLabel="Clear filter"
+            />
+          ) : null}
+
+          {!hasLocations ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <MapPin className="size-10" aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>No locations yet</EmptyTitle>
+                <EmptyDescription>Add your farm, field, or garden to get started.</EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button onClick={handleAdd}>
+                  <span className="flex items-center gap-1">
+                    <Plus className="w-4 h-4" aria-hidden />
+                    Add Location
+                  </span>
+                </Button>
+              </EmptyContent>
+            </Empty>
+          ) : (
+            <OneHandGrid columns={2}>
+              {safeLocations.map((loc) => {
+                const street = loc.street ?? '';
+                const cityState = [loc.city, loc.state].filter(Boolean).join(', ');
+                const cityStateZip = [cityState, loc.zip ?? ''].filter(Boolean).join(' ');
+                const addressInline = [street, cityStateZip].filter(Boolean).join(', ');
+                const locationName = loc.name ?? 'Unnamed Location';
+                const weather = weatherByLocation[loc.id];
+                const meta: EntityMetaItem[] = [
+                  {
+                    label: 'Address',
+                    value: addressInline || 'Address not provided',
+                    icon: <MapPin className="h-4 w-4" aria-hidden />,
+                  },
+                  {
+                    label: 'Weather',
+                    value: <WeatherCell locationName={locationName} weather={weather} />,
+                    icon: <Sunrise className="h-4 w-4" aria-hidden />,
+                  },
+                ];
+                const tags: EntityTag[] = [
+                  {
+                    label: loc.timezone ?? 'Timezone pending',
+                    tone: loc.timezone ? 'info' : 'warn',
+                  },
+                ];
+
+                return (
+                  <EntitySummaryCard
+                    key={loc.id}
+                    title={locationName}
+                    description={loc.notes ?? undefined}
+                    meta={meta}
+                    tags={tags}
+                    icon={<MapPin className="h-5 w-5" aria-hidden />}
+                    footer={
+                      addressInline ? null : (
+                        <StateBlock
+                          title="Add an address"
+                          description="Include coordinates to unlock weather."
+                          className="w-full"
+                          action={
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="px-0"
+                              onClick={() => handleEdit(loc)}
+                            >
+                              Edit location
+                            </Button>
+                          }
+                        />
+                      )
+                    }
+                    actions={
+                      <div className="flex items-center gap-1">
+                        <Button
+                          aria-label={`Edit ${locationName}`}
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(loc)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          aria-label={`Delete ${locationName}`}
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openDelete(loc.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    }
+                  />
+                );
+              })}
+            </OneHandGrid>
+          )}
+        </div>
+
         <ConfirmDialog
           open={deleteId != null}
           onOpenChange={(open) => {
@@ -215,7 +302,23 @@ export function LocationsPageContent({ locations }: LocationsPageContentProps) {
           confirming={deleting}
           onConfirm={confirmDelete}
         />
-      </PageContent>
+      </FlowShell>
+
+      {hasLocations ? (
+        <StickyActionBar aria-label="Quick add location" align="end" position="fixed">
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            {selectedLocationId ? (
+              <Button asChild variant="outline" className="w-full sm:w-auto">
+                <Link href={`/plots?locationId=${selectedLocationId}`}>View plots & beds</Link>
+              </Button>
+            ) : null}
+            <Button onClick={handleAdd} className="w-full sm:w-auto" disabled={persistingLocation}>
+              <Plus className="h-4 w-4 mr-2" aria-hidden />
+              Add Location
+            </Button>
+          </div>
+        </StickyActionBar>
+      ) : null}
     </>
   );
 }
@@ -233,148 +336,19 @@ function HumidityDisplay({ value, className }: { value: number; className?: stri
   );
 }
 
-type WeatherStateData = {
-  timezone: string;
-  current: {
-    dt: number;
-    sunrise?: number;
-    sunset?: number;
-    temp: number;
-    humidity: number;
-    weather: { id: number; main: string; description: string; icon: string } | null;
-  };
-  moonPhase?: number;
-  moonPhaseLabel?: string;
-};
-
-function parseWeatherData(value: unknown): WeatherStateData | null {
-  if (!value || typeof value !== 'object') return null;
-  const data = value as Record<string, unknown>;
-  if (typeof data.timezone !== 'string') return null;
-  const current = data.current;
-  if (!current || typeof current !== 'object') return null;
-  const curr = current as Record<string, unknown>;
-  if (
-    typeof curr.dt !== 'number' ||
-    typeof curr.temp !== 'number' ||
-    typeof curr.humidity !== 'number'
-  ) {
-    return null;
-  }
-  const weather = curr.weather;
-  let parsedWeather: { id: number; main: string; description: string; icon: string } | null = null;
-  if (weather != null) {
-    if (typeof weather !== 'object') return null;
-    const w = weather as Record<string, unknown>;
-    if (
-      typeof w.id !== 'number' ||
-      typeof w.main !== 'string' ||
-      typeof w.description !== 'string' ||
-      typeof w.icon !== 'string'
-    ) {
-      return null;
-    }
-    parsedWeather = {
-      id: w.id,
-      main: w.main,
-      description: w.description,
-      icon: w.icon,
-    };
-  }
-  return {
-    timezone: data.timezone,
-    current: {
-      dt: curr.dt,
-      sunrise: typeof curr.sunrise === 'number' ? curr.sunrise : undefined,
-      sunset: typeof curr.sunset === 'number' ? curr.sunset : undefined,
-      temp: curr.temp,
-      humidity: curr.humidity,
-      weather: parsedWeather,
-    },
-    moonPhase: typeof data.moonPhase === 'number' ? data.moonPhase : undefined,
-    moonPhaseLabel: typeof data.moonPhaseLabel === 'string' ? data.moonPhaseLabel : undefined,
-  };
-}
-
 function WeatherCell({
-  id,
   locationName,
-  latitude,
-  longitude,
+  weather,
 }: {
-  id: string;
   locationName: string;
-  latitude: number | null;
-  longitude: number | null;
+  weather?: WeatherSnapshot;
 }) {
-  const [state, setState] = useState<
-    | { status: 'idle' }
-    | { status: 'loading' }
-    | { status: 'error'; message: string }
-    | {
-        status: 'ready';
-        data: {
-          timezone: string;
-          current: {
-            dt: number;
-            sunrise?: number;
-            sunset?: number;
-            temp: number;
-            humidity: number;
-            weather: { id: number; main: string; description: string; icon: string } | null;
-          };
-          moonPhase?: number;
-          moonPhaseLabel?: string;
-        };
-      }
-  >({ status: 'idle' });
   const [detailsOpen, setDetailsOpen] = useState(false);
-
-  useEffect(() => {
-    if (latitude == null || longitude == null) return;
-    let cancelled = false;
-    setState({ status: 'loading' });
-    fetch(`/api/locations/${id}/weather`, { cache: 'no-store' })
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err?.error || res.statusText);
-        }
-        const raw = await res.json();
-        const parsed = parseWeatherData(raw);
-        if (!parsed) {
-          throw new Error('Invalid weather response shape');
-        }
-        return parsed;
-      })
-      .then((data) => {
-        if (cancelled) return;
-        setState({ status: 'ready', data });
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setState({
-          status: 'error',
-          message: e instanceof Error ? e.message : 'Failed to load weather',
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, latitude, longitude]);
-
-  if (latitude == null || longitude == null) {
+  if (!weather) {
     return <span className="text-muted-foreground text-sm">Set coordinates to enable weather</span>;
   }
 
-  if (state.status === 'loading' || state.status === 'idle') {
-    return <span className="text-muted-foreground text-sm">Loading…</span>;
-  }
-  if (state.status === 'error') {
-    return <span className="text-red-500 text-sm">{state.message}</span>;
-  }
-
-  const { current } = state.data;
+  const { current } = weather;
   const tempF = current.temp;
 
   return (
@@ -387,7 +361,7 @@ function WeatherCell({
             description={current.weather?.description || null}
             inlineDescription={false}
             size="sm"
-            hawaiianMoon={state.data.moonPhaseLabel}
+            hawaiianMoon={weather.moonPhaseLabel}
             withTooltipProvider={false}
             showWeatherTooltip
           />
@@ -420,7 +394,7 @@ function WeatherCell({
                 description={current.weather?.description || null}
                 inlineDescription
                 size="md"
-                hawaiianMoon={state.data.moonPhaseLabel}
+                hawaiianMoon={weather.moonPhaseLabel}
                 withTooltipProvider={false}
               />
               <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">

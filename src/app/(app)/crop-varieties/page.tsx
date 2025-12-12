@@ -1,26 +1,12 @@
 import { CropVarietiesPageContent } from './_components/CropVarietiesPageContent';
-import { getCropVarieties } from './_actions';
-import { createSupabaseServerClient, type Tables } from '@/lib/supabase-server';
+import { getCropVarietyContext } from './_actions';
 
 export default async function PlantsPage() {
-  const { cropVarieties, error } = await getCropVarieties();
-  const supabase = await createSupabaseServerClient();
-  const { data: crops, error: cropsError } = await supabase
-    .from('crops')
-    .select('id, name, crop_type, created_at')
-    .returns<Array<Pick<Tables<'crops'>, 'id' | 'name' | 'crop_type' | 'created_at'>>>()
-    .order('name', { ascending: true });
+  const { cropVarieties, crops, prefs, error } = await getCropVarietyContext();
 
   if (error) {
     return <div className="text-red-500">Error loading crop varieties: {error}</div>;
   }
 
-  if (cropsError) {
-    return <div className="text-red-500">Error loading crops: {cropsError.message}</div>;
-  }
-
-  const typedCrops =
-    crops ?? ([] as Array<Pick<Tables<'crops'>, 'id' | 'name' | 'crop_type' | 'created_at'>>);
-
-  return <CropVarietiesPageContent cropVarieties={cropVarieties} crops={typedCrops} />;
+  return <CropVarietiesPageContent cropVarieties={cropVarieties} crops={crops} prefs={prefs} />;
 }

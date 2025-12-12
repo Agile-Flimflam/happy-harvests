@@ -38,7 +38,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod/dist/zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { CropVarietySchema, type CropVarietyFormValues } from '@/lib/validation/crop-varieties';
 import { Plus, X } from 'lucide-react';
 import {
@@ -61,6 +61,11 @@ interface CropVarietyFormProps {
   crops?: Crop[];
   closeDialog: () => void;
   formId?: string;
+  defaultCropId?: number | null;
+  defaultIsOrganic?: boolean;
+  onCreated?: (variety: CropVariety) => void;
+  onResultTelemetry?: (outcome: 'success' | 'error', code?: string) => void;
+  onSubmitTelemetry?: () => void;
 }
 
 /**
@@ -144,6 +149,11 @@ export function CropVarietyForm({
   crops = [],
   closeDialog,
   formId,
+  defaultCropId = null,
+  defaultIsOrganic = false,
+  onCreated,
+  onResultTelemetry,
+  onSubmitTelemetry,
 }: CropVarietyFormProps) {
   const isEditing = Boolean(cropVariety?.id);
   // Update action functions
@@ -156,8 +166,10 @@ export function CropVarietyForm({
   const [newCropType, setNewCropType] = useState<string>('');
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [removeExistingImage, setRemoveExistingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const mainFormRef = useRef<HTMLFormElement>(null);
   const inlineCropFormRef = useRef<HTMLFormElement>(null);
+  const imageInputId = formId ? `${formId}-image` : 'crop-variety-image';
 
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -177,7 +189,7 @@ export function CropVarietyForm({
   };
 
   const handleClearSelectedImage = () => {
-    const inputEl = document.getElementById('image') as HTMLInputElement | null;
+    const inputEl = imageInputRef.current;
     if (inputEl) {
       inputEl.value = '';
     }
@@ -187,12 +199,21 @@ export function CropVarietyForm({
     });
   };
 
+  // Revoke blob URLs on unmount to prevent leaks if dialog closes while previewing.
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl]);
+
   const defaultValues: Partial<CropVarietyFormValues> = {
     id: cropVariety?.id,
-    crop_id: cropVariety?.crop_id ?? undefined,
+    crop_id: cropVariety?.crop_id ?? defaultCropId ?? undefined,
     name: cropVariety?.name ?? '',
     latin_name: cropVariety?.latin_name ?? '',
-    is_organic: cropVariety?.is_organic ?? false,
+    is_organic: cropVariety?.is_organic ?? defaultIsOrganic ?? false,
     notes: cropVariety?.notes ?? '',
     dtm_direct_seed_min: cropVariety?.dtm_direct_seed_min ?? undefined,
     dtm_direct_seed_max: cropVariety?.dtm_direct_seed_max ?? undefined,
@@ -204,7 +225,7 @@ export function CropVarietyForm({
     row_spacing_max: cropVariety?.row_spacing_max ?? null,
   };
 
-  const formResolver = zodResolver<CropVarietyFormValues>(CropVarietySchema);
+  const formResolver = zodResolver(CropVarietySchema);
 
   const form = useForm<CropVarietyFormValues>({
     resolver: formResolver,
@@ -219,6 +240,7 @@ export function CropVarietyForm({
   useEffect(() => {
     if (state.message) {
       if (state.errors && Object.keys(state.errors).length > 0) {
+        onResultTelemetry?.('error', 'validation');
         // Set server errors on form fields
         const formFields = [
           'id',
@@ -247,12 +269,16 @@ export function CropVarietyForm({
         });
         toast.error(state.message);
       } else {
+        onResultTelemetry?.('success');
         // Success toast
         toast.success(state.message);
+        if (!isEditing && state.cropVariety && onCreated) {
+          onCreated(state.cropVariety);
+        }
         closeDialog(); // Close dialog on success
       }
     }
-  }, [state, closeDialog, form]);
+  }, [state, closeDialog, form, isEditing, onCreated, onResultTelemetry]);
 
   useEffect(() => {
     setCropsLocal(crops ?? []);
@@ -336,12 +362,14 @@ export function CropVarietyForm({
     if (values.row_spacing_max != null) {
       fd.append('row_spacing_max', String(values.row_spacing_max));
     }
-    const inputEl = document.getElementById('image') as HTMLInputElement | null;
-    if (inputEl && inputEl.files && inputEl.files[0]) {
-      fd.append('image', inputEl.files[0]);
+    const inputEl = imageInputRef.current;
+    const file = inputEl?.files?.[0];
+    if (file) {
+      fd.append('image', file);
     }
     fd.append('remove_image', removeExistingImage ? 'on' : 'off');
 
+    onSubmitTelemetry?.();
     startTransition(() => {
       dispatch(fd);
     });
@@ -483,6 +511,7 @@ export function CropVarietyForm({
                     variant="outline"
                     size="sm"
                     className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                    aria-label="Remove selected image"
                     onClick={handleClearSelectedImage}
                   >
                     <X className="h-4 w-4" />
@@ -503,6 +532,7 @@ export function CropVarietyForm({
                     variant="outline"
                     size="sm"
                     className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                    aria-label="Remove existing image"
                     onClick={() => {
                       setRemoveExistingImage(true);
                     }}
@@ -512,7 +542,7 @@ export function CropVarietyForm({
                 </div>
               )}
               <div className="flex-1">
-                <Label htmlFor="image" className="cursor-pointer block">
+                <Label htmlFor={imageInputId} className="cursor-pointer block">
                   <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg h-20 flex flex-col items-center justify-center text-center hover:border-muted-foreground/50 transition-colors">
                     <div className="mx-auto h-6 w-6 text-muted-foreground mb-1">
                       <svg
@@ -535,12 +565,13 @@ export function CropVarietyForm({
                   </div>
                 </Label>
                 <Input
-                  id="image"
+                  id={imageInputId}
                   name="image"
                   type="file"
                   accept="image/*"
                   className="sr-only"
                   onChange={handleImageChange}
+                  ref={imageInputRef}
                 />
               </div>
             </div>

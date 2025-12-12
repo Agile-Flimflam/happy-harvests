@@ -1,11 +1,11 @@
+'use server';
+
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { type NextRequest } from 'next/server';
 import type { Database } from './database.types'; // Adjust import path
-
-// Re-export types used in both server and client
-export type { Database };
-export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row'];
+export type Tables<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Row'];
 export type Enums<T extends keyof Database['public']['Enums']> = Database['public']['Enums'][T];
 
 // Server-side client (for use ONLY in Server Components and Server Actions)
@@ -25,9 +25,7 @@ export async function createSupabaseServerClient() {
       },
       setAll(cookiesToSet) {
         try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
           // We can ignore this when not in a browser context
         }
@@ -37,7 +35,7 @@ export async function createSupabaseServerClient() {
 }
 
 // Server client specifically for Route Handlers (uses NextRequest)
-export function createSupabaseRouteHandlerClient(req: NextRequest) {
+export async function createSupabaseRouteHandlerClient(req: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -46,14 +44,14 @@ export function createSupabaseRouteHandlerClient(req: NextRequest) {
   }
 
   return createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-          get(name: string) {
-              return req.cookies.get(name)?.value;
-          },
-          // Set and remove are handled manually in the route handler's response
-          set() {},
-          remove() {},
+    cookies: {
+      get(name: string) {
+        return req.cookies.get(name)?.value;
       },
+      // Set and remove are handled manually in the route handler's response
+      set() {},
+      remove() {},
+    },
   });
 }
 
@@ -61,7 +59,10 @@ export function createSupabaseRouteHandlerClient(req: NextRequest) {
 export async function getUserSession() {
   const supabase = await createSupabaseServerClient();
   try {
-    const { data: { session }, error } = await supabase.auth.getSession();
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
     if (error) {
       console.error('Error getting session:', error.message);
       return null;
@@ -77,7 +78,10 @@ export async function getUserSession() {
 export async function getUser() {
   const supabase = await createSupabaseServerClient();
   try {
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error) {
       console.error('Error getting user:', error.message);
       return null;
@@ -87,19 +91,18 @@ export async function getUser() {
     console.error('Error in getUser:', error);
     return null;
   }
-} 
+}
 
 // Fetch the current user's profile (SSR)
 export async function getUserProfile() {
   const supabase = await createSupabaseServerClient();
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
     if (userError || !user) return null;
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
     if (error) {
       console.error('Error getting profile:', error.message);
       return null;
@@ -115,7 +118,10 @@ export async function getUserProfile() {
 export async function getUserAndProfile() {
   const supabase = await createSupabaseServerClient();
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
     if (userError || !user) return { user: null, profile: null };
     const { data: profile, error } = await supabase
       .from('profiles')

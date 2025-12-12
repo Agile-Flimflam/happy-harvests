@@ -1,13 +1,15 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as core from '@actions/core';
 import {
-  initGeminiClient,
+  extractTextFromResponse,
+  getServiceAccountEmail,
+  initVertexModel,
   initGitHubClient,
   getPRContext,
   getPRDiff,
   ensureCombinedPromptLength,
   prepareForPrompt,
 } from './utils';
+import type { GenerativeModel } from '@google-cloud/vertexai';
 
 // Upper bound on diff size sent to Gemini to avoid exceeding model/context limits and
 // to keep the prompt small enough for fast, reliable responses in CI.
@@ -101,15 +103,13 @@ function truncateDiffAtFileBoundary(
 }
 
 async function generatePRDescription(
-  gemini: GoogleGenerativeAI,
+  model: GenerativeModel,
   title: string,
   currentDescription: string,
   diff: string,
   wasDiffTruncated: boolean,
   originalDiffLength: number
 ): Promise<string> {
-  const model = gemini.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
   const safeTitle: string = wrapPromptSection('title', title);
   const safeDescription: string =
     currentDescription && currentDescription.trim().length > 0
@@ -162,9 +162,15 @@ If the current description already contains substantial information, enhance it 
 Respond with ONLY the markdown description, no additional commentary.`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    const text = response.text();
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: prompt }],
+        },
+      ],
+    });
+    const text = extractTextFromResponse(result.response);
 
     // Clean up outer markdown code block if present, while preserving any internal code fences.
     const description: string = stripOuterCodeFence(text);
@@ -181,7 +187,12 @@ async function run(): Promise<void> {
   try {
     core.info('Starting PR description generation...');
 
-    const gemini = initGeminiClient();
+    const { model, projectId, location, modelId } = initVertexModel('gemini-3-pro-preview');
+    const serviceAccount = getServiceAccountEmail();
+    core.info(
+      `Using Vertex AI model ${modelId} in project ${projectId} (${location})` +
+        (serviceAccount ? ` via ${serviceAccount}` : '')
+    );
     const octokit = initGitHubClient();
     const prContext = getPRContext();
 
@@ -212,7 +223,7 @@ async function run(): Promise<void> {
 
     // Generate description
     const newDescription = await generatePRDescription(
-      gemini,
+      model,
       pr.title,
       pr.body || '',
       truncatedDiff,

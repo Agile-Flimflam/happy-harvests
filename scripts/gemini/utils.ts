@@ -1,4 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import {
+  type GenerateContentResponse,
+  type GenerativeModel,
+  type Part,
+  VertexAI,
+} from '@google-cloud/vertexai';
 import * as github from '@actions/github';
 import { Octokit } from '@octokit/rest';
 import * as fs from 'node:fs';
@@ -78,15 +83,73 @@ export function ensureCombinedPromptLength(
   }
 }
 
-/**
- * Initialize Gemini API client
- */
-export function initGeminiClient(): GoogleGenerativeAI {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey.trim() === '') {
-    throw new Error('GEMINI_API_KEY is required');
+function requireEnv(name: 'GCP_PROJECT_ID'): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} is required for Vertex AI authentication`);
   }
-  return new GoogleGenerativeAI(apiKey.trim());
+  return value;
+}
+
+function resolveLocation(): string {
+  const location = process.env.GCP_LOCATION?.trim();
+  // Publisher models (e.g., gemini-3-pro-preview) are served from the global location.
+  if (!location) return 'global';
+  return location;
+}
+
+function resolveModelId(): string {
+  const model = process.env.GEMINI_MODEL?.trim();
+  if (model) return model;
+  return 'gemini-3-pro-preview';
+}
+
+export interface VertexModelContext {
+  model: GenerativeModel;
+  projectId: string;
+  location: string;
+  modelId: string;
+}
+
+export function initVertexModel(modelName?: string): VertexModelContext {
+  const projectId = requireEnv('GCP_PROJECT_ID');
+  const location = resolveLocation();
+  const modelId = modelName?.trim() || resolveModelId();
+  const vertexAi = new VertexAI({ project: projectId, location });
+
+  return {
+    model: vertexAi.getGenerativeModel({ model: modelId }),
+    projectId,
+    location,
+    modelId,
+  };
+}
+
+function isTextPart(part: Part): part is Part & { text: string } {
+  return typeof (part as { text?: unknown }).text === 'string';
+}
+
+export function extractTextFromResponse(response: GenerateContentResponse): string {
+  const text = (response.candidates ?? [])
+    .flatMap((candidate) => candidate.content?.parts ?? [])
+    .filter(isTextPart)
+    .map((part) => part.text)
+    .join('')
+    .trim();
+
+  if (!text) {
+    throw new Error('Vertex AI response did not include text content');
+  }
+
+  return text;
+}
+
+export function getServiceAccountEmail(): string | null {
+  const email = process.env.GCP_SA_EMAIL?.trim();
+  if (!email || !email.includes('@')) {
+    return null;
+  }
+  return email;
 }
 
 /**
